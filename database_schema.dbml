@@ -1,0 +1,230 @@
+// Database Schema для "Учеба рядом"
+// Визуализация: https://dbdiagram.io/
+
+// ============================================
+// ОСНОВНЫЕ КОЛЛЕКЦИИ
+// ============================================
+
+Table users {
+  uid string [pk, note: 'Firebase Auth UID']
+  name string
+  email string [unique]
+  username string [unique]
+  birth_date timestamp
+  city string
+  role string [note: 'pupil | tutor']
+  bio text
+  avatar_url string
+  created_at timestamp
+}
+
+Table tutor_profiles {
+  uid string [pk, note: 'Document ID = user uid']
+  about text [note: 'Подробное описание профиля']
+  education string
+  experience_years int
+  subjects array [note: '["Математика", "Физика"]']
+
+  // Цены (в Firestore это map)
+  price_min float [note: 'Минимальная цена (авто из subject_prices)']
+  price_max float [note: 'Максимальная цена (авто из subject_prices)']
+  subject_prices_json json [note: 'Map: {"Математика": 1000, "Физика": 1200}']
+
+  is_online bool [default: false]
+  is_offline bool [default: false]
+  bank_account string
+
+  // Кешированные данные для производительности
+  rating float [note: 'Средний взвешенный рейтинг']
+  total_paid_lessons int [default: 0]
+  total_reviews int [default: 0]
+  last_paid_lesson_date timestamp
+  is_newcomer bool [default: true, note: 'Показывать бейдж 🆕']
+  last_rating_update timestamp
+
+  created_at timestamp
+}
+
+Table slots {
+  slot_id string [pk]
+  tutor_id string
+  date timestamp [note: 'Normalized to 00:00:00']
+  start_time string [note: 'Format: "09:00"']
+  end_time string [note: 'Format: "10:00"']
+  duration_minutes int [default: 60]
+
+  // Статус
+  status string [default: 'available', note: 'available | booked | completed | cancelled']
+  is_booked bool [default: false]
+
+  // Данные бронирования (заполняются при бронировании)
+  student_id string [null]
+  subject string [null, note: 'Выбранный предмет при бронировании']
+  price_per_hour float [null, note: 'Цена на момент брони']
+  paid_via_app bool [default: false]
+  payment_id string [null]
+
+  created_at timestamp
+  booked_at timestamp [null]
+  completed_at timestamp [null]
+}
+
+Table payments {
+  payment_id string [pk]
+  slot_id string [unique, note: 'Ссылка на оплаченный слот']
+  tutor_id string
+  pupil_id string
+  subject string
+  amount float
+  status string [default: 'completed', note: 'completed | cancelled']
+  payment_method string [default: 'mock_payment', note: 'Для диплома: имитация оплаты']
+
+  created_at timestamp
+  completed_at timestamp [null]
+
+  Note: '''
+  ЗАЧЕМ НУЖНА payments при имитации оплаты:
+  1. Связь "оплата → занятие → право на рейтинг"
+  2. История оплаченных занятий ученика
+  3. Подсчёт paid_lessons_count (вес отзыва)
+  4. Обновление total_paid_lessons репетитора
+  5. Проверка is_verified для отзывов
+
+  В реальном проекте сюда добавится:
+  - external_payment_id (ID из ЮKassa/Stripe)
+  - webhook_data (JSON от платёжного сервиса)
+  '''
+}
+
+Table reviews {
+  review_id string [pk]
+  tutor_id string
+  pupil_id string
+
+  rating int [null, note: '1-5 звёзд (только если is_verified)']
+  comment text
+  is_verified bool [default: false, note: 'true если есть оплаченное занятие']
+  paid_lessons_count int [default: 0, note: 'Вес отзыва']
+  lesson_date timestamp [note: 'Для фильтрации последних 6 месяцев']
+
+  created_at timestamp
+  updated_at timestamp
+
+  Indexes {
+    (tutor_id, lesson_date) [name: 'tutor_reviews_by_date']
+    (pupil_id, tutor_id) [unique, name: 'one_review_per_pupil']
+  }
+}
+
+Table chats {
+  chat_id string [pk, note: 'Format: pupil_uid_tutor_uid (sorted)']
+  pupil_id string
+  tutor_id string
+
+  // Метаданные последнего сообщения
+  last_message string
+  last_message_type string [note: 'text | image | audio']
+  last_sender_id string
+  last_timestamp timestamp
+
+  // Счётчики непрочитанных
+  unread_count_pupil int [default: 0]
+  unread_count_tutor int [default: 0]
+
+  created_at timestamp
+}
+
+Table messages {
+  message_id string [pk]
+  chat_id string [note: 'Родительский чат (subcollection в Firestore)']
+
+  sender_id string
+  sender_email string
+  receiver_id string
+
+  message text [note: 'Текст сообщения или URL файла']
+  type string [note: 'text | image | audio']
+  timestamp timestamp
+  is_read bool [default: false]
+
+  // Опциональные поля для файлов
+  file_name string [null]
+  file_size int [null, note: 'Размер в байтах']
+  duration int [null, note: 'Длительность аудио в секундах']
+}
+
+Table blocked_users {
+  id string [pk]
+  user_id string [note: 'Кто заблокировал']
+  blocked_user_id string [note: 'Кого заблокировали']
+  blocked_at timestamp
+}
+
+
+Table reports {
+  report_id string [pk]
+  reported_by string [note: 'UID пользователя']
+  message_id string
+  message_owner_id string
+  reason string
+  timestamp timestamp
+}
+
+// ============================================
+// ОПЦИОНАЛЬНЫЕ ФИЧИ (Приоритет 3)
+// ============================================
+
+Table posts {
+  post_id string [pk]
+  tutor_id string
+  title string
+  content text
+  image_url string [null]
+  created_at timestamp
+
+  Note: 'Опциональная фича: новости/методики репетитора'
+}
+
+// ============================================
+// СВЯЗИ (REFERENCES)
+// ============================================
+
+// Профиль репетитора расширяет пользователя
+Ref: tutor_profiles.uid - users.uid
+
+// Слоты принадлежат репетитору
+Ref: slots.tutor_id > users.uid
+
+// Бронирования связаны с учеником
+Ref: slots.student_id > users.uid
+
+// Платежи
+Ref: payments.slot_id - slots.slot_id
+Ref: payments.tutor_id > users.uid
+Ref: payments.pupil_id > users.uid
+Ref: slots.payment_id > payments.payment_id
+
+// Отзывы
+Ref: reviews.tutor_id > users.uid
+Ref: reviews.pupil_id > users.uid
+
+// Чаты
+Ref: chats.pupil_id > users.uid
+Ref: chats.tutor_id > users.uid
+
+// Сообщения (subcollection)
+Ref: messages.chat_id > chats.chat_id
+Ref: messages.sender_id > users.uid
+Ref: messages.receiver_id > users.uid
+
+// Блокировки
+Ref: blocked_users.user_id > users.uid
+Ref: blocked_users.blocked_user_id > users.uid
+
+// Жалобы
+Ref: reports.reported_by > users.uid
+Ref: reports.message_id > messages.message_id
+Ref: reports.message_owner_id > users.uid
+
+// Посты (опционально)
+Ref: posts.tutor_id > users.uid

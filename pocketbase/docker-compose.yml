@@ -1,0 +1,52 @@
+services:
+  pocketbase:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PB_VERSION: 0.22.0  # Update to latest version as needed
+    container_name: pocketbase
+    restart: unless-stopped
+    ports:
+      - "8090:8090"  # PocketBase API and Admin UI
+    volumes:
+      # Persistent data storage
+      - ./pb_data:/app/pb_data
+      # Optional: custom migrations
+      - ./pb_migrations:/app/pb_migrations
+    environment:
+      # Optional: set environment variables if needed
+      - TZ=Europe/Moscow
+    networks:
+      - pocketbase-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8090/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # Optional: Nginx reverse proxy for production
+  # Uncomment this section if you want HTTPS with Let's Encrypt
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: pocketbase-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - pocketbase
+  #   networks:
+  #     - pocketbase-network
+
+networks:
+  pocketbase-network:
+    driver: bridge
+
+volumes:
+  pb_data:
+    driver: local

@@ -1,0 +1,445 @@
+[
+  {
+    "id": "users",
+    "name": "users",
+    "type": "auth",
+    "system": false,
+    "schema": [
+      {
+        "id": "username",
+        "name": "username",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "unique": true,
+        "options": {
+          "min": 3,
+          "max": 50,
+          "pattern": ""
+        }
+      },
+      {
+        "id": "name",
+        "name": "name",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "min": 1,
+          "max": 100,
+          "pattern": ""
+        }
+      },
+      {
+        "id": "birthDate",
+        "name": "birthDate",
+        "type": "date",
+        "system": false,
+        "required": false,
+        "unique": false,
+        "options": {
+          "min": "",
+          "max": ""
+        }
+      },
+      {
+        "id": "city",
+        "name": "city",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "unique": false,
+        "options": {
+          "min": 0,
+          "max": 100,
+          "pattern": ""
+        }
+      },
+      {
+        "id": "role",
+        "name": "role",
+        "type": "select",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "student",
+            "tutor"
+          ]
+        }
+      },
+      {
+        "id": "bio",
+        "name": "bio",
+        "type": "text",
+        "system": false,
+        "required": false,
+        "unique": false,
+        "options": {
+          "min": 0,
+          "max": 500,
+          "pattern": ""
+        }
+      },
+      {
+        "id": "avatar",
+        "name": "avatar",
+        "type": "file",
+        "system": false,
+        "required": false,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "maxSize": 5242880,
+          "mimeTypes": [
+            "image/jpeg",
+            "image/png",
+            "image/gif",
+            "image/webp"
+          ],
+          "thumbs": [
+            "100x100",
+            "300x300"
+          ]
+        }
+      }
+    ],
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
+    "createRule": "",
+    "updateRule": "@request.auth.id = id",
+    "deleteRule": "@request.auth.id = id",
+    "options": {
+      "allowEmailAuth": true,
+      "allowOAuth2Auth": false,
+      "allowUsernameAuth": true,
+      "exceptEmailDomains": [],
+      "manageRule": null,
+      "minPasswordLength": 8,
+      "onlyEmailDomains": [],
+      "requireEmail": true
+    }
+  },
+  {
+    "id": "messages",
+    "name": "messages",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "chatRoomId",
+        "name": "chatRoomId",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "min": 1,
+          "max": 100,
+          "pattern": ""
+        }
+      },
+      {
+        "id": "senderId",
+        "name": "senderId",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "collectionId": "users",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": ["username", "name"]
+        }
+      },
+      {
+        "id": "senderEmail",
+        "name": "senderEmail",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "min": 0,
+          "max": 200,
+          "pattern": ""
+        }
+      },
+      {
+        "id": "receiverId",
+        "name": "receiverId",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "collectionId": "users",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": ["username", "name"]
+        }
+      },
+      {
+        "id": "message",
+        "name": "message",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "min": 0,
+          "max": 5000,
+          "pattern": ""
+        }
+      },
+      {
+        "id": "type",
+        "name": "type",
+        "type": "select",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "maxSelect": 1,
+          "values": [
+            "text",
+            "image",
+            "audio"
+          ]
+        }
+      },
+      {
+        "id": "isRead",
+        "name": "isRead",
+        "type": "bool",
+        "system": false,
+        "required": false,
+        "unique": false,
+        "options": {}
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_chatRoomId ON messages (chatRoomId)",
+      "CREATE INDEX idx_senderId ON messages (senderId)",
+      "CREATE INDEX idx_receiverId ON messages (receiverId)"
+    ],
+    "listRule": "senderId = @request.auth.id || receiverId = @request.auth.id",
+    "viewRule": "senderId = @request.auth.id || receiverId = @request.auth.id",
+    "createRule": "senderId = @request.auth.id",
+    "updateRule": "receiverId = @request.auth.id",
+    "deleteRule": "senderId = @request.auth.id"
+  },
+  {
+    "id": "slots",
+    "name": "slots",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "tutorId",
+        "name": "tutorId",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "collectionId": "users",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": ["username", "name"]
+        }
+      },
+      {
+        "id": "date",
+        "name": "date",
+        "type": "date",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "min": "",
+          "max": ""
+        }
+      },
+      {
+        "id": "startTime",
+        "name": "startTime",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "min": 5,
+          "max": 5,
+          "pattern": "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
+        }
+      },
+      {
+        "id": "endTime",
+        "name": "endTime",
+        "type": "text",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "min": 5,
+          "max": 5,
+          "pattern": "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
+        }
+      },
+      {
+        "id": "isBooked",
+        "name": "isBooked",
+        "type": "bool",
+        "system": false,
+        "required": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "isPaid",
+        "name": "isPaid",
+        "type": "bool",
+        "system": false,
+        "required": false,
+        "unique": false,
+        "options": {}
+      },
+      {
+        "id": "studentId",
+        "name": "studentId",
+        "type": "relation",
+        "system": false,
+        "required": false,
+        "unique": false,
+        "options": {
+          "collectionId": "users",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": ["username", "name"]
+        }
+      }
+    ],
+    "indexes": [
+      "CREATE INDEX idx_tutorId ON slots (tutorId)",
+      "CREATE INDEX idx_date ON slots (date)"
+    ],
+    "listRule": "@request.auth.id != \"\"",
+    "viewRule": "@request.auth.id != \"\"",
+    "createRule": "tutorId = @request.auth.id",
+    "updateRule": "tutorId = @request.auth.id || studentId = @request.auth.id",
+    "deleteRule": "tutorId = @request.auth.id"
+  },
+  {
+    "id": "blocked_users",
+    "name": "blocked_users",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "userId",
+        "name": "userId",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "collectionId": "users",
+          "cascadeDelete": true,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": ["username"]
+        }
+      },
+      {
+        "id": "blockedUserId",
+        "name": "blockedUserId",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "collectionId": "users",
+          "cascadeDelete": true,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": ["username"]
+        }
+      }
+    ],
+    "indexes": [
+      "CREATE UNIQUE INDEX idx_user_blocked ON blocked_users (userId, blockedUserId)"
+    ],
+    "listRule": "userId = @request.auth.id",
+    "viewRule": "userId = @request.auth.id",
+    "createRule": "userId = @request.auth.id",
+    "updateRule": null,
+    "deleteRule": "userId = @request.auth.id"
+  },
+  {
+    "id": "reports",
+    "name": "reports",
+    "type": "base",
+    "system": false,
+    "schema": [
+      {
+        "id": "reportedBy",
+        "name": "reportedBy",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "collectionId": "users",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": ["username"]
+        }
+      },
+      {
+        "id": "messageId",
+        "name": "messageId",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "collectionId": "messages",
+          "cascadeDelete": true,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": []
+        }
+      },
+      {
+        "id": "messageOwnerId",
+        "name": "messageOwnerId",
+        "type": "relation",
+        "system": false,
+        "required": true,
+        "unique": false,
+        "options": {
+          "collectionId": "users",
+          "cascadeDelete": false,
+          "minSelect": null,
+          "maxSelect": 1,
+          "displayFields": ["username"]
+        }
+      }
+    ],
+    "listRule": null,
+    "viewRule": null,
+    "createRule": "reportedBy = @request.auth.id",
+    "updateRule": null,
+    "deleteRule": null
+  }
+]

@@ -1,0 +1,35 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Docker files
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Documentation
+README.md
+*.md
+
+# Data files (will be mounted as volumes)
+pb_data/
+pb_migrations/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
