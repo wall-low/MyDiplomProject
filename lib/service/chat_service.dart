@@ -61,6 +61,10 @@ class ChatService extends ChangeNotifier {
       {};
   final Map<String, UnsubscribeFunc> _subscriptions = {};
 
+  /// НОВОЕ: Stream controller для списка чатов
+  StreamController<List<Chat>>? _chatsStreamController;
+  UnsubscribeFunc? _chatsSubscription;
+
   // ============================================================================
   // УПРАВЛЕНИЕ КЕШЕМ
   // ============================================================================
@@ -110,11 +114,15 @@ class ChatService extends ChangeNotifier {
     }
     _subscriptions.clear();
 
-    // Закрываем все stream controllers
+    // Закрываем все stream controllers для сообщений
     for (var controller in _messageStreamControllers.values) {
       controller.close();
     }
     _messageStreamControllers.clear();
+
+    // НОВОЕ: Отписываемся от чатов и закрываем контроллер
+    _chatsSubscription?.call();
+    _chatsStreamController?.close();
 
     super.dispose();
   }
@@ -353,13 +361,14 @@ class ChatService extends ChangeNotifier {
       ids.sort(); // ВАЖНО: сортировка для одинакового ID
       String chatRoomId = ids.join('_');
 
-      // Создаем объект сообщения
+      // Создаем объект сообщения с текущим временем
+      final messageTimestamp = DateTime.now();
       final newMessage = Message(
         senderID: currentUserId,
         senderEmail: currentUserEmail,
         receiverID: receiverID,
         message: message,
-        timestamp: DateTime.now(), // PocketBase использует DateTime, не Timestamp
+        timestamp: messageTimestamp, // PocketBase использует DateTime, не Timestamp
         type: type,
       );
 
@@ -395,6 +404,7 @@ class ChatService extends ChangeNotifier {
         lastMessage: message,
         lastMessageType: type,
         lastSenderId: currentUserId,
+        messageTimestamp: messageTimestamp, // ИСПРАВЛЕНО: передаем реальное время
       );
 
       // ✅ УЛУЧШЕНИЕ: Инвалидируем кеш чатов
@@ -420,12 +430,13 @@ class ChatService extends ChangeNotifier {
       ids.sort();
       String chatRoomId = ids.join('_');
 
+      final messageTimestamp = DateTime.now();
       final msg = Message(
         senderID: currentUserId,
         senderEmail: currentUserEmail,
         receiverID: receiverId,
         message: imageUrl, // URL изображения
-        timestamp: DateTime.now(),
+        timestamp: messageTimestamp,
         type: 'image',
       );
 
@@ -447,6 +458,7 @@ class ChatService extends ChangeNotifier {
         lastMessage: '📷 Фото', // Превью для изображения
         lastMessageType: 'image',
         lastSenderId: currentUserId,
+        messageTimestamp: messageTimestamp, // ИСПРАВЛЕНО: передаем реальное время
       );
 
       // ✅ УЛУЧШЕНИЕ: Инвалидируем кеш чатов
@@ -472,12 +484,13 @@ class ChatService extends ChangeNotifier {
       ids.sort();
       String chatRoomId = ids.join('_');
 
+      final messageTimestamp = DateTime.now();
       final msg = Message(
         senderID: currentUserId,
         senderEmail: currentUserEmail,
         receiverID: receiverId,
         message: audioUrl, // URL аудио
-        timestamp: DateTime.now(),
+        timestamp: messageTimestamp,
         type: 'audio',
       );
 
@@ -499,6 +512,7 @@ class ChatService extends ChangeNotifier {
         lastMessage: '🎵 Аудио', // Превью для аудио
         lastMessageType: 'audio',
         lastSenderId: currentUserId,
+        messageTimestamp: messageTimestamp, // ИСПРАВЛЕНО: передаем реальное время
       );
 
       // ✅ УЛУЧШЕНИЕ: Инвалидируем кеш чатов
@@ -967,6 +981,7 @@ class ChatService extends ChangeNotifier {
     required String lastMessage,
     required String lastMessageType,
     required String lastSenderId,
+    required DateTime messageTimestamp, // НОВОЕ: реальное время сообщения
   }) async {
     try {
       print('[ChatService] 🔍 Проверка существования чата: $chatRoomId');
@@ -1005,7 +1020,7 @@ class ChatService extends ChangeNotifier {
             'lastMessage': lastMessage,
             'lastMessageType': lastMessageType,
             'lastSenderId': lastSenderId,
-            'lastTimestamp': DateTime.now().toIso8601String(),
+            'lastTimestamp': messageTimestamp.toIso8601String(), // ИСПРАВЛЕНО: используем реальное время
             'unreadCountUser1': unreadUser1,
             'unreadCountUser2': unreadUser2,
           },
@@ -1026,7 +1041,7 @@ class ChatService extends ChangeNotifier {
           'lastMessage': lastMessage,
           'lastMessageType': lastMessageType,
           'lastSenderId': lastSenderId,
-          'lastTimestamp': DateTime.now().toIso8601String(),
+          'lastTimestamp': messageTimestamp.toIso8601String(), // ИСПРАВЛЕНО: используем реальное время
           // Счётчик для получателя = 1, для отправителя = 0
           'unreadCountUser1': receiverId == user1Id ? 1 : 0,
           'unreadCountUser2': receiverId == user2Id ? 1 : 0,
@@ -1082,6 +1097,117 @@ class ChatService extends ChangeNotifier {
       print('[ChatService] Ошибка получения чатов из метаданных: $e');
       return [];
     }
+  }
+
+  /// ✨ НОВЫЙ МЕТОД: Получить список чатов в реальном времени (realtime)
+  ///
+  /// ПРЕИМУЩЕСТВА:
+  /// ✅ Автоматическое обновление при новых сообщениях БЕЗ мерцания экрана
+  /// ✅ WebSocket подключение (эффективнее чем polling)
+  /// ✅ Stream реактивный поток
+  /// ✅ Нет необходимости в Timer.periodic
+  ///
+  /// ИСПОЛЬЗОВАНИЕ:
+  /// ```dart
+  /// final stream = chatService.getChatsStream();
+  /// StreamBuilder(
+  ///   stream: stream,
+  ///   builder: (context, snapshot) { ... }
+  /// );
+  /// ```
+  ///
+  /// ВАЖНО: Вызвать unsubscribeFromChats() при dispose виджета!
+  Stream<List<Chat>> getChatsStream() {
+    final currentUserId = Auth().getCurrentUid();
+
+    // Проверяем существует ли уже stream
+    if (_chatsStreamController != null && !_chatsStreamController!.isClosed) {
+      print('[ChatService] Используется существующий stream для списка чатов');
+      return _chatsStreamController!.stream;
+    }
+
+    // Создаём новый StreamController
+    _chatsStreamController = StreamController<List<Chat>>.broadcast();
+
+    print('[ChatService] Создан новый realtime stream для списка чатов');
+
+    // Загружаем начальные чаты
+    _loadInitialChats(currentUserId);
+
+    // Подписываемся на realtime обновления (асинхронно)
+    _subscribeToChats(currentUserId);
+
+    return _chatsStreamController!.stream;
+  }
+
+  /// Подписка на realtime обновления списка чатов
+  Future<void> _subscribeToChats(String currentUserId) async {
+    try {
+      _chatsSubscription = await _pb.collection('chats').subscribe(
+        '*', // Слушаем все события
+        (e) {
+          print(
+              '[ChatService] Realtime событие для чатов: ${e.action} для записи ${e.record?.id}');
+
+          // Проверяем принадлежность чата текущему пользователю
+          if (e.record != null) {
+            final user1Id = e.record!.data['user1Id'] as String?;
+            final user2Id = e.record!.data['user2Id'] as String?;
+
+            if (user1Id == currentUserId || user2Id == currentUserId) {
+              // Перезагружаем список чатов при изменении
+              _loadInitialChats(currentUserId);
+            }
+          }
+        },
+        filter: 'user1Id="$currentUserId" || user2Id="$currentUserId"',
+      );
+
+      print('[ChatService] Подписка на realtime чатов создана');
+    } catch (e) {
+      print('[ChatService] Ошибка подписки на realtime чатов: $e');
+      if (_chatsStreamController != null && !_chatsStreamController!.isClosed) {
+        _chatsStreamController!.addError(e);
+      }
+    }
+  }
+
+  /// Загрузить начальный список чатов и отправить в stream
+  Future<void> _loadInitialChats(String currentUserId) async {
+    try {
+      final result = await _pb.collection('chats').getList(
+            filter: 'user1Id="$currentUserId" || user2Id="$currentUserId"',
+            sort: '-lastTimestamp', // Новые первыми
+            perPage: 100,
+          );
+
+      final chats =
+          result.items.map((record) => Chat.fromRecord(record)).toList();
+
+      if (_chatsStreamController != null && !_chatsStreamController!.isClosed) {
+        _chatsStreamController!.add(chats);
+      }
+    } catch (e) {
+      print('[ChatService] Ошибка загрузки начального списка чатов: $e');
+      if (_chatsStreamController != null && !_chatsStreamController!.isClosed) {
+        _chatsStreamController!.addError(e);
+      }
+    }
+  }
+
+  /// Отписаться от realtime обновлений списка чатов
+  ///
+  /// ВАЖНО: Вызывать при dispose() виджета HomePage!
+  void unsubscribeFromChats() {
+    // Отписываемся от PocketBase
+    _chatsSubscription?.call();
+    _chatsSubscription = null;
+    print('[ChatService] Отписка от realtime чатов');
+
+    // Закрываем stream controller
+    _chatsStreamController?.close();
+    _chatsStreamController = null;
+    print('[ChatService] Stream controller для чатов закрыт');
   }
 
   /// Сбросить счётчик непрочитанных для текущего пользователя

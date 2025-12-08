@@ -47,6 +47,40 @@ post_install do |installer|
         '$(inherited)',
         'PERMISSION_MICROPHONE=1'   # ← разрешение на микрофон
       ]
+
+      # НОВОЕ: Исправление для C++ библиотек (flutter_sound требует libc++)
+      # После удаления Firebase нужна явная линковка с C++ runtime
+      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+      config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
+
+      # КРИТИЧНО: Добавляем флаг линкера ТОЛЬКО если его еще нет
+      ldflags = config.build_settings['OTHER_LDFLAGS'] || ['$(inherited)']
+      ldflags = Array(ldflags) # Преобразуем в массив если это строка
+      unless ldflags.include?('-lc++')
+        ldflags << '-lc++'
+        config.build_settings['OTHER_LDFLAGS'] = ldflags
+      end
+
+      # Исправление для совместимости с iOS 13+
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
+    end
+  end
+
+  # КРИТИЧНО: Применяем настройки C++ к самому Runner проекту
+  project = installer.aggregate_targets[0].user_project
+  project.targets.each do |target|
+    if target.name == 'Runner'
+      target.build_configurations.each do |config|
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+        config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
+
+        ldflags = config.build_settings['OTHER_LDFLAGS'] || ['$(inherited)']
+        ldflags = Array(ldflags)
+        unless ldflags.include?('-lc++')
+          ldflags << '-lc++'
+          config.build_settings['OTHER_LDFLAGS'] = ldflags
+        end
+      end
     end
   end
 end

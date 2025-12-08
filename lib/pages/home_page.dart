@@ -9,7 +9,8 @@ import 'package:p7/service/databases.dart';
 import 'chat_page.dart';
 
 // УДАЛЕНО: import 'package:cloud_firestore/cloud_firestore.dart';
-// Мигрировали на PocketBase, используем Future вместо Stream
+// УДАЛЕНО: import 'dart:async' и Timer - больше не нужны!
+// Мигрировали на PocketBase с realtime подписками через WebSocket
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -22,24 +23,21 @@ class _HomePageState extends State<HomePage> {
   final ChatService _chatService = ChatService();
   final Auth _auth = Auth();
 
-  // Ключ для обновления FutureBuilder
-  int _refreshKey = 0;
-
   String getCurrentUser(){
     return _auth.getCurrentUid();
-  }
-
-  void _refreshChats() {
-    setState(() {
-      _refreshKey++; // Изменение ключа заставит FutureBuilder перезагрузиться
-    });
   }
 
   @override
   void initState() {
     super.initState();
-    // Обновляем список при каждом открытии страницы
-    _refreshChats();
+    // Никаких дополнительных действий - Stream подключится автоматически
+  }
+
+  @override
+  void dispose() {
+    // НОВОЕ: Отписываемся от realtime подписок
+    _chatService.unsubscribeFromChats();
+    super.dispose();
   }
 
   @override
@@ -57,17 +55,18 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildUserList(){
-    // НОВОЕ: Используем getUserChatsFromMetadata() (БЫСТРО!)
+    // НОВОЕ: Используем getChatsStream() с REALTIME подписками!
     //
     // ПРЕИМУЩЕСТВА:
     // ✅ 1 запрос вместо группировки сотен messages
     // ✅ Встроенные счётчики непрочитанных
     // ✅ Уже отсортировано по lastTimestamp
+    // ✅ Автоматическое обновление через WebSocket БЕЗ мерцания экрана
+    // ✅ Мгновенная реакция на новые сообщения
     //
-    // Используем _refreshKey для автоматического обновления
-    return FutureBuilder<List<Chat>>(
-        key: ValueKey(_refreshKey), // При изменении ключа FutureBuilder перезагрузится
-        future: _chatService.getUserChatsFromMetadata(),
+    // Realtime подписки работают аналогично ChatPage
+    return StreamBuilder<List<Chat>>(
+        stream: _chatService.getChatsStream(), // Realtime stream вместо Future
         builder: (context, snapshot){
 
           if (snapshot.hasError){
@@ -85,14 +84,8 @@ class _HomePageState extends State<HomePage> {
           final chats = snapshot.data ?? [];
 
           if (chats.isEmpty) {
-            // Пустой список - добавляем RefreshIndicator для обновления
-            return RefreshIndicator(
-              onRefresh: () async {
-                _refreshChats();
-                // Ждём немного чтобы анимация завершилась
-                await Future.delayed(Duration(milliseconds: 500));
-              },
-              child: SingleChildScrollView(
+            // Пустой список - убираем RefreshIndicator (не нужен с realtime!)
+            return SingleChildScrollView(
                 physics: AlwaysScrollableScrollPhysics(),
                 child: Container(
                   height: MediaQuery.of(context).size.height - 200,
@@ -121,35 +114,19 @@ class _HomePageState extends State<HomePage> {
                             fontSize: 14,
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        Text(
-                          '⬇️ Потяните вниз для обновления',
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
-                            fontSize: 12,
-                          ),
-                        ),
                       ],
                     ),
                   ),
                 ),
-              ),
-            );
+              );
           }
 
-          // Список чатов - оборачиваем в RefreshIndicator
-          return RefreshIndicator(
-            onRefresh: () async {
-              _refreshChats();
-              // Ждём немного чтобы анимация завершилась
-              await Future.delayed(Duration(milliseconds: 500));
+          // Список чатов - убираем RefreshIndicator, realtime обновляется автоматически!
+          return ListView.builder(
+            itemCount: chats.length,
+            itemBuilder: (context, index) {
+              return _buildChatListItem(chats[index], context);
             },
-            child: ListView.builder(
-              itemCount: chats.length,
-              itemBuilder: (context, index) {
-                return _buildChatListItem(chats[index], context);
-              },
-            ),
           );
         },
     );
@@ -182,7 +159,7 @@ class _HomePageState extends State<HomePage> {
         final otherUser = userSnapshot.data!;
 
         return UserTile(
-          text: otherUser.username,
+          text: otherUser.name, // ИСПРАВЛЕНО: используем name вместо username
           avatarUrl: otherUser.avatarUrl,
           lastMessage: chat.getLastMessagePreview(),
           lastMessageTime: chat.lastTimestamp,
@@ -199,8 +176,7 @@ class _HomePageState extends State<HomePage> {
               ),
             );
 
-            // После возврата из чата - обновляем список
-            _refreshChats();
+            // УДАЛЕНО: _refreshChats() - больше не нужен, realtime обновится автоматически!
           },
         );
       },

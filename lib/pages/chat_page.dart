@@ -112,6 +112,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     _cancelledUploads.addAll(_uploadingFiles.keys);
     _uploadingFiles.clear();
 
+    // НОВОЕ: Отписываемся от realtime подписок
+    _chatService.unsubscribeFromMessages(_auth.getCurrentUid(), widget.receiverID);
+
     WidgetsBinding.instance.removeObserver(this);
     _focusNode.dispose();
     _controller.dispose();
@@ -514,12 +517,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
             color: Theme.of(context).colorScheme.primaryContainer,
           ),
           Expanded(
-            // ИЗМЕНЕНО: StreamBuilder<QuerySnapshot> → FutureBuilder<List<Message>>
-            // ИЗМЕНЕНО: getMessage() → getMessages()
+            // ИЗМЕНЕНО: FutureBuilder → StreamBuilder с realtime подписками
+            // ИЗМЕНЕНО: getMessages() → getMessagesStream()
             //
-            // PocketBase использует Future вместо Stream
-            child: FutureBuilder<List<Message>>(
-              future: _chatService.getMessages(myId, widget.receiverID),
+            // Используем realtime subscriptions через PocketBase subscribe()
+            // Сообщения обновляются автоматически при изменениях в БД
+            child: StreamBuilder<List<Message>>(
+              stream: _chatService.getMessagesStream(myId, widget.receiverID),
               builder: (ctx, snap) {
                 if (snap.hasError) {
                   return Center(
