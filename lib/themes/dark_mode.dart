@@ -1,4 +1,6 @@
-import 'package:flutter/material.dart';/// Тёмная тема в том же ключе
+import 'package:flutter/material.dart';
+
+/// Тёмная тема в том же ключе
 final ThemeData darkMode = ThemeData(
   brightness: Brightness.dark,
   colorScheme: const ColorScheme(
@@ -7,15 +9,15 @@ final ThemeData darkMode = ThemeData(
     surface: Color(0xFF1C1C1E),
 
     primary: Color(0xFF5BA4F5),      // светлее синий для dark mode
-    onPrimary: Colors.black,
+    onPrimary: Colors.white,         // ✅ Белый текст на синем (хорошая контрастность)
 
     secondary: Color(0xFF8E8E93),
-    onSecondary: Colors.black,
+    onSecondary: Colors.white,       // ✅ Белый текст на сером
     tertiary: Color(0xFF636366),
     onTertiary: Colors.white,
 
     error: Color(0xFFFF453A),
-    onError: Colors.black,
+    onError: Colors.white,           // ✅ Белый текст на красном
 
     onSurface: Colors.white,
 

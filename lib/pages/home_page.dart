@@ -1,6 +1,5 @@
 // lib/pages/home_page.dart
 import 'package:flutter/material.dart';
-import 'package:p7/components/my_drawer.dart';
 import 'package:p7/components/user_tile.dart';
 import 'package:p7/models/chat.dart';
 import 'package:p7/service/auth.dart';
@@ -44,10 +43,9 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
-      drawer: MyDrawer(),
       appBar: AppBar(
         centerTitle: true,
-        title: Text("C H A T S"),
+        title: Text("Ч А Т Ы"),
         foregroundColor: Theme.of(context).colorScheme.primary,
       ),
       body: _buildUserList(),

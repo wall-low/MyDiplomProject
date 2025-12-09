@@ -14,23 +14,23 @@ class BlockedUserPage extends StatelessWidget {
     showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text("Unblock User",style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-          content: Text("Are you sure you want to unblock this user",style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+          title: Text("Разблокировать пользователя",style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+          content: Text("Вы уверены, что хотите разблокировать этого пользователя?",style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text("Cancel",style: TextStyle(color: Theme.of(context).colorScheme.primary)
+                child: Text("Отмена",style: TextStyle(color: Theme.of(context).colorScheme.primary)
             ),
             ),
             TextButton(
                 onPressed: () {
                   _service.unblockUser(userID);
                   Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("User unblock!",style: TextStyle(color: Theme.of(context).colorScheme.onSurface))
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Пользователь разблокирован!",style: TextStyle(color: Theme.of(context).colorScheme.onSurface))
                   ));
 
                   },
-                child: Text("Save",style: TextStyle(color: Theme.of(context).colorScheme.primary)
+                child: Text("Разблокировать",style: TextStyle(color: Theme.of(context).colorScheme.primary)
                 ),
 
             ),
@@ -49,7 +49,7 @@ class BlockedUserPage extends StatelessWidget {
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         centerTitle: true,
-        title: Text("BLOCKED USERS", style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+        title: Text("З А Б Л О К И Р О В А Н Н Ы Е", style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         actions: [],
       ),
       // ИЗМЕНЕНО: StreamBuilder → FutureBuilder

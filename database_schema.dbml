@@ -1,230 +1,259 @@
 // Database Schema для "Учеба рядом"
+// Backend: PocketBase (SQLite)
 // Визуализация: https://dbdiagram.io/
 
 // ============================================
-// ОСНОВНЫЕ КОЛЛЕКЦИИ
+// ТЕКУЩИЕ КОЛЛЕКЦИИ (Реально существующие)
 // ============================================
 
 Table users {
-  uid string [pk, note: 'Firebase Auth UID']
-  name string
-  email string [unique]
-  username string [unique]
-  birth_date timestamp
-  city string
-  role string [note: 'pupil | tutor']
-  bio text
-  avatar_url string
-  created_at timestamp
-}
+  id text [pk, note: 'PocketBase Auth Collection ID']
+  email text [unique, note: 'Email для авторизации (system field)']
+  username text [unique, note: 'Уникальное имя пользователя (min:3, max:50)']
+  name text [note: 'Полное имя (required, max:100)']
+  birthDate text [note: 'Дата рождения (date field)']
+  city text [note: 'Город проживания (max:100)']
+  role text [note: '"student" | "tutor" (select field)']
+  bio text [note: 'О себе (max:500)']
+  avatar text [note: 'Имя файла аватара (file field: jpg/png/gif/webp, max:5MB, thumbs:100x100,300x300)']
 
-Table tutor_profiles {
-  uid string [pk, note: 'Document ID = user uid']
-  about text [note: 'Подробное описание профиля']
-  education string
-  experience_years int
-  subjects array [note: '["Математика", "Физика"]']
-
-  // Цены (в Firestore это map)
-  price_min float [note: 'Минимальная цена (авто из subject_prices)']
-  price_max float [note: 'Максимальная цена (авто из subject_prices)']
-  subject_prices_json json [note: 'Map: {"Математика": 1000, "Физика": 1200}']
-
-  is_online bool [default: false]
-  is_offline bool [default: false]
-  bank_account string
-
-  // Кешированные данные для производительности
-  rating float [note: 'Средний взвешенный рейтинг']
-  total_paid_lessons int [default: 0]
-  total_reviews int [default: 0]
-  last_paid_lesson_date timestamp
-  is_newcomer bool [default: true, note: 'Показывать бейдж 🆕']
-  last_rating_update timestamp
-
-  created_at timestamp
-}
-
-Table slots {
-  slot_id string [pk]
-  tutor_id string
-  date timestamp [note: 'Normalized to 00:00:00']
-  start_time string [note: 'Format: "09:00"']
-  end_time string [note: 'Format: "10:00"']
-  duration_minutes int [default: 60]
-
-  // Статус
-  status string [default: 'available', note: 'available | booked | completed | cancelled']
-  is_booked bool [default: false]
-
-  // Данные бронирования (заполняются при бронировании)
-  student_id string [null]
-  subject string [null, note: 'Выбранный предмет при бронировании']
-  price_per_hour float [null, note: 'Цена на момент брони']
-  paid_via_app bool [default: false]
-  payment_id string [null]
-
-  created_at timestamp
-  booked_at timestamp [null]
-  completed_at timestamp [null]
-}
-
-Table payments {
-  payment_id string [pk]
-  slot_id string [unique, note: 'Ссылка на оплаченный слот']
-  tutor_id string
-  pupil_id string
-  subject string
-  amount float
-  status string [default: 'completed', note: 'completed | cancelled']
-  payment_method string [default: 'mock_payment', note: 'Для диплома: имитация оплаты']
-
-  created_at timestamp
-  completed_at timestamp [null]
+  created text [note: 'Auto-generated timestamp']
+  updated text [note: 'Auto-generated timestamp']
 
   Note: '''
-  ЗАЧЕМ НУЖНА payments при имитации оплаты:
-  1. Связь "оплата → занятие → право на рейтинг"
-  2. История оплаченных занятий ученика
-  3. Подсчёт paid_lessons_count (вес отзыва)
-  4. Обновление total_paid_lessons репетитора
-  5. Проверка is_verified для отзывов
-
-  В реальном проекте сюда добавится:
-  - external_payment_id (ID из ЮKassa/Stripe)
-  - webhook_data (JSON от платёжного сервиса)
+  Auth Collection - встроенная авторизация PocketBase
+  Пароль хеширован автоматически (bcrypt)
+  allowEmailAuth: true, minPasswordLength: 8
   '''
 }
 
-Table reviews {
-  review_id string [pk]
-  tutor_id string
-  pupil_id string
+Table messages {
+  id text [pk]
+  chatRoomId text [note: 'Format: "uid1_uid2" (min:1, max:100)']
+  senderId text [note: 'Relation → users.id']
+  senderEmail text [note: 'Email отправителя (max:200)']
+  receiverId text [note: 'Relation → users.id']
 
-  rating int [null, note: '1-5 звёзд (только если is_verified)']
-  comment text
-  is_verified bool [default: false, note: 'true если есть оплаченное занятие']
-  paid_lessons_count int [default: 0, note: 'Вес отзыва']
-  lesson_date timestamp [note: 'Для фильтрации последних 6 месяцев']
+  message text [note: 'Текст сообщения или URL файла (max:5000)']
+  type text [note: '"text" | "image" | "audio" (select field)']
+  isRead text [note: 'Boolean field (default: false)']
 
-  created_at timestamp
-  updated_at timestamp
+  created text [note: 'Время отправки (auto)']
 
   Indexes {
-    (tutor_id, lesson_date) [name: 'tutor_reviews_by_date']
-    (pupil_id, tutor_id) [unique, name: 'one_review_per_pupil']
+    chatRoomId [name: 'idx_chatRoomId']
+    senderId [name: 'idx_senderId']
+    receiverId [name: 'idx_receiverId']
   }
+
+  Note: '''
+  Базовая коллекция сообщений
+  Файлы (изображения/аудио) пока хранятся как URL в поле message
+  '''
 }
 
-Table chats {
-  chat_id string [pk, note: 'Format: pupil_uid_tutor_uid (sorted)']
-  pupil_id string
-  tutor_id string
+Table slots {
+  id text [pk]
+  tutorId text [note: 'Relation → users.id']
+  date text [note: 'Date field, normalized to 00:00:00']
+  startTime text [note: 'Format: "HH:MM" (pattern: ^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$)']
+  endTime text [note: 'Format: "HH:MM" (pattern: ^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$)']
 
-  // Метаданные последнего сообщения
-  last_message string
-  last_message_type string [note: 'text | image | audio']
-  last_sender_id string
-  last_timestamp timestamp
+  isBooked text [note: 'Boolean field (default: false)']
+  isPaid text [note: 'Boolean field (default: false)']
 
-  // Счётчики непрочитанных
-  unread_count_pupil int [default: 0]
-  unread_count_tutor int [default: 0]
+  studentId text [null, note: 'Relation → users.id (optional)']
 
-  created_at timestamp
-}
+  created text
+  updated text
 
-Table messages {
-  message_id string [pk]
-  chat_id string [note: 'Родительский чат (subcollection в Firestore)']
+  Indexes {
+    tutorId [name: 'idx_tutorId']
+    date [name: 'idx_date']
+  }
 
-  sender_id string
-  sender_email string
-  receiver_id string
-
-  message text [note: 'Текст сообщения или URL файла']
-  type string [note: 'text | image | audio']
-  timestamp timestamp
-  is_read bool [default: false]
-
-  // Опциональные поля для файлов
-  file_name string [null]
-  file_size int [null, note: 'Размер в байтах']
-  duration int [null, note: 'Длительность аудио в секундах']
+  Note: 'Временные слоты репетиторов'
 }
 
 Table blocked_users {
-  id string [pk]
-  user_id string [note: 'Кто заблокировал']
-  blocked_user_id string [note: 'Кого заблокировали']
-  blocked_at timestamp
-}
+  id text [pk]
+  userId text [note: 'Relation → users.id (cascade delete)']
+  blockedUserId text [note: 'Relation → users.id (cascade delete)']
 
+  created text
+
+  Indexes {
+    (userId, blockedUserId) [unique, name: 'idx_user_blocked']
+  }
+
+  Note: 'Заблокированные пользователи'
+}
 
 Table reports {
-  report_id string [pk]
-  reported_by string [note: 'UID пользователя']
-  message_id string
-  message_owner_id string
-  reason string
-  timestamp timestamp
+  id text [pk]
+  reportedBy text [note: 'Relation → users.id']
+  messageId text [note: 'Relation → messages.id (cascade delete)']
+  messageOwnerId text [note: 'Relation → users.id']
+
+  created text
+
+  Note: 'Жалобы на сообщения в чатах'
+}
+
+Table chats {
+  id text [pk]
+  chatRoomId text [unique, note: 'Format: "uid1_uid2" (alphabetically sorted)']
+  user1Id text [note: 'Relation → users.id']
+  user2Id text [note: 'Relation → users.id']
+
+  lastMessage text [null, note: 'Текст последнего сообщения (макс 500)']
+  lastMessageType text [note: '"text" | "image" | "audio"']
+  lastSenderId text [note: 'Relation → users.id']
+  lastTimestamp text [note: 'Время последнего сообщения']
+
+  unreadCountUser1 integer [default: 0]
+  unreadCountUser2 integer [default: 0]
+
+  created text
+  updated text
+
+  Note: '''
+  Метаданные чатов для быстрого списка (Two-Table Pattern)
+
+  РЕШЕНИЕ: Две таблицы вместо subcollections
+  - chats: метаданные (список чатов на HomePage)
+  - messages: все сообщения (история в ChatPage)
+
+  Автообновляется через _createOrUpdateChatRoom() после каждой отправки
+  '''
 }
 
 // ============================================
-// ОПЦИОНАЛЬНЫЕ ФИЧИ (Приоритет 3)
+// ПЛАНИРУЕМЫЕ КОЛЛЕКЦИИ (Для диплома)
 // ============================================
 
-Table posts {
-  post_id string [pk]
-  tutor_id string
-  title string
-  content text
-  image_url string [null]
-  created_at timestamp
+Table tutor_profiles {
+  id text [pk]
+  userId text [unique, note: 'Relation → users.id']
+  subjects text [note: 'JSON массив: ["Математика", "Физика"]']
+  priceMin real [note: 'Минимальная цена за час']
+  priceMax real [note: 'Максимальная цена за час']
+  experience integer [note: 'Опыт работы в годах']
+  education text [note: 'Образование']
+  lessonFormat text [note: 'JSON: ["online", "offline", "both"]']
 
-  Note: 'Опциональная фича: новости/методики репетитора'
+  rating real [default: 0, note: 'Средний взвешенный рейтинг']
+  totalPaidLessons integer [default: 0]
+  lastPaidLessonDate text [null]
+  isNewbie integer [default: 1, note: 'Boolean: показывать бейдж 🆕']
+
+  created text
+  updated text
+
+  Note: '⚠️ ПОКА НЕ СОЗДАНА - Расширенные данные репетиторов'
+}
+
+Table payments {
+  id text [pk]
+  studentId text [note: 'Relation → users.id']
+  tutorId text [note: 'Relation → users.id']
+  slotId text [note: 'Relation → slots.id']
+  amount real [note: 'Сумма оплаты']
+  status text [default: 'pending', note: '"pending" | "completed" | "failed"']
+
+  created text
+
+  Note: '⚠️ ПОКА НЕ СОЗДАНА - Имитация оплаты для диплома'
+}
+
+Table reviews {
+  id text [pk]
+  tutorId text [note: 'Relation → users.id']
+  studentId text [note: 'Relation → users.id']
+  rating integer [note: '1-5 звёзд (только если isVerified)']
+  comment text [null]
+  isVerified integer [note: 'Boolean: true если оплаченное занятие']
+  lessonId text [null, note: 'Relation → slots.id']
+  weight integer [note: 'Вес отзыва = кол-во занятий']
+
+  created text
+
+  Note: '⚠️ ПОКА НЕ СОЗДАНА - Система отзывов'
 }
 
 // ============================================
 // СВЯЗИ (REFERENCES)
 // ============================================
 
-// Профиль репетитора расширяет пользователя
-Ref: tutor_profiles.uid - users.uid
+// Слоты
+Ref: slots.tutorId > users.id
+Ref: slots.studentId > users.id
 
-// Слоты принадлежат репетитору
-Ref: slots.tutor_id > users.uid
-
-// Бронирования связаны с учеником
-Ref: slots.student_id > users.uid
-
-// Платежи
-Ref: payments.slot_id - slots.slot_id
-Ref: payments.tutor_id > users.uid
-Ref: payments.pupil_id > users.uid
-Ref: slots.payment_id > payments.payment_id
-
-// Отзывы
-Ref: reviews.tutor_id > users.uid
-Ref: reviews.pupil_id > users.uid
-
-// Чаты
-Ref: chats.pupil_id > users.uid
-Ref: chats.tutor_id > users.uid
-
-// Сообщения (subcollection)
-Ref: messages.chat_id > chats.chat_id
-Ref: messages.sender_id > users.uid
-Ref: messages.receiver_id > users.uid
+// Сообщения
+Ref: messages.senderId > users.id
+Ref: messages.receiverId > users.id
 
 // Блокировки
-Ref: blocked_users.user_id > users.uid
-Ref: blocked_users.blocked_user_id > users.uid
+Ref: blocked_users.userId > users.id
+Ref: blocked_users.blockedUserId > users.id
 
 // Жалобы
-Ref: reports.reported_by > users.uid
-Ref: reports.message_id > messages.message_id
-Ref: reports.message_owner_id > users.uid
+Ref: reports.reportedBy > users.id
+Ref: reports.messageId > messages.id
+Ref: reports.messageOwnerId > users.id
 
-// Посты (опционально)
-Ref: posts.tutor_id > users.uid
+// Чаты (метаданные)
+Ref: chats.user1Id > users.id
+Ref: chats.user2Id > users.id
+Ref: chats.lastSenderId > users.id
+
+// === ПЛАНИРУЕМЫЕ СВЯЗИ ===
+
+// Профили репетиторов (когда создадим)
+Ref: tutor_profiles.userId > users.id
+
+// Платежи (когда создадим)
+Ref: payments.studentId > users.id
+Ref: payments.tutorId > users.id
+Ref: payments.slotId > slots.id
+
+// Отзывы (когда создадим)
+Ref: reviews.tutorId > users.id
+Ref: reviews.studentId > users.id
+Ref: reviews.lessonId > slots.id
+
+// ============================================
+// СТАТУС МИГРАЦИИ
+// ============================================
+
+// ✅ ПОЛНОСТЬЮ МИГРИРОВАНО:
+// - users (Auth Collection)
+// - messages (текстовые + URL файлов)
+// - chats (метаданные для списка чатов) - Two-Table Pattern ✅
+// - slots (расписание)
+// - blocked_users (блокировки)
+// - reports (жалобы)
+
+// 🔄 В ПРОЦЕССЕ:
+// - Файлы в чатах (изображения/аудио) используют Cloudinary
+//   TODO: миграция на PocketBase Storage (добавить поля imageFile, audioFile)
+
+// ⏳ ПЛАНИРУЕТСЯ ДЛЯ ДИПЛОМА:
+// - tutor_profiles (расширенные данные репетиторов)
+// - reviews (отзывы и рейтинги)
+// - payments (имитация оплаты)
+
+// ============================================
+// ТИПЫ ПОЛЕЙ POCKETBASE
+// ============================================
+// text - строки, email, username, bio
+// date - даты (birthDate, слоты)
+// bool - boolean (isRead, isBooked, isPaid)
+// select - enum значения (role, type)
+// file - файлы (avatar)
+// relation - связи с другими коллекциями
+// number - целые и дробные числа (не используется в текущей схеме)
+
+// JSON массивы хранятся как text: '["item1", "item2"]'
+// Boolean в SQLite: true/false (не 0/1!)
+// Timestamps: ISO 8601 строки

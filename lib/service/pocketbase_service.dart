@@ -199,38 +199,51 @@ class PocketBaseService {
     required String filePath,
   }) async {
     try {
-      // ИЗМЕНЕНИЕ 1: FormData вместо CloudinaryFile
-      //
-      // БЫЛО (Cloudinary):
-      // CloudinaryFile.fromFile(filePath, folder: 'avatars')
-      //
-      // СТАЛО (PocketBase):
-      // http.MultipartFile.fromPath('avatar', filePath)
-      //
-      // PocketBase принимает FormData с полем 'avatar' (название поля из схемы)
-      final file = await http.MultipartFile.fromPath('avatar', filePath);
+      print('[PocketBase] 📤 uploadAvatar START');
+      print('[PocketBase] 👤 User ID: $userId');
+      print('[PocketBase] 📁 File path: $filePath');
 
-      // ИЗМЕНЕНИЕ 2: Один запрос вместо двух
+      // Проверяем существование файла
+      final file = File(filePath);
+      if (!await file.exists()) {
+        throw Exception('Файл не найден: $filePath');
+      }
+
+      final fileSize = await file.length();
+      print('[PocketBase] 📦 File size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+
+      // Создаём MultipartFile
+      print('[PocketBase] 🔨 Creating MultipartFile...');
+      final multipartFile = await http.MultipartFile.fromPath('avatar', filePath);
+      print('[PocketBase] ✅ MultipartFile created: ${multipartFile.filename}');
+
+      // ИСПРАВЛЕНИЕ: Передаем файл в параметр files, а не в body!
       //
-      // БЫЛО (Cloudinary + Firestore):
-      // 1. Загрузить в Cloudinary → получить URL
-      // 2. Обновить Firestore с URL
+      // БЫЛО (НЕПРАВИЛЬНО):
+      // body: {'avatar': multipartFile} ❌ - PocketBase SDK не умеет конвертировать MultipartFile в JSON
       //
-      // СТАЛО (PocketBase):
-      // 1. Обновить запись с файлом (файл загружается автоматически)
+      // СТАЛО (ПРАВИЛЬНО):
+      // files: [multipartFile] ✅ - PocketBase SDK сам обработает файлы
       //
-      // update() с body: Map загружает файл и обновляет запись
-      // PocketBase SDK автоматически обрабатывает MultipartFile в Map
+      // PocketBase SDK имеет два параметра:
+      // - body: Map<String, dynamic> - для обычных полей (текст, числа, etc)
+      // - files: List<http.MultipartFile> - для файлов
+      print('[PocketBase] 🚀 Sending update request to PocketBase...');
+      print('[PocketBase] 🌐 URL: ${_pb.baseUrl}/api/collections/users/records/$userId');
+
       final record = await _pb.collection('users').update(
-            userId,
-            body: {'avatar': file}, // Просто Map, не FormData
-          );
+        userId,
+        files: [multipartFile], // ✅ Передаем в параметр files!
+      );
 
-      print('[PocketBase] Аватар загружен для пользователя: $userId');
+      print('[PocketBase] ✅ Avatar uploaded successfully!');
+      print('[PocketBase] 📄 Record ID: ${record.id}');
+      print('[PocketBase] 📄 Avatar filename: ${record.data['avatar']}');
 
       return record;
-    } catch (e) {
-      print('[PocketBase] Ошибка загрузки аватара: $e');
+    } catch (e, stackTrace) {
+      print('[PocketBase] ❌ ERROR uploading avatar: $e');
+      print('[PocketBase] 📋 Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -255,31 +268,43 @@ class PocketBaseService {
     required String chatRoomId,
   }) async {
     try {
-      // TODO: Пока загружаем как временный файл
-      // В будущем можно создать отдельную коллекцию chat_files
-      //
-      // Для начала используем коллекцию messages с полем imageFile
-      final file = await http.MultipartFile.fromPath('imageFile', filePath);
+      print('[PocketBase] 📸 uploadChatImage START');
+      print('[PocketBase] 📁 File path: $filePath');
+      print('[PocketBase] 💬 Chat room: $chatRoomId');
 
-      // Создаем временную запись для файла
-      // PocketBase SDK: body принимает Map с MultipartFile напрямую
+      // Создаём MultipartFile
+      final file = await http.MultipartFile.fromPath('imageFile', filePath);
+      print('[PocketBase] ✅ MultipartFile created: ${file.filename}');
+
+      // ИСПРАВЛЕНИЕ: Используем параметр files вместо body для файла!
+      //
+      // БЫЛО (НЕПРАВИЛЬНО):
+      // body: {'imageFile': file, ...} ❌
+      //
+      // СТАЛО (ПРАВИЛЬНО):
+      // body: {...} - только обычные поля
+      // files: [file] - файлы отдельно ✅
+      print('[PocketBase] 🚀 Creating message with image...');
+
       final record = await _pb.collection('messages').create(
-            body: {
-              'imageFile': file,
-              'chatRoomId': chatRoomId,
-              'type': 'image',
-              'message': '', // Пустое сообщение, файл - основной контент
-            },
-          );
+        body: {
+          'chatRoomId': chatRoomId,
+          'type': 'image',
+          'message': '', // Пустое сообщение, файл - основной контент
+        },
+        files: [file], // ✅ Передаем файл в параметр files!
+      );
 
       // Получаем URL файла
       final imageUrl = getFileUrl(record, record.data['imageFile']);
 
-      print('[PocketBase] Изображение загружено для чата: $chatRoomId');
+      print('[PocketBase] ✅ Изображение загружено для чата: $chatRoomId');
+      print('[PocketBase] 🌐 Image URL: $imageUrl');
 
       return imageUrl;
-    } catch (e) {
-      print('[PocketBase] Ошибка загрузки изображения: $e');
+    } catch (e, stackTrace) {
+      print('[PocketBase] ❌ ERROR uploading image: $e');
+      print('[PocketBase] 📋 Stack trace: $stackTrace');
       rethrow;
     }
   }
@@ -294,25 +319,43 @@ class PocketBaseService {
     required String chatRoomId,
   }) async {
     try {
+      print('[PocketBase] 🎵 uploadChatAudio START');
+      print('[PocketBase] 📁 File path: $filePath');
+      print('[PocketBase] 💬 Chat room: $chatRoomId');
+
+      // Создаём MultipartFile
       final file = await http.MultipartFile.fromPath('audioFile', filePath);
+      print('[PocketBase] ✅ MultipartFile created: ${file.filename}');
 
-      // PocketBase SDK: body принимает Map с MultipartFile напрямую
+      // ИСПРАВЛЕНИЕ: Используем параметр files вместо body для файла!
+      //
+      // БЫЛО (НЕПРАВИЛЬНО):
+      // body: {'audioFile': file, ...} ❌
+      //
+      // СТАЛО (ПРАВИЛЬНО):
+      // body: {...} - только обычные поля
+      // files: [file] - файлы отдельно ✅
+      print('[PocketBase] 🚀 Creating message with audio...');
+
       final record = await _pb.collection('messages').create(
-            body: {
-              'audioFile': file,
-              'chatRoomId': chatRoomId,
-              'type': 'audio',
-              'message': '', // Пустое сообщение
-            },
-          );
+        body: {
+          'chatRoomId': chatRoomId,
+          'type': 'audio',
+          'message': '', // Пустое сообщение, файл - основной контент
+        },
+        files: [file], // ✅ Передаем файл в параметр files!
+      );
 
+      // Получаем URL файла
       final audioUrl = getFileUrl(record, record.data['audioFile']);
 
-      print('[PocketBase] Аудио загружено для чата: $chatRoomId');
+      print('[PocketBase] ✅ Аудио загружено для чата: $chatRoomId');
+      print('[PocketBase] 🌐 Audio URL: $audioUrl');
 
       return audioUrl;
-    } catch (e) {
-      print('[PocketBase] Ошибка загрузки аудио: $e');
+    } catch (e, stackTrace) {
+      print('[PocketBase] ❌ ERROR uploading audio: $e');
+      print('[PocketBase] 📋 Stack trace: $stackTrace');
       rethrow;
     }
   }

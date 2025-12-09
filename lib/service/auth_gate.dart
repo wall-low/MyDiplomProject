@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:p7/pages/home_page.dart';
+import 'package:p7/pages/main_navigation.dart';
 import 'package:p7/pages/register_profile_page.dart';
 import 'package:p7/service/auth.dart';
 import 'package:p7/service/databases.dart';
@@ -108,9 +108,9 @@ class AuthGate extends StatelessWidget {
             );
           }
 
-          // Профиль полностью заполнен → переходим на главную страницу
+          // Профиль полностью заполнен → переходим на главную навигацию
           print('[AuthGate] Профиль найден: ${profileSnapshot.data?.name}');
-          return const HomePage();
+          return const MainNavigation();
         },
       );
     }

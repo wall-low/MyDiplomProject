@@ -47,7 +47,7 @@ class _FindTutorPageState extends State<FindTutorPage> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         centerTitle: true,
-        title: const Text("Поиск репетитора"),
+        title: const Text("П О И С К   Р Е П Е Т И Т О Р А"),
         foregroundColor: Theme.of(context).colorScheme.primary,
         backgroundColor: Theme.of(context).colorScheme.surface,
       ),

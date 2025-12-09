@@ -99,50 +99,94 @@ class _AvatarPickerState extends State<AvatarPicker> {
   /// ЗАЧЕМ:
   /// PocketBase хранит файлы вместе с записями, не нужен отдельный сервис
   Future<void> _pickAndUpload() async {
+    debugPrint('[AvatarPicker] 🖼️ Начало выбора изображения...');
+
     final picked = await _picker.pickImage(
       source: ImageSource.gallery,
       maxWidth: 600,
       imageQuality: 85,
     );
-    if (picked == null) return;
+
+    if (picked == null) {
+      debugPrint('[AvatarPicker] ❌ Изображение не выбрано');
+      return;
+    }
+
+    debugPrint('[AvatarPicker] ✅ Изображение выбрано: ${picked.path}');
+
+    // Показываем индикатор загрузки
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              SizedBox(width: 16),
+              Text('Загрузка аватара...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+        ),
+      );
+    }
 
     try {
       final uid = Auth().getCurrentUid();
+      debugPrint('[AvatarPicker] 👤 User ID: $uid');
 
-      // ИЗМЕНЕНИЕ 5: uploadAvatar() вместо Cloudinary
-      //
-      // БЫЛО (Cloudinary - 2 операции):
-      // final url = await CloudinaryService.uploadAvatar(filePath: picked.path);
-      // await FirebaseFirestore.instance.collection('Users').doc(uid).update({'avatarUrl': url});
-      //
-      // СТАЛО (PocketBase - 1 операция):
-      // final record = await _pbService.uploadAvatar(userId: uid, filePath: picked.path);
-      //
-      // PocketBase загружает файл И обновляет запись одновременно
-      // FormData({'avatar': file}) → update(userId, body: formData)
+      // Проверяем размер файла
+      final fileSize = await picked.length();
+      debugPrint('[AvatarPicker] 📦 Размер файла: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+
+      if (fileSize > 5 * 1024 * 1024) {
+        throw Exception('Файл слишком большой (макс. 5 МБ)');
+      }
+
+      debugPrint('[AvatarPicker] 🚀 Начало загрузки в PocketBase...');
+
       final record = await _pbService.uploadAvatar(
         userId: uid,
         filePath: picked.path,
       );
 
-      // ИЗМЕНЕНИЕ 6: Генерируем URL из RecordModel
-      //
-      // БЫЛО:
-      // setState(() => _avatarUrl = url); // URL пришел из Cloudinary
-      //
-      // СТАЛО:
-      // final url = _pbService.getUserAvatarUrl(record); // URL генерируем локально
-      // setState(() => _avatarUrl = url);
+      debugPrint('[AvatarPicker] ✅ Аватар загружен в PocketBase');
+      debugPrint('[AvatarPicker] 📄 Record ID: ${record.id}');
+      debugPrint('[AvatarPicker] 📄 Avatar field: ${record.data['avatar']}');
+
       final url = _pbService.getUserAvatarUrl(record);
+      debugPrint('[AvatarPicker] 🌐 Generated URL: $url');
 
       if (!mounted) return;
+
+      // Убираем индикатор загрузки
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
       setState(() => _avatarUrl = url);
-    } catch (e) {
-      debugPrint('[AvatarPicker] Ошибка загрузки аватара: $e');
+
+      // Показываем успешное сообщение
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Аватар успешно обновлён!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e, stackTrace) {
+      debugPrint('[AvatarPicker] ❌ ОШИБКА загрузки аватара: $e');
+      debugPrint('[AvatarPicker] 📋 Stack trace: $stackTrace');
 
       if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ошибка загрузки аватара')),
+          SnackBar(
+            content: Text('❌ Ошибка загрузки: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     }

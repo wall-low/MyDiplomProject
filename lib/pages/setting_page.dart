@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:p7/themes/theme_provider.dart';
 import 'package:p7/service/auth.dart';
+import 'package:p7/service/auth_gate.dart';
 import 'package:provider/provider.dart';
 
 // УДАЛЕНО: import 'package:firebase_auth/firebase_auth.dart';
@@ -20,7 +21,7 @@ class SettingPage extends StatelessWidget {
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         centerTitle: true,
-        title: const Text("S E T T I N G S"),
+        title: const Text("Н А С Т Р О Й К И"),
         foregroundColor: Theme.of(context).colorScheme.primary,
       ),
       body: ListView(
@@ -28,7 +29,7 @@ class SettingPage extends StatelessWidget {
 
           ListTile(
             title: Text(
-              "Dark Mode",
+              "Тёмная тема",
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 20,
@@ -45,7 +46,7 @@ class SettingPage extends StatelessWidget {
           ListTile(
             leading: const Icon(Icons.block),
             title: Text(
-              "Blocked Users",
+              "Заблокированные пользователи",
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 18,
@@ -64,7 +65,7 @@ class SettingPage extends StatelessWidget {
           // Пункт для смены пароля
           ListTile(
             title: Text(
-              "Change Password",
+              "Сменить пароль",
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 20,
@@ -74,9 +75,67 @@ class SettingPage extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => _showChangePasswordDialog(context),
           ),
+
+          const Divider(),
+
+          // Logout кнопка
+          ListTile(
+            title: Text(
+              "Выйти",
+              style: TextStyle(
+                color: Colors.red,
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            leading: const Icon(
+              Icons.logout,
+              color: Colors.red,
+            ),
+            onTap: () => _logout(context),
+          ),
         ],
       ),
     );
+  }
+
+  // Logout функция
+  void _logout(BuildContext context) async {
+    // Показываем диалог подтверждения
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Выход"),
+        content: const Text("Вы уверены, что хотите выйти из аккаунта?"),
+        actions: [
+          TextButton(
+            child: const Text("Отмена"),
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Выйти"),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && context.mounted) {
+      // Выполняем logout
+      await Auth().logout();
+
+      // Переходим на AuthGate (который покажет LoginOrRegister)
+      if (context.mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const AuthGate()),
+          (route) => false, // Удаляем весь стек навигации
+        );
+      }
+    }
   }
 
   void _showChangePasswordDialog(BuildContext context) {
@@ -87,20 +146,20 @@ class SettingPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text("Change Password"),
+        title: const Text("Смена пароля"),
         content: Form(
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Текущее пароль
+              // Текущий пароль
               TextFormField(
                 controller: _currentPwCtrl,
-                decoration: const InputDecoration(labelText: "Current Password"),
+                decoration: const InputDecoration(labelText: "Текущий пароль"),
                 obscureText: true,
                 validator: (v) {
-                  if (v == null || v.isEmpty) return 'Enter current password';
-                  if (v.length < 6) return 'Too short';
+                  if (v == null || v.isEmpty) return 'Введите текущий пароль';
+                  if (v.length < 6) return 'Слишком короткий';
                   return null;
                 },
               ),
@@ -108,11 +167,11 @@ class SettingPage extends StatelessWidget {
               // Новый пароль
               TextFormField(
                 controller: _newPwCtrl,
-                decoration: const InputDecoration(labelText: "New Password"),
+                decoration: const InputDecoration(labelText: "Новый пароль"),
                 obscureText: true,
                 validator: (v) {
-                  if (v == null || v.isEmpty) return 'Enter new password';
-                  if (v.length < 6) return 'Must be at least 6 characters';
+                  if (v == null || v.isEmpty) return 'Введите новый пароль';
+                  if (v.length < 6) return 'Минимум 6 символов';
                   return null;
                 },
               ),
@@ -121,11 +180,11 @@ class SettingPage extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            child: const Text("Cancel"),
+            child: const Text("Отмена"),
             onPressed: () => Navigator.of(ctx).pop(),
           ),
           ElevatedButton(
-            child: const Text("Update"),
+            child: const Text("Обновить"),
             onPressed: () async {
               if (!_formKey.currentState!.validate()) return;
 
@@ -146,7 +205,7 @@ class SettingPage extends StatelessWidget {
                 // Успех
                 Navigator.of(context).pop(); // закрыть индикатор
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Password updated successfully')),
+                  const SnackBar(content: Text('Пароль успешно обновлён')),
                 );
               } on Exception catch (e) {
                 // ИЗМЕНЕНО: FirebaseAuthException → Exception
@@ -159,7 +218,7 @@ class SettingPage extends StatelessWidget {
               } catch (e) {
                 Navigator.of(context).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error: $e')),
+                  SnackBar(content: Text('Ошибка: $e')),
                 );
               }
             },

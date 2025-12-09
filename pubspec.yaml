@@ -93,14 +93,6 @@ flutter:
   assets:
     - assets/
     - assets/icon/Icon.png
-    - assets/audio/Playboi Carti – ILoveUIHateU.mp3
-    - assets/audio/Playboi Carti – Sky.mp3
-    - assets/audio/The Weeknd – Baptized In Fear.mp3
-    - assets/audio/The Weeknd – Cry For Me.mp3
-    - assets/audio/The Weeknd – I Cant Fucking Sing.mp3
-    - assets/audio/The Weeknd – Sao Paulo.mp3
-    - assets/audio/The Weeknd – Until Were Skin and Bones.mp3
-    - assets/audio/The Weeknd – Wake Me Up.mp3
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import '../models/schedule_slot.dart';
 import '../service/auth.dart';
+import '../service/databases.dart';
 import '../service/schedule_service.dart';
 
 class SchedulePage extends StatefulWidget {
@@ -15,23 +16,54 @@ class SchedulePage extends StatefulWidget {
 class _SchedulePageState extends State<SchedulePage> {
   final ScheduleService _scheduleService = ScheduleService();
   final Auth _auth = Auth();
+  final Databases _db = Databases();
   DateTime _selectedDate = DateTime.now();
+  bool _isTutor = false;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     initializeDateFormatting('ru', null);
+    _loadUserRole();
+  }
+
+  Future<void> _loadUserRole() async {
+    try {
+      final user = await _db.getUserFromPocketBase(_auth.getCurrentUid());
+      if (mounted) {
+        setState(() {
+          _isTutor = user?.role == 'Репетитор';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: colorScheme.surface,
+        body: Center(
+          child: CircularProgressIndicator(color: colorScheme.primary),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: colorScheme.surface,
       appBar: AppBar(
         title: Text(
-          'Мое расписание',
+          _isTutor ? 'М О Е   Р А С П И С А Н И Е' : 'М О И   З А Н Я Т И Я',
           style: TextStyle(
             color: colorScheme.onSurface,
             fontWeight: FontWeight.w600,
@@ -55,24 +87,27 @@ class _SchedulePageState extends State<SchedulePage> {
             thickness: 0.5,
             color: colorScheme.primaryContainer,
           ),
-          _buildDateSelector(colorScheme),
-          Divider(
-            height: 1,
-            thickness: 0.5,
-            color: colorScheme.primaryContainer,
-          ),
+          if (_isTutor) _buildDateSelector(colorScheme),
+          if (_isTutor)
+            Divider(
+              height: 1,
+              thickness: 0.5,
+              color: colorScheme.primaryContainer,
+            ),
           Expanded(
             child: _buildScheduleList(colorScheme),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddSlotDialog(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Добавить слот'),
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
-      ),
+      floatingActionButton: _isTutor
+          ? FloatingActionButton.extended(
+              onPressed: () => _showAddSlotDialog(context),
+              icon: const Icon(Icons.add),
+              label: const Text('Добавить слот'),
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
+            )
+          : null,
     );
   }
 
@@ -134,14 +169,17 @@ class _SchedulePageState extends State<SchedulePage> {
   }
 
   Widget _buildScheduleList(ColorScheme colorScheme) {
-    // ИЗМЕНЕНО: StreamBuilder → FutureBuilder
-    //
-    // PocketBase использует Future вместо Stream
+    // Разная логика для репетиторов и учеников:
+    // - Репетиторы: показываем слоты на выбранную дату (getTutorScheduleByDate)
+    // - Ученики: показываем ВСЕ забронированные занятия (getStudentSlots)
     return FutureBuilder<List<ScheduleSlot>>(
-      future: _scheduleService.getTutorScheduleByDate(
-        _auth.getCurrentUid(),
-        _selectedDate,
-      ),
+      key: ValueKey('${_isTutor}_${_selectedDate.toString()}'), // Пересоздаем при смене даты
+      future: _isTutor
+          ? _scheduleService.getTutorScheduleByDate(
+              _auth.getCurrentUid(),
+              _selectedDate,
+            )
+          : _scheduleService.getStudentSlots(_auth.getCurrentUid()),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
@@ -183,7 +221,9 @@ class _SchedulePageState extends State<SchedulePage> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Нет записей на эту дату',
+                  _isTutor
+                      ? 'Нет записей на эту дату'
+                      : 'У вас пока нет занятий',
                   style: TextStyle(
                     color: colorScheme.secondary,
                     fontSize: 18,
@@ -192,7 +232,9 @@ class _SchedulePageState extends State<SchedulePage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Добавьте новый слот',
+                  _isTutor
+                      ? 'Добавьте новый слот'
+                      : 'Найдите репетитора и забронируйте занятие',
                   style: TextStyle(
                     color: colorScheme.secondary.withValues(alpha: 0.7),
                     fontSize: 14,

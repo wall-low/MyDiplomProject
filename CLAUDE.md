@@ -233,6 +233,13 @@ flutter analyze
 
 ### UI Structure (lib/pages/)
 
+#### Navigation Architecture
+- **main_navigation.dart**: ✨ **NEW** - Bottom Navigation Bar (заменил Drawer)
+  - 4 вкладки: Чаты, Поиск, График, Профиль
+  - Uses IndexedStack для сохранения состояния страниц
+  - Settings вынесены в AppBar ProfilePage
+  - Logout перенесен в SettingPage
+
 #### Authentication Pages
 - **login_page.dart**: Email/password authentication
 - **register_page.dart**: Email/password registration
@@ -256,25 +263,35 @@ flutter analyze
   - Audio recording with upload progress
   - Image picker with Cloudinary upload
 
-- **profile_page.dart**: User profile view
-  - Shows bio, avatar, name, age, city, role
-  - Edit bio and avatar capabilities
-  - Uses DatabaseProvider for reactive updates
+- **profile_page.dart**: User profile view - ✨ **REDESIGNED**
+  - Gradient SliverAppBar header with avatar
+  - Role badge (Репетитор/Ученик) with icon
+  - Info card: age, city, email
+  - Bio card with edit capability
+  - Settings button in AppBar
+  - Username removed (not displayed)
 
 - **find_tutor_page.dart**: Search/filter tutors
   - Current: filter by city, search by name
   - TODO: filter by subject, price, rating, online/offline
 
-- **schedule_page.dart**: Tutor schedule management
-  - Tutors: add/delete availability slots by date and time
-  - Students: view and book available slots
+- **schedule_page.dart**: Schedule management - ✨ **DUAL-MODE**
+  - **Tutors** ("М О Е   Р А С П И С А Н И Е"):
+    - Date selector with calendar picker
+    - Add/delete availability slots by date and time
+    - View slots for selected date
+    - Floating Action Button to add new slot
+  - **Students** ("М О И   З А Н Я Т И Я"):
+    - View ALL booked lessons (all dates)
+    - No date selector (shows everything)
+    - No FAB (can't create slots)
   - Uses ScheduleService for reactive updates
 
-- **setting_page.dart**: App settings
-  - Theme toggle (ThemProvider)
+- **setting_page.dart**: App settings - ✨ **UPDATED**
+  - Theme toggle (ThemProvider) - переключение светлой/темной темы
   - Account settings (change password)
   - Blocked users management
-  - Logout
+  - **Logout** button with confirmation dialog (moved from Drawer)
 
 - **blocked_user_page.dart**: Manage blocked users list
 
@@ -282,14 +299,15 @@ flutter analyze
 - **tutor_detail_page.dart**: Detailed tutor profile with subjects, price, experience, education, reviews
 - **reviews_page.dart**: List of all reviews for a tutor
 - **payment_history_page.dart**: History of paid lessons
-- **favorites_page.dart**: List of favorited tutors
 
 ### Reusable Components (lib/components/)
-- **my_drawer.dart**: Navigation drawer (Profile, Chats, Search, Settings, Logout)
 - **user_tile.dart**: Chat list item with avatar, username, last message, timestamp, unread badge
 - **chat_bubble.dart**: Message display with sender/receiver styling
 - **audio_player_widget.dart**: Audio message playback control with progress
-- **avatar_picker.dart**: Image picker for profile photos (camera/gallery)
+- **avatar_picker.dart**: Image picker for profile photos (camera/gallery) - ✅ **FIXED**
+  - Uploads to PocketBase Storage via `files` parameter
+  - Shows loading indicator and success/error messages
+  - Detailed logging for debugging
 - **user_avatar.dart**: Cached avatar display with fallback
 - **my_text_field.dart / input_box.dart**: Custom text inputs
 - **my_button.dart**: Styled button component
@@ -304,6 +322,20 @@ flutter analyze
 - **tutor_card.dart**: Tutor card for search results
 
 ### PocketBase Configuration
+
+**📋 Database Schema (ВАЖНО - читай первым!):**
+
+Файл `database_schema.dbml` в корне проекта содержит **актуальную структуру БД**:
+- ✅ Все существующие коллекции (users, messages, chats, slots, blocked_users, reports)
+- ⏳ Планируемые коллекции (tutor_profiles, reviews, payments)
+- 📊 Типы полей PocketBase (text, date, bool, select, file, relation)
+- 🔗 Связи между таблицами
+- 📝 Статус миграции Firebase → PocketBase
+
+**Как использовать:**
+1. Открой `database_schema.dbml` перед работой с БД
+2. Визуализация: скопируй содержимое на https://dbdiagram.io/
+3. При изменении структуры - обновляй этот файл!
 
 #### Installation & Setup
 
@@ -498,24 +530,14 @@ final pb = PocketBaseService().client;
   - amount (number)
   - status (select: "pending" | "completed" | "failed")
   - created (auto)
-
-**subjects** (Base Collection)
-- Fields:
-  - id (auto)
-  - name (text, unique)
-  - category (text)
-
-**favorites** (Base Collection)
-- Fields:
-  - id (auto)
-  - userId (relation → users)
-  - tutorId (relation → users)
-  - created (auto)
+- Note: Имитация оплаты для диплома (без реального платежного провайдера)
 
 ### Theme System (lib/themes/)
-- **light_mode.dart / dark_mode.dart**: ColorScheme definitions
+- **light_mode.dart**: Светлая тема (мягкий серый `#F5F5F7`, синий акцент `#4A90E2`)
+- **dark_mode.dart**: Темная тема (черный `#000000`, синий акцент `#5BA4F5`)
 - **theme_provider.dart**: Theme switching with SharedPreferences persistence
 - User preference saved under key 'isDarkMode'
+- **Оценка**: 9/10 - минималистичный iOS-style дизайн, хорошая контрастность для проектора
 
 ## Important Implementation Notes
 
@@ -901,18 +923,20 @@ await pb.collection('users').update(userId, body: formData);
 5. 🔄 Image/audio uploads still use Cloudinary (ПЛАНИРУЕТСЯ миграция на PocketBase Storage)
 6. 🔄 Realtime updates use polling (можно улучшить с pb.collection('messages').subscribe())
 
-### Step 4: Schedule System Migration (2 days)
-1. Update `lib/service/schedule_service.dart`:
-   - Replace Firestore slots with PocketBase slots collection
-   - Update CRUD operations
-   - Migrate date/time handling
-2. Test slot creation, booking, cancellation
+### Step 4: Schedule System Migration ✅ COMPLETED
+1. ✅ Updated `lib/service/schedule_service.dart`:
+   - Replaced Firestore slots with PocketBase slots collection
+   - Updated CRUD operations
+   - Migrated date/time handling
+2. ✅ Tested slot creation, booking, cancellation
+3. ✅ Dual-mode UI: tutors see slots by date, students see all bookings
 
-### Step 5: Search & Filters (1-2 days)
-1. Update `lib/pages/find_tutor_page.dart`:
-   - Replace Firestore queries with PocketBase filters
-   - Use filter syntax: `filter: 'role="tutor" && city="Moscow"'`
-2. Test tutor search by city, name
+### Step 5: Search & Filters ✅ COMPLETED (Basic)
+1. ✅ Updated `lib/pages/find_tutor_page.dart`:
+   - Replaced Firestore queries with PocketBase filters
+   - Uses filter syntax: `filter: 'role="tutor" && city="Moscow"'`
+2. ✅ Tested tutor search by city, name
+3. ⏳ Advanced filters (subjects, price, rating) - planned for Phase 1
 
 ### Step 6: Cleanup
 1. 🔄 Remove Cloudinary dependencies from `pubspec.yaml` (ПОСЛЕ миграции на PocketBase Storage)
@@ -922,9 +946,15 @@ await pb.collection('users').update(userId, body: formData);
 5. 🔄 Test full app flow end-to-end (ФИНАЛЬНОЕ ТЕСТИРОВАНИЕ)
 
 **Progress:**
-- ✅ **COMPLETED**: Steps 0-3 (Setup, Auth, Profiles, Chat System) - ~7-10 days
-- 🔄 **REMAINING**: Steps 4-6 (Schedule, Search, Cleanup + Cloudinary migration) - ~5-6 days
-- **Total estimated time**: 12-16 days (50-60% ЗАВЕРШЕНО)
+- ✅ **COMPLETED**: Steps 0-5 (Setup, Auth, Profiles, Chat System, Schedule, Basic Search) - ~12-14 days
+- 🔄 **REMAINING**: Step 6 (Cleanup + Cloudinary migration to PocketBase Storage) - ~2-3 days
+- **Total migration time**: ~14-17 days (80-85% ЗАВЕРШЕНО)
+
+**Текущие задачи для диплома:**
+- ⏳ Миграция файлов на PocketBase Storage (изображения/аудио в чатах)
+- ⏳ Создание tutor_profiles collection (расширенный профиль репетитора)
+- ⏳ Система отзывов и рейтингов (reviews collection)
+- ⏳ Имитация оплаты (payments collection)
 
 ### Step 7: Deploy to Production
 1. Buy Russian VPS (Timeweb, Selectel, или другой)
