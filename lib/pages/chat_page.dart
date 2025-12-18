@@ -13,12 +13,12 @@ import '../components/audio_player_widget.dart';
 import '../models/messenge.dart';
 
 class ChatPage extends StatefulWidget {
-  final String receiverUsername;
+  final String receiverName; // ИЗМЕНЕНО: username → name
   final String receiverID;
 
   const ChatPage({
     super.key,
-    required this.receiverUsername,
+    required this.receiverName,
     required this.receiverID,
   });
 
@@ -492,7 +492,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
         title: Text(
-          widget.receiverUsername,
+          widget.receiverName, // ИЗМЕНЕНО: показываем полное имя
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.w600,

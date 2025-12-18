@@ -2,11 +2,14 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Модель чата (метаданные чата)
 ///
+/// ОБНОВЛЕНО (НОВАЯ АРХИТЕКТУРА):
+/// ❌ УДАЛЕНО: поле chatRoomId (строка "uid1_uid2")
+/// ✅ Теперь используется только id (PK из chats)
+///
 /// Хранит информацию о последнем сообщении и счётчики непрочитанных
 /// для быстрого отображения списка чатов на главной странице
 class Chat {
-  final String id;
-  final String chatRoomId; // "uid1_uid2" (отсортированный алфавитно)
+  final String id; // ← PK из chats (используется как chatId в messages)
   final String user1Id;
   final String user2Id;
   final String? lastMessage; // Текст последнего сообщения или null для фото/аудио
@@ -18,7 +21,6 @@ class Chat {
 
   Chat({
     required this.id,
-    required this.chatRoomId,
     required this.user1Id,
     required this.user2Id,
     this.lastMessage,
@@ -32,8 +34,7 @@ class Chat {
   /// Создание Chat из RecordModel (PocketBase)
   factory Chat.fromRecord(RecordModel record) {
     return Chat(
-      id: record.id,
-      chatRoomId: record.data['chatRoomId'] ?? '',
+      id: record.id, // ← Это chatId!
       user1Id: record.data['user1Id'] ?? '',
       user2Id: record.data['user2Id'] ?? '',
       lastMessage: record.data['lastMessage'],
@@ -48,7 +49,6 @@ class Chat {
   /// Преобразование в Map для отправки в PocketBase
   Map<String, dynamic> toMap() {
     return {
-      'chatRoomId': chatRoomId,
       'user1Id': user1Id,
       'user2Id': user2Id,
       'lastMessage': lastMessage,
@@ -89,7 +89,6 @@ class Chat {
   /// Копирование с изменением полей
   Chat copyWith({
     String? id,
-    String? chatRoomId,
     String? user1Id,
     String? user2Id,
     String? lastMessage,
@@ -101,7 +100,6 @@ class Chat {
   }) {
     return Chat(
       id: id ?? this.id,
-      chatRoomId: chatRoomId ?? this.chatRoomId,
       user1Id: user1Id ?? this.user1Id,
       user2Id: user2Id ?? this.user2Id,
       lastMessage: lastMessage ?? this.lastMessage,

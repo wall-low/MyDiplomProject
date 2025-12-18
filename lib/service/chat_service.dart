@@ -335,17 +335,17 @@ class ChatService extends ChangeNotifier {
 
   /// Отправка текстового сообщения
   ///
-  /// ИЗМЕНЕНИЕ 5: Упрощенная структура - одна коллекция вместо двух
+  /// ИЗМЕНЕНИЯ (НОВАЯ АРХИТЕКТУРА):
+  /// ❌ УДАЛЕНО: chatRoomId (строка "user1_user2")
+  /// ✅ ДОБАВЛЕНО: chatId (RelationField → chats.id)
   ///
-  /// БЫЛО (Firestore):
-  /// 1. Обновляем chat_room/{chatRoomId} (метаданные)
-  /// 2. Добавляем в chat_room/{chatRoomId}/messages (сообщение)
-  ///
-  /// СТАЛО (PocketBase):
-  /// 1. Только создаем запись в messages (всё в одной коллекции)
+  /// НОВЫЙ АЛГОРИТМ:
+  /// 1. Получаем chatId через _getChatIdByUsers() (находит или создаёт чат)
+  /// 2. Создаём сообщение с chatId (RelationField)
+  /// 3. Обновляем метаданные через _updateChatMetadata()
   ///
   /// Коллекция messages содержит:
-  /// - chatRoomId: идентификатор чата
+  /// - chatId: relation → chats.id  ← НОВОЕ!
   /// - senderId, receiverId: участники
   /// - message: текст сообщения
   /// - type: тип (text/image/audio)
@@ -356,10 +356,10 @@ class ChatService extends ChangeNotifier {
       final currentUserId = Auth().getCurrentUid();
       final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
 
-      // Генерируем chatRoomId (детерминированный для любой пары пользователей)
-      List<String> ids = [currentUserId, receiverID];
-      ids.sort(); // ВАЖНО: сортировка для одинакового ID
-      String chatRoomId = ids.join('_');
+      print('[ChatService] 📤 Отправка сообщения от: $currentUserId → $receiverID');
+
+      // ✅ ШАГ 1: Получаем или создаём чат
+      final chatId = await _getChatIdByUsers(currentUserId, receiverID);
 
       // Создаем объект сообщения с текущим временем
       final messageTimestamp = DateTime.now();
@@ -368,43 +368,28 @@ class ChatService extends ChangeNotifier {
         senderEmail: currentUserEmail,
         receiverID: receiverID,
         message: message,
-        timestamp: messageTimestamp, // PocketBase использует DateTime, не Timestamp
+        timestamp: messageTimestamp,
         type: type,
       );
 
-      // ИЗМЕНЕНИЕ 6: Создаем сообщение в PocketBase
-      //
-      // БЫЛО (Firestore - 2 операции):
-      // 1. _firestore.collection("chat_room").doc(chatRoomId).set() - метаданные
-      // 2. _firestore.collection("chat_room").doc(chatRoomId).collection("messages").add() - сообщение
-      //
-      // СТАЛО (PocketBase - 1 операция):
-      // _pb.collection('messages').create() - только сообщение
-      //
-      // Все данные в одной записи:
+      // ✅ ШАГ 2: Создаём сообщение с chatId (RelationField!)
       final messageData = {
         ...newMessage.toMap(),
-        'chatRoomId': chatRoomId, // Добавляем chatRoomId для фильтрации
+        'chatId': chatId, // ✅ ИЗМЕНЕНО: используем chatId вместо chatRoomId
         'isRead': false,
       };
-
-      print('[ChatService] 📤 Отправка сообщения в чат: $chatRoomId');
-      print('[ChatService]   От: $currentUserId');
-      print('[ChatService]   Кому: $receiverID');
 
       final createdMessage = await _pb.collection('messages').create(body: messageData);
 
       print('[ChatService] ✅ Сообщение отправлено: ${createdMessage.id}');
 
-      // НОВОЕ: Обновляем метаданные чата в коллекции chats
-      await _createOrUpdateChatRoom(
-        chatRoomId: chatRoomId,
-        user1Id: ids[0], // ids уже отсортированы выше
-        user2Id: ids[1],
+      // ✅ ШАГ 3: Обновляем метаданные чата
+      await _updateChatMetadata(
+        chatId: chatId, // ✅ ИЗМЕНЕНО: передаём chatId
         lastMessage: message,
         lastMessageType: type,
         lastSenderId: currentUserId,
-        messageTimestamp: messageTimestamp, // ИСПРАВЛЕНО: передаем реальное время
+        messageTimestamp: messageTimestamp,
       );
 
       // ✅ УЛУЧШЕНИЕ: Инвалидируем кеш чатов
@@ -426,9 +411,8 @@ class ChatService extends ChangeNotifier {
       final currentUserId = Auth().getCurrentUid();
       final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
 
-      List<String> ids = [currentUserId, receiverId];
-      ids.sort();
-      String chatRoomId = ids.join('_');
+      // ✅ ШАГ 1: Получаем или создаём чат
+      final chatId = await _getChatIdByUsers(currentUserId, receiverId);
 
       final messageTimestamp = DateTime.now();
       final msg = Message(
@@ -440,28 +424,26 @@ class ChatService extends ChangeNotifier {
         type: 'image',
       );
 
+      // ✅ ШАГ 2: Создаём сообщение с chatId
       final messageData = {
         ...msg.toMap(),
-        'chatRoomId': chatRoomId,
+        'chatId': chatId, // ✅ ИЗМЕНЕНО
         'isRead': false,
       };
 
       await _pb.collection('messages').create(body: messageData);
 
-      print('[ChatService] Изображение отправлено в чат: $chatRoomId');
+      print('[ChatService] Изображение отправлено: $chatId');
 
-      // НОВОЕ: Обновляем метаданные чата
-      await _createOrUpdateChatRoom(
-        chatRoomId: chatRoomId,
-        user1Id: ids[0], // ids уже отсортированы выше
-        user2Id: ids[1],
-        lastMessage: '📷 Фото', // Превью для изображения
+      // ✅ ШАГ 3: Обновляем метаданные
+      await _updateChatMetadata(
+        chatId: chatId, // ✅ ИЗМЕНЕНО
+        lastMessage: '📷 Фото',
         lastMessageType: 'image',
         lastSenderId: currentUserId,
-        messageTimestamp: messageTimestamp, // ИСПРАВЛЕНО: передаем реальное время
+        messageTimestamp: messageTimestamp,
       );
 
-      // ✅ УЛУЧШЕНИЕ: Инвалидируем кеш чатов
       _invalidateChatsCache();
     } catch (e) {
       print('[ChatService] Ошибка отправки изображения: $e');
@@ -480,9 +462,8 @@ class ChatService extends ChangeNotifier {
       final currentUserId = Auth().getCurrentUid();
       final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
 
-      List<String> ids = [currentUserId, receiverId];
-      ids.sort();
-      String chatRoomId = ids.join('_');
+      // ✅ ШАГ 1: Получаем или создаём чат
+      final chatId = await _getChatIdByUsers(currentUserId, receiverId);
 
       final messageTimestamp = DateTime.now();
       final msg = Message(
@@ -494,28 +475,26 @@ class ChatService extends ChangeNotifier {
         type: 'audio',
       );
 
+      // ✅ ШАГ 2: Создаём сообщение с chatId
       final messageData = {
         ...msg.toMap(),
-        'chatRoomId': chatRoomId,
+        'chatId': chatId, // ✅ ИЗМЕНЕНО
         'isRead': false,
       };
 
       await _pb.collection('messages').create(body: messageData);
 
-      print('[ChatService] Аудио отправлено в чат: $chatRoomId');
+      print('[ChatService] Аудио отправлено: $chatId');
 
-      // НОВОЕ: Обновляем метаданные чата
-      await _createOrUpdateChatRoom(
-        chatRoomId: chatRoomId,
-        user1Id: ids[0], // ids уже отсортированы выше
-        user2Id: ids[1],
-        lastMessage: '🎵 Аудио', // Превью для аудио
+      // ✅ ШАГ 3: Обновляем метаданные
+      await _updateChatMetadata(
+        chatId: chatId, // ✅ ИЗМЕНЕНО
+        lastMessage: '🎵 Аудио',
         lastMessageType: 'audio',
         lastSenderId: currentUserId,
-        messageTimestamp: messageTimestamp, // ИСПРАВЛЕНО: передаем реальное время
+        messageTimestamp: messageTimestamp,
       );
 
-      // ✅ УЛУЧШЕНИЕ: Инвалидируем кеш чатов
       _invalidateChatsCache();
     } catch (e) {
       print('[ChatService] Ошибка отправки аудио: $e');
@@ -527,52 +506,83 @@ class ChatService extends ChangeNotifier {
   // REALTIME SUBSCRIPTIONS ДЛЯ СООБЩЕНИЙ
   // ============================================================================
 
-  /// ✨ НОВЫЙ МЕТОД: Получить сообщения чата в реальном времени (realtime)
+  /// ✨ Получить сообщения чата в реальном времени (realtime)
   ///
-  /// ПРЕИМУЩЕСТВА:
-  /// ✅ Автоматическое обновление при новых сообщениях
-  /// ✅ WebSocket подключение (эффективнее чем polling)
-  /// ✅ Stream реактивный поток как в Firestore
+  /// ИЗМЕНЕНИЯ (НОВАЯ АРХИТЕКТУРА):
+  /// ❌ УДАЛЕНО: chatRoomId (строка)
+  /// ✅ ДОБАВЛЕНО: получаем chatId через _getChatIdByUsers()
+  /// ✅ ФИЛЬТР: 'chatId="..."' вместо 'chatRoomId="..."'
   ///
   /// ИСПОЛЬЗОВАНИЕ:
   /// ```dart
   /// final stream = chatService.getMessagesStream(userId, otherUserId);
-  /// StreamBuilder(
-  ///   stream: stream,
-  ///   builder: (context, snapshot) { ... }
-  /// );
+  /// StreamBuilder(stream: stream, builder: (context, snapshot) { ... });
   /// ```
   ///
   /// ВАЖНО: Вызвать unsubscribeFromMessages() при dispose виджета!
   Stream<List<Message>> getMessagesStream(String userId, String otherUserId) {
-    List<String> ids = [userId, otherUserId];
-    ids.sort();
-    String chatRoomId = ids.join('_');
+    // Создаём broadcast controller для возврата
+    final broadcastController = StreamController<List<Message>>.broadcast();
 
-    // Проверяем существует ли уже stream для этого чата
-    if (_messageStreamControllers.containsKey(chatRoomId)) {
-      print('[ChatService] Используется существующий stream для: $chatRoomId');
-      return _messageStreamControllers[chatRoomId]!.stream;
+    // Запускаем async инициализацию
+    _initializeMessageStream(userId, otherUserId, broadcastController);
+
+    return broadcastController.stream;
+  }
+
+  /// Внутренний метод для async инициализации stream
+  Future<void> _initializeMessageStream(
+    String userId,
+    String otherUserId,
+    StreamController<List<Message>> broadcastController,
+  ) async {
+    try {
+      print('[ChatService] 🔄 Инициализация stream для: $userId → $otherUserId');
+
+      // ✅ Получаем chatId
+      final chatId = await _getChatIdByUsers(userId, otherUserId);
+
+      print('[ChatService] 📌 ChatId получен: $chatId');
+
+      // Проверяем существует ли уже stream для этого чата
+      if (_messageStreamControllers.containsKey(chatId)) {
+        print('[ChatService] ♻️ Используется существующий stream');
+        final existingController = _messageStreamControllers[chatId]!;
+
+        // Перенаправляем данные из существующего stream в новый broadcast
+        existingController.stream.listen(
+          (messages) => broadcastController.add(messages),
+          onError: (error) => broadcastController.addError(error),
+        );
+        return;
+      }
+
+      // Создаём новый StreamController для этого чата
+      final controller = StreamController<List<Message>>.broadcast();
+      _messageStreamControllers[chatId] = controller;
+
+      print('[ChatService] ✨ Создан новый realtime stream для chatId: $chatId');
+
+      // Перенаправляем данные в broadcast controller
+      controller.stream.listen(
+        (messages) => broadcastController.add(messages),
+        onError: (error) => broadcastController.addError(error),
+      );
+
+      // Загружаем начальные сообщения
+      await _loadInitialMessages(chatId, controller);
+
+      // Подписываемся на realtime обновления (асинхронно)
+      _subscribeToMessages(chatId, controller);
+    } catch (e) {
+      print('[ChatService] ❌ Ошибка создания stream: $e');
+      broadcastController.addError(e);
     }
-
-    // Создаём новый StreamController
-    final controller = StreamController<List<Message>>.broadcast();
-    _messageStreamControllers[chatRoomId] = controller;
-
-    print('[ChatService] Создан новый realtime stream для: $chatRoomId');
-
-    // Загружаем начальные сообщения
-    _loadInitialMessages(chatRoomId, controller);
-
-    // Подписываемся на realtime обновления (асинхронно)
-    _subscribeToMessages(chatRoomId, controller);
-
-    return controller.stream;
   }
 
   /// Подписка на realtime обновления сообщений
   Future<void> _subscribeToMessages(
-      String chatRoomId, StreamController<List<Message>> controller) async {
+      String chatId, StreamController<List<Message>> controller) async {
     try {
       final unsubscribe = await _pb.collection('messages').subscribe(
         '*', // Слушаем все события
@@ -582,18 +592,18 @@ class ChatService extends ChangeNotifier {
 
           // Проверяем принадлежность сообщения к этому чату
           if (e.record != null) {
-            final recordChatRoomId = e.record!.data['chatRoomId'] as String?;
-            if (recordChatRoomId == chatRoomId) {
+            final recordChatId = e.record!.data['chatId'] as String?; // ✅ ИЗМЕНЕНО
+            if (recordChatId == chatId) {
               // Перезагружаем все сообщения при изменении
-              _loadInitialMessages(chatRoomId, controller);
+              _loadInitialMessages(chatId, controller);
             }
           }
         },
-        filter: 'chatRoomId="$chatRoomId"',
+        filter: 'chatId="$chatId"', // ✅ ИЗМЕНЕНО
       );
 
       // Сохраняем unsubscribe функцию для очистки
-      _subscriptions[chatRoomId] = unsubscribe;
+      _subscriptions[chatId] = unsubscribe;
     } catch (e) {
       print('[ChatService] Ошибка подписки на realtime: $e');
       if (!controller.isClosed) {
@@ -604,22 +614,29 @@ class ChatService extends ChangeNotifier {
 
   /// Загрузить начальные сообщения и отправить в stream
   Future<void> _loadInitialMessages(
-      String chatRoomId, StreamController<List<Message>> controller) async {
+      String chatId, StreamController<List<Message>> controller) async {
     try {
+      print('[ChatService] 📥 Загрузка сообщений для chatId: $chatId');
+
       final result = await _pb.collection('messages').getList(
-            filter: 'chatRoomId="$chatRoomId"',
+            filter: 'chatId="$chatId"', // ✅ ИЗМЕНЕНО
             sort: '+created', // Старые сообщения первыми
             perPage: 500,
           );
+
+      print('[ChatService] 📊 Найдено сообщений: ${result.items.length}');
 
       final messages =
           result.items.map((record) => Message.fromRecord(record)).toList();
 
       if (!controller.isClosed) {
         controller.add(messages);
+        print('[ChatService] ✅ Сообщения отправлены в stream (${messages.length} шт)');
+      } else {
+        print('[ChatService] ⚠️ Controller уже закрыт');
       }
     } catch (e) {
-      print('[ChatService] Ошибка загрузки начальных сообщений: $e');
+      print('[ChatService] ❌ Ошибка загрузки начальных сообщений: $e');
       if (!controller.isClosed) {
         controller.addError(e);
       }
@@ -629,60 +646,45 @@ class ChatService extends ChangeNotifier {
   /// Отписаться от realtime обновлений для конкретного чата
   ///
   /// ВАЖНО: Вызывать при dispose() виджета чата!
-  void unsubscribeFromMessages(String userId, String otherUserId) {
-    List<String> ids = [userId, otherUserId];
-    ids.sort();
-    String chatRoomId = ids.join('_');
+  Future<void> unsubscribeFromMessages(String userId, String otherUserId) async {
+    try {
+      // ✅ Получаем chatId
+      final chatId = await _getChatIdByUsers(userId, otherUserId);
 
-    // Отписываемся от PocketBase
-    final unsubscribe = _subscriptions.remove(chatRoomId);
-    if (unsubscribe != null) {
-      unsubscribe();
-      print('[ChatService] Отписка от realtime для: $chatRoomId');
-    }
+      // Отписываемся от PocketBase
+      final unsubscribe = _subscriptions.remove(chatId);
+      if (unsubscribe != null) {
+        unsubscribe();
+        print('[ChatService] Отписка от realtime для: $chatId');
+      }
 
-    // Закрываем stream controller
-    final controller = _messageStreamControllers.remove(chatRoomId);
-    if (controller != null) {
-      controller.close();
-      print('[ChatService] Stream controller закрыт для: $chatRoomId');
+      // Закрываем stream controller
+      final controller = _messageStreamControllers.remove(chatId);
+      if (controller != null) {
+        controller.close();
+        print('[ChatService] Stream controller закрыт для: $chatId');
+      }
+    } catch (e) {
+      print('[ChatService] Ошибка отписки: $e');
     }
   }
 
   /// Получить сообщения чата (список, без реактивности)
   ///
-  /// БЫЛО (Firestore):
-  /// Stream<QuerySnapshot> - реактивный поток, автоматически обновляется
-  ///
-  /// СТАЛО (PocketBase):
-  /// Future<List<Message>> - одноразовый запрос
+  /// ИЗМЕНЕНИЯ (НОВАЯ АРХИТЕКТУРА):
+  /// ❌ УДАЛЕНО: chatRoomId (строка)
+  /// ✅ ДОБАВЛЕНО: получаем chatId через _getChatIdByUsers()
+  /// ✅ ФИЛЬТР: 'chatId="..."' вместо 'chatRoomId="..."'
   ///
   /// ⚠️ РЕКОМЕНДАЦИЯ: Используйте getMessagesStream() для realtime обновлений!
   Future<List<Message>> getMessages(String userId, String otherUserId) async {
     try {
-      List<String> ids = [userId, otherUserId];
-      ids.sort();
-      String chatRoomId = ids.join('_');
+      // ✅ Получаем chatId
+      final chatId = await _getChatIdByUsers(userId, otherUserId);
 
-      // ИЗМЕНЕНИЕ 7: Запрос сообщений по chatRoomId
-      //
-      // БЫЛО (Firestore):
-      // _firestore.collection("chat_room").doc(chatRoomId).collection("messages")
-      //   .orderBy("timestamp", descending: false).snapshots()
-      //
-      // СТАЛО (PocketBase):
-      // _pb.collection('messages').getList(
-      //   filter: 'chatRoomId="$chatRoomId"',
-      //   sort: '+created'  // + = ascending (старые первыми)
-      // )
-      //
-      // PocketBase фильтры:
-      // - filter: 'chatRoomId="..."' - SQL-like синтаксис
-      // - sort: '+created' - сортировка по дате создания (по возрастанию)
-      //   '+' = ascending (старые → новые)
-      //   '-' = descending (новые → старые)
+      // Запрос сообщений по chatId
       final result = await _pb.collection('messages').getList(
-            filter: 'chatRoomId="$chatRoomId"',
+            filter: 'chatId="$chatId"', // ✅ ИЗМЕНЕНО
             sort: '+created', // Старые сообщения первыми
             perPage: 500, // Ограничение (можно добавить пагинацию)
           );
@@ -699,13 +701,12 @@ class ChatService extends ChangeNotifier {
   Future<Map<String, dynamic>?> getLastMessage(
       String userID1, String userID2) async {
     try {
-      List<String> ids = [userID1, userID2];
-      ids.sort();
-      String chatRoomId = ids.join('_');
+      // ✅ Получаем chatId
+      final chatId = await _getChatIdByUsers(userID1, userID2);
 
-      // Запрашиваем последнее сообщение (сортировка по убыванию, limit 1)
+      // Запрашиваем последнее сообщение
       final result = await _pb.collection('messages').getList(
-            filter: 'chatRoomId="$chatRoomId"',
+            filter: 'chatId="$chatId"', // ✅ ИЗМЕНЕНО
             sort: '-created', // Новые первыми
             perPage: 1, // Только последнее
           );
@@ -727,39 +728,21 @@ class ChatService extends ChangeNotifier {
 
   /// Получить количество непрочитанных сообщений
   ///
-  /// ИЗМЕНЕНИЕ 8: Подсчет через фильтр вместо счетчика
-  ///
-  /// БЫЛО (Firestore):
-  /// Счетчик хранился в документе chat_room:
-  /// - unread_count_user1
-  /// - unread_count_user2
-  /// Увеличивался через FieldValue.increment(1)
-  ///
-  /// СТАЛО (PocketBase):
-  /// Считаем через фильтр:
-  /// filter: 'chatRoomId="..." && senderId="other" && isRead=false'
-  ///
-  /// ПОЧЕМУ:
-  /// PocketBase не поддерживает FieldValue.increment()
-  /// Проще считать непрочитанные сообщения через запрос
+  /// ИЗМЕНЕНИЯ (НОВАЯ АРХИТЕКТУРА):
+  /// ✅ Используем chatId вместо chatRoomId
+  /// ✅ Фильтр: 'chatId="..." && senderId="..." && isRead=false'
   Future<int> getUnreadCount(String userID1, String userID2) async {
     try {
-      List<String> ids = [userID1, userID2];
-      ids.sort();
-      String chatRoomId = ids.join('_');
+      // ✅ Получаем chatId
+      final chatId = await _getChatIdByUsers(userID1, userID2);
 
-      // ИЗМЕНЕНИЕ 9: Подсчет непрочитанных через фильтр
-      //
-      // Получаем сообщения где:
-      // - chatRoomId соответствует чату
-      // - senderId = собеседник (не мы)
-      // - isRead = false
+      // Подсчет непрочитанных через фильтр
       final result = await _pb.collection('messages').getList(
-            filter: 'chatRoomId="$chatRoomId" && senderId="$userID2" && isRead=false',
-            perPage: 1, // Нам нужен только count, не сами сообщения
+            filter: 'chatId="$chatId" && senderId="$userID2" && isRead=false', // ✅ ИЗМЕНЕНО
+            perPage: 1, // Нам нужен только count
           );
 
-      // totalItems - общее количество записей (не только на текущей странице)
+      // totalItems - общее количество записей
       return result.totalItems;
     } catch (e) {
       print('[ChatService] Ошибка получения непрочитанных: $e');
@@ -769,26 +752,16 @@ class ChatService extends ChangeNotifier {
 
   /// Пометить сообщения как прочитанные
   ///
-  /// ИЗМЕНЕНИЕ 10: Обновление через batch-запрос
-  ///
-  /// БЫЛО (Firestore):
-  /// 1. Запрос непрочитанных сообщений
-  /// 2. Обновление каждого через doc.reference.update()
-  /// 3. Сброс счетчика в chat_room
-  ///
-  /// СТАЛО (PocketBase):
-  /// 1. Запрос непрочитанных сообщений
-  /// 2. Обновление каждого через update()
-  /// (счетчика нет, он считается динамически)
+  /// ИЗМЕНЕНИЯ (НОВАЯ АРХИТЕКТУРА):
+  /// ✅ Используем chatId вместо chatRoomId
   Future<void> markMessagesAsRead(String userID1, String userID2) async {
     try {
-      List<String> ids = [userID1, userID2];
-      ids.sort();
-      String chatRoomId = ids.join('_');
+      // ✅ Получаем chatId
+      final chatId = await _getChatIdByUsers(userID1, userID2);
 
       // Получаем все непрочитанные сообщения от собеседника
       final result = await _pb.collection('messages').getList(
-            filter: 'chatRoomId="$chatRoomId" && senderId="$userID2" && isRead=false',
+            filter: 'chatId="$chatId" && senderId="$userID2" && isRead=false', // ✅ ИЗМЕНЕНО
             perPage: 500, // Получаем все непрочитанные
           );
 
@@ -963,92 +936,126 @@ class ChatService extends ChangeNotifier {
   // НОВЫЕ МЕТОДЫ ДЛЯ РАБОТЫ С КОЛЛЕКЦИЕЙ CHATS (метаданные чатов)
   // ============================================================================
 
-  /// Создать или обновить метаданные чата после отправки сообщения
+  /// 🆕 ВСПОМОГАТЕЛЬНЫЙ МЕТОД: Получить ID чата по паре пользователей
+  ///
+  /// АРХИТЕКТУРА (НОВАЯ):
+  /// - messages.chatId → chats.id (RelationField)
+  /// - chats имеет unique constraint на (user1Id, user2Id)
+  /// - НЕТ поля chatRoomId!
+  ///
+  /// ЛОГИКА:
+  /// 1. Ищем чат по user1Id и user2Id (оба направления)
+  /// 2. Если находим → возвращаем chats.id
+  /// 3. Если не находим → создаём новый чат и возвращаем его id
+  ///
+  /// ВОЗВРАЩАЕТ:
+  /// String - ID записи в коллекции chats (используется как chatId в messages)
+  Future<String> _getChatIdByUsers(String user1Id, String user2Id) async {
+    try {
+      // Сортируем ID для консистентности (user1 всегда меньше user2)
+      List<String> sortedIds = [user1Id, user2Id];
+      sortedIds.sort();
+      final sortedUser1 = sortedIds[0];
+      final sortedUser2 = sortedIds[1];
+
+      print('[ChatService] 🔍 Поиск чата между: $sortedUser1 и $sortedUser2');
+
+      // Ищем чат по паре пользователей
+      // Важно: ищем оба направления (user1+user2 или user2+user1)
+      final existing = await _pb.collection('chats').getList(
+            filter:
+                '(user1Id="$sortedUser1" && user2Id="$sortedUser2") || (user1Id="$sortedUser2" && user2Id="$sortedUser1")',
+            perPage: 1,
+          );
+
+      if (existing.items.isNotEmpty) {
+        // Чат существует
+        final chatId = existing.items.first.id;
+        print('[ChatService] ✅ Чат найден: $chatId');
+        return chatId;
+      } else {
+        // Чат не существует - создаём новый
+        print('[ChatService] ✨ Создание нового чата...');
+
+        final newChat = await _pb.collection('chats').create(body: {
+          'user1Id': sortedUser1, // Меньший ID
+          'user2Id': sortedUser2, // Больший ID
+          'lastMessage': '', // Пустое сообщение при создании
+          'lastMessageType': 'text',
+          'lastSenderId': user1Id, // Текущий пользователь
+          'lastTimestamp': DateTime.now().toIso8601String(),
+          'unreadCountUser1': 0,
+          'unreadCountUser2': 0,
+        });
+
+        print('[ChatService] ✅ Новый чат создан: ${newChat.id}');
+        return newChat.id;
+      }
+    } catch (e) {
+      print('[ChatService] ❌ Ошибка получения/создания chatId: $e');
+      rethrow;
+    }
+  }
+
+  /// Обновить метаданные чата после отправки сообщения
   ///
   /// НАЗНАЧЕНИЕ:
   /// После каждого отправленного сообщения обновляем запись в chats:
   /// - lastMessage, lastMessageType, lastSenderId, lastTimestamp
   /// - увеличиваем unreadCount для получателя
   ///
+  /// ИЗМЕНЕНИЯ (НОВАЯ АРХИТЕКТУРА):
+  /// ❌ УДАЛЕНО: поиск по chatRoomId
+  /// ✅ ДОБАВЛЕНО: принимаем готовый chatId (record.id из chats)
+  ///
   /// ЛОГИКА:
-  /// 1. Проверяем существует ли чат (getList с filter по chatRoomId)
-  /// 2. Если существует → update()
-  /// 3. Если не существует → create()
-  Future<void> _createOrUpdateChatRoom({
-    required String chatRoomId,
-    required String user1Id,
-    required String user2Id,
+  /// 1. Получаем текущие метаданные чата по chatId
+  /// 2. Увеличиваем unreadCount для получателя
+  /// 3. Обновляем lastMessage, lastTimestamp и т.д.
+  Future<void> _updateChatMetadata({
+    required String chatId, // ✅ НОВОЕ: ID записи в chats (не chatRoomId!)
     required String lastMessage,
     required String lastMessageType,
     required String lastSenderId,
-    required DateTime messageTimestamp, // НОВОЕ: реальное время сообщения
+    required DateTime messageTimestamp,
   }) async {
     try {
-      print('[ChatService] 🔍 Проверка существования чата: $chatRoomId');
+      print('[ChatService] 🔄 Обновление метаданных чата: $chatId');
 
-      // Проверяем существует ли чат
-      final existing = await _pb.collection('chats').getList(
-            filter: 'chatRoomId="$chatRoomId"',
-            perPage: 1,
-          );
+      // Получаем текущую запись чата
+      final record = await _pb.collection('chats').getOne(chatId);
 
-      print('[ChatService] 📊 Найдено записей: ${existing.items.length}');
+      final user1Id = record.data['user1Id'] as String;
+      final user2Id = record.data['user2Id'] as String;
 
       // Определяем кто получатель (для увеличения unreadCount)
       final receiverId = lastSenderId == user1Id ? user2Id : user1Id;
 
-      if (existing.items.isNotEmpty) {
-        // ЧАТ СУЩЕСТВУЕТ → обновляем
-        final record = existing.items.first;
+      // Текущие счётчики
+      int unreadUser1 = record.data['unreadCountUser1'] ?? 0;
+      int unreadUser2 = record.data['unreadCountUser2'] ?? 0;
 
-        // Текущие счётчики
-        int unreadUser1 = record.data['unreadCountUser1'] ?? 0;
-        int unreadUser2 = record.data['unreadCountUser2'] ?? 0;
-
-        // Увеличиваем счётчик получателя
-        if (receiverId == user1Id) {
-          unreadUser1++;
-        } else {
-          unreadUser2++;
-        }
-
-        print('[ChatService] 🔄 Обновление существующего чата...');
-
-        await _pb.collection('chats').update(
-          record.id,
-          body: {
-            'lastMessage': lastMessage,
-            'lastMessageType': lastMessageType,
-            'lastSenderId': lastSenderId,
-            'lastTimestamp': messageTimestamp.toIso8601String(), // ИСПРАВЛЕНО: используем реальное время
-            'unreadCountUser1': unreadUser1,
-            'unreadCountUser2': unreadUser2,
-          },
-        );
-
-        print('[ChatService] ✅ Метаданные чата обновлены: $chatRoomId');
+      // Увеличиваем счётчик получателя
+      if (receiverId == user1Id) {
+        unreadUser1++;
       } else {
-        // ЧАТ НЕ СУЩЕСТВУЕТ → создаём
-        print('[ChatService] ✨ Создание нового чата...');
-        print('[ChatService]   user1Id: $user1Id');
-        print('[ChatService]   user2Id: $user2Id');
-        print('[ChatService]   receiverId: $receiverId');
+        unreadUser2++;
+      }
 
-        final newChat = await _pb.collection('chats').create(body: {
-          'chatRoomId': chatRoomId,
-          'user1Id': user1Id,
-          'user2Id': user2Id,
+      // Обновляем метаданные
+      await _pb.collection('chats').update(
+        chatId,
+        body: {
           'lastMessage': lastMessage,
           'lastMessageType': lastMessageType,
           'lastSenderId': lastSenderId,
-          'lastTimestamp': messageTimestamp.toIso8601String(), // ИСПРАВЛЕНО: используем реальное время
-          // Счётчик для получателя = 1, для отправителя = 0
-          'unreadCountUser1': receiverId == user1Id ? 1 : 0,
-          'unreadCountUser2': receiverId == user2Id ? 1 : 0,
-        });
+          'lastTimestamp': messageTimestamp.toIso8601String(),
+          'unreadCountUser1': unreadUser1,
+          'unreadCountUser2': unreadUser2,
+        },
+      );
 
-        print('[ChatService] ✅ Метаданные чата созданы: ${newChat.id}');
-      }
+      print('[ChatService] ✅ Метаданные чата обновлены');
     } catch (e) {
       print('[ChatService] ❌ Ошибка обновления метаданных чата: $e');
       // Не пробрасываем ошибку, чтобы сообщение всё равно отправилось
@@ -1215,44 +1222,40 @@ class ChatService extends ChangeNotifier {
   /// ВЫЗЫВАЕТСЯ:
   /// Когда пользователь открывает чат (chat_page.dart)
   ///
+  /// ИЗМЕНЕНИЯ (НОВАЯ АРХИТЕКТУРА):
+  /// ❌ УДАЛЕНО: параметр chatRoomId
+  /// ✅ ДОБАВЛЕНО: параметры userId и otherUserId
+  /// ✅ Получаем chatId через _getChatIdByUsers()
+  ///
   /// ЛОГИКА:
-  /// 1. Находим запись чата в chats
+  /// 1. Получаем chatId по паре пользователей
   /// 2. Обнуляем счётчик для текущего пользователя (unreadCountUser1 или unreadCountUser2)
   /// 3. Помечаем сообщения как прочитанные (через существующий markMessagesAsRead)
-  Future<void> resetUnreadCountInMetadata(String chatRoomId) async {
+  Future<void> resetUnreadCountInMetadata(String userId, String otherUserId) async {
     try {
-      final currentUserId = Auth().getCurrentUid();
+      // ✅ Получаем chatId
+      final chatId = await _getChatIdByUsers(userId, otherUserId);
 
-      // Находим чат
-      final existing = await _pb.collection('chats').getList(
-            filter: 'chatRoomId="$chatRoomId"',
-            perPage: 1,
-          );
+      // Получаем запись чата
+      final record = await _pb.collection('chats').getOne(chatId);
 
-      if (existing.items.isEmpty) {
-        print('[ChatService] Чат не найден для сброса счётчика: $chatRoomId');
-        return;
-      }
-
-      final record = existing.items.first;
       final user1Id = record.data['user1Id'];
       final user2Id = record.data['user2Id'];
 
       // Определяем какой счётчик обнулять
       final updateData = <String, dynamic>{};
-      if (currentUserId == user1Id) {
+      if (userId == user1Id) {
         updateData['unreadCountUser1'] = 0;
-      } else if (currentUserId == user2Id) {
+      } else if (userId == user2Id) {
         updateData['unreadCountUser2'] = 0;
       }
 
       if (updateData.isNotEmpty) {
-        await _pb.collection('chats').update(record.id, body: updateData);
-        print('[ChatService] Счётчик непрочитанных сброшен для: $currentUserId');
+        await _pb.collection('chats').update(chatId, body: updateData);
+        print('[ChatService] Счётчик непрочитанных сброшен для: $userId');
 
         // Также помечаем сообщения как прочитанные
-        final otherUserId = currentUserId == user1Id ? user2Id : user1Id;
-        await markMessagesAsRead(currentUserId, otherUserId);
+        await markMessagesAsRead(userId, otherUserId);
       }
     } catch (e) {
       print('[ChatService] Ошибка сброса счётчика непрочитанных: $e');

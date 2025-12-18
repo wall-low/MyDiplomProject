@@ -1,24 +1,25 @@
 // Database Schema для "Учеба рядом"
 // Backend: PocketBase (SQLite)
 // Визуализация: https://dbdiagram.io/
+// ОБНОВЛЕНО: Все типы полей соответствуют нативным типам PocketBase
 
 // ============================================
 // ТЕКУЩИЕ КОЛЛЕКЦИИ (Реально существующие)
 // ============================================
 
 Table users {
-  id text [pk, note: 'PocketBase Auth Collection ID']
-  email text [unique, note: 'Email для авторизации (system field)']
-  username text [unique, note: 'Уникальное имя пользователя (min:3, max:50)']
-  name text [note: 'Полное имя (required, max:100)']
-  birthDate text [note: 'Дата рождения (date field)']
-  city text [note: 'Город проживания (max:100)']
-  role text [note: '"student" | "tutor" (select field)']
-  bio text [note: 'О себе (max:500)']
-  avatar text [note: 'Имя файла аватара (file field: jpg/png/gif/webp, max:5MB, thumbs:100x100,300x300)']
+  id text [pk, note: 'PocketBase Auth Collection ID (system)']
+  email text [unique, note: 'EmailField (system field)']
+  username text [unique, note: 'TextField (min:3, max:50)']
+  name text [note: 'TextField - Полное имя (required, max:100)']
+  birthDate date [note: 'DateField - Дата рождения']
+  city text [note: 'TextField - Город проживания (max:100)']
+  role text [note: 'SelectField - "student" | "tutor"']
+  bio text [note: 'TextField - О себе (max:500)']
+  avatar text [note: 'FileField - Имя файла (jpg/png/gif/webp, max:5MB, thumbs:100x100,300x300)']
 
-  created text [note: 'Auto-generated timestamp']
-  updated text [note: 'Auto-generated timestamp']
+  created date [note: 'AutodateField (system)']
+  updated date [note: 'AutodateField (system)']
 
   Note: '''
   Auth Collection - встроенная авторизация PocketBase
@@ -29,58 +30,63 @@ Table users {
 
 Table messages {
   id text [pk]
-  chatRoomId text [note: 'Format: "uid1_uid2" (min:1, max:100)']
-  senderId text [note: 'Relation → users.id']
-  senderEmail text [note: 'Email отправителя (max:200)']
-  receiverId text [note: 'Relation → users.id']
+  chatId text [note: 'RelationField → chats.id (связь с метаданными чата)']
+  senderId text [note: 'RelationField → users.id']
+  senderEmail text [note: 'TextField - Email отправителя (max:200)']
+  receiverId text [note: 'RelationField → users.id']
 
-  message text [note: 'Текст сообщения или URL файла (max:5000)']
-  type text [note: '"text" | "image" | "audio" (select field)']
-  isRead text [note: 'Boolean field (default: false)']
+  message text [note: 'TextField - Текст сообщения или URL файла (max:5000)']
+  type text [note: 'SelectField - "text" | "image" | "audio"']
+  isRead bool [default: false, note: 'BoolField - Прочитано или нет']
 
-  created text [note: 'Время отправки (auto)']
+  created date [note: 'AutodateField - Время отправки']
 
   Indexes {
-    chatRoomId [name: 'idx_chatRoomId']
+    chatId [name: 'idx_chatId']
     senderId [name: 'idx_senderId']
     receiverId [name: 'idx_receiverId']
   }
 
   Note: '''
   Базовая коллекция сообщений
+  Связь с чатом через RelationField (chatId → chats.id)
   Файлы (изображения/аудио) пока хранятся как URL в поле message
+  TODO: Мигрировать на FileField (imageFile, audioFile)
   '''
 }
 
 Table slots {
   id text [pk]
-  tutorId text [note: 'Relation → users.id']
-  date text [note: 'Date field, normalized to 00:00:00']
-  startTime text [note: 'Format: "HH:MM" (pattern: ^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$)']
-  endTime text [note: 'Format: "HH:MM" (pattern: ^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$)']
+  tutorId text [note: 'RelationField → users.id']
+  date date [note: 'DateField - Дата занятия (normalized to 00:00:00)']
+  startTime text [note: 'TextField - "HH:MM" (pattern: ^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$)']
+  endTime text [note: 'TextField - "HH:MM" (pattern: ^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$)']
 
-  isBooked text [note: 'Boolean field (default: false)']
-  isPaid text [note: 'Boolean field (default: false)']
+  isBooked bool [default: false, note: 'BoolField - Забронирован слот']
+  isPaid bool [default: false, note: 'BoolField - Оплачено занятие']
 
-  studentId text [null, note: 'Relation → users.id (optional)']
+  studentId text [null, note: 'RelationField → users.id (optional)']
 
-  created text
-  updated text
+  created date [note: 'AutodateField']
+  updated date [note: 'AutodateField']
 
   Indexes {
     tutorId [name: 'idx_tutorId']
     date [name: 'idx_date']
   }
 
-  Note: 'Временные слоты репетиторов'
+  Note: '''
+  Временные слоты репетиторов
+  startTime/endTime - TextField, т.к. только время без даты
+  '''
 }
 
 Table blocked_users {
   id text [pk]
-  userId text [note: 'Relation → users.id (cascade delete)']
-  blockedUserId text [note: 'Relation → users.id (cascade delete)']
+  userId text [note: 'RelationField → users.id (cascade delete)']
+  blockedUserId text [note: 'RelationField → users.id (cascade delete)']
 
-  created text
+  created date [note: 'AutodateField']
 
   Indexes {
     (userId, blockedUserId) [unique, name: 'idx_user_blocked']
@@ -91,38 +97,46 @@ Table blocked_users {
 
 Table reports {
   id text [pk]
-  reportedBy text [note: 'Relation → users.id']
-  messageId text [note: 'Relation → messages.id (cascade delete)']
-  messageOwnerId text [note: 'Relation → users.id']
+  reportedBy text [note: 'RelationField → users.id']
+  messageId text [note: 'RelationField → messages.id (cascade delete)']
+  messageOwnerId text [note: 'RelationField → users.id']
 
-  created text
+  created date [note: 'AutodateField']
 
   Note: 'Жалобы на сообщения в чатах'
 }
 
 Table chats {
-  id text [pk]
-  chatRoomId text [unique, note: 'Format: "uid1_uid2" (alphabetically sorted)']
-  user1Id text [note: 'Relation → users.id']
-  user2Id text [note: 'Relation → users.id']
+  id text [pk, note: 'PocketBase ID чата']
+  user1Id text [note: 'RelationField → users.id (первый участник)']
+  user2Id text [note: 'RelationField → users.id (второй участник)']
 
-  lastMessage text [null, note: 'Текст последнего сообщения (макс 500)']
-  lastMessageType text [note: '"text" | "image" | "audio"']
-  lastSenderId text [note: 'Relation → users.id']
-  lastTimestamp text [note: 'Время последнего сообщения']
+  lastMessage text [null, note: 'TextField - Текст последнего сообщения (макс 500)']
+  lastMessageType text [note: 'SelectField - "text" | "image" | "audio"']
+  lastSenderId text [note: 'RelationField → users.id']
+  lastTimestamp date [note: 'DateField - Время последнего сообщения']
 
-  unreadCountUser1 integer [default: 0]
-  unreadCountUser2 integer [default: 0]
+  unreadCountUser1 number [default: 0, note: 'NumberField - Непрочитанные для user1']
+  unreadCountUser2 number [default: 0, note: 'NumberField - Непрочитанные для user2']
 
-  created text
-  updated text
+  created date [note: 'AutodateField']
+  updated date [note: 'AutodateField']
+
+  Indexes {
+    (user1Id, user2Id) [unique, name: 'idx_users_pair']
+  }
 
   Note: '''
   Метаданные чатов для быстрого списка (Two-Table Pattern)
 
-  РЕШЕНИЕ: Две таблицы вместо subcollections
+  РЕШЕНИЕ: Две таблицы с жесткой связью через RelationField
   - chats: метаданные (список чатов на HomePage)
-  - messages: все сообщения (история в ChatPage)
+  - messages: все сообщения (история в ChatPage) с полем chatId → chats.id
+
+  Преимущества:
+  - Каскадное удаление (удалил чат → удалились все сообщения)
+  - Referential integrity на уровне БД
+  - Unique constraint на пару (user1Id, user2Id)
 
   Автообновляется через _createOrUpdateChatRoom() после каждой отправки
   '''
@@ -134,49 +148,49 @@ Table chats {
 
 Table tutor_profiles {
   id text [pk]
-  userId text [unique, note: 'Relation → users.id']
-  subjects text [note: 'JSON массив: ["Математика", "Физика"]']
-  priceMin real [note: 'Минимальная цена за час']
-  priceMax real [note: 'Максимальная цена за час']
-  experience integer [note: 'Опыт работы в годах']
-  education text [note: 'Образование']
-  lessonFormat text [note: 'JSON: ["online", "offline", "both"]']
+  userId text [unique, note: 'RelationField → users.id']
+  subjects json [note: 'JSONField - ["Математика", "Физика"]']
+  priceMin number [note: 'NumberField - Минимальная цена за час']
+  priceMax number [note: 'NumberField - Максимальная цена за час']
+  experience number [note: 'NumberField - Опыт работы в годах']
+  education text [note: 'TextField - Образование (вуз, специальность)']
+  lessonFormat json [note: 'JSONField - ["online", "offline", "both"]']
 
-  rating real [default: 0, note: 'Средний взвешенный рейтинг']
-  totalPaidLessons integer [default: 0]
-  lastPaidLessonDate text [null]
-  isNewbie integer [default: 1, note: 'Boolean: показывать бейдж 🆕']
+  rating number [default: 0, note: 'NumberField - Средний взвешенный рейтинг (0-5)']
+  totalPaidLessons number [default: 0, note: 'NumberField - Всего оплаченных занятий']
+  lastPaidLessonDate date [null, note: 'DateField - Дата последнего оплаченного занятия']
+  isNewbie bool [default: true, note: 'BoolField - Показывать бейдж 🆕']
 
-  created text
-  updated text
+  created date [note: 'AutodateField']
+  updated date [note: 'AutodateField']
 
   Note: '⚠️ ПОКА НЕ СОЗДАНА - Расширенные данные репетиторов'
 }
 
 Table payments {
   id text [pk]
-  studentId text [note: 'Relation → users.id']
-  tutorId text [note: 'Relation → users.id']
-  slotId text [note: 'Relation → slots.id']
-  amount real [note: 'Сумма оплаты']
-  status text [default: 'pending', note: '"pending" | "completed" | "failed"']
+  studentId text [note: 'RelationField → users.id']
+  tutorId text [note: 'RelationField → users.id']
+  slotId text [note: 'RelationField → slots.id']
+  amount number [note: 'NumberField - Сумма оплаты']
+  status text [default: 'pending', note: 'SelectField - "pending" | "completed" | "failed"']
 
-  created text
+  created date [note: 'AutodateField']
 
   Note: '⚠️ ПОКА НЕ СОЗДАНА - Имитация оплаты для диплома'
 }
 
 Table reviews {
   id text [pk]
-  tutorId text [note: 'Relation → users.id']
-  studentId text [note: 'Relation → users.id']
-  rating integer [note: '1-5 звёзд (только если isVerified)']
-  comment text [null]
-  isVerified integer [note: 'Boolean: true если оплаченное занятие']
-  lessonId text [null, note: 'Relation → slots.id']
-  weight integer [note: 'Вес отзыва = кол-во занятий']
+  tutorId text [note: 'RelationField → users.id']
+  studentId text [note: 'RelationField → users.id']
+  rating number [note: 'NumberField - 1-5 звёзд (только если isVerified)']
+  comment text [null, note: 'TextField - Текстовый отзыв']
+  isVerified bool [note: 'BoolField - true если оплаченное занятие']
+  lessonId text [null, note: 'RelationField → slots.id']
+  weight number [note: 'NumberField - Вес отзыва = кол-во занятий с этим учеником']
 
-  created text
+  created date [note: 'AutodateField']
 
   Note: '⚠️ ПОКА НЕ СОЗДАНА - Система отзывов'
 }
@@ -190,6 +204,7 @@ Ref: slots.tutorId > users.id
 Ref: slots.studentId > users.id
 
 // Сообщения
+Ref: messages.chatId > chats.id [delete: cascade]
 Ref: messages.senderId > users.id
 Ref: messages.receiverId > users.id
 
@@ -236,7 +251,7 @@ Ref: reviews.lessonId > slots.id
 
 // 🔄 В ПРОЦЕССЕ:
 // - Файлы в чатах (изображения/аудио) используют Cloudinary
-//   TODO: миграция на PocketBase Storage (добавить поля imageFile, audioFile)
+//   TODO: миграция на PocketBase Storage (добавить FileField: imageFile, audioFile)
 
 // ⏳ ПЛАНИРУЕТСЯ ДЛЯ ДИПЛОМА:
 // - tutor_profiles (расширенные данные репетиторов)
@@ -244,16 +259,34 @@ Ref: reviews.lessonId > slots.id
 // - payments (имитация оплаты)
 
 // ============================================
-// ТИПЫ ПОЛЕЙ POCKETBASE
+// ТИПЫ ПОЛЕЙ POCKETBASE (Официальные)
 // ============================================
-// text - строки, email, username, bio
-// date - даты (birthDate, слоты)
-// bool - boolean (isRead, isBooked, isPaid)
-// select - enum значения (role, type)
-// file - файлы (avatar)
-// relation - связи с другими коллекциями
-// number - целые и дробные числа (не используется в текущей схеме)
+// TextField       - обычные строки (name, username, city, bio, message, education, chatRoomId, etc.)
+// EmailField      - email адреса (system field в Auth Collection)
+// URLField        - URL адреса
+// NumberField     - числа (цены, рейтинги, счётчики) - поддерживает int и float
+// BoolField       - булевы значения true/false (isRead, isBooked, isPaid, isVerified, isNewbie)
+// DateField       - даты и время в RFC3339 (birthDate, date, lastTimestamp, lastPaidLessonDate)
+// AutodateField   - автодаты для created/updated (system fields)
+// SelectField     - enum значения (role, type, status, lastMessageType)
+// JSONField       - JSON данные (subjects, lessonFormat) - единственный nullable тип
+// FileField       - файлы (avatar, image, audio)
+// RelationField   - связи между коллекциями (userId, tutorId, senderId, etc.)
+// EditorField     - HTML-форматированный текст (не используется)
+// GeoPointField   - географические координаты (не используется)
 
-// JSON массивы хранятся как text: '["item1", "item2"]'
-// Boolean в SQLite: true/false (не 0/1!)
-// Timestamps: ISO 8601 строки
+// ============================================
+// КЛЮЧЕВЫЕ ИЗМЕНЕНИЯ
+// ============================================
+// ✅ text → date для всех дат (birthDate, created, updated, lastTimestamp, date, lastPaidLessonDate)
+// ✅ text/integer → bool для всех булевых (isRead, isBooked, isPaid, isVerified, isNewbie)
+// ✅ integer/real → number для всех чисел (цены, рейтинги, счётчики, веса)
+// ✅ text → json для массивов (subjects, lessonFormat)
+// ✅ Добавлены комментарии с типами PocketBase для каждого поля
+// ✅ startTime/endTime остаются TextField, т.к. хранят только время без даты
+// ✅ АРХИТЕКТУРА ЧАТОВ:
+//    - messages.chatRoomId (TextField) → messages.chatId (RelationField → chats.id)
+//    - chats.chatRoomId (TextField) → УБРАНО
+//    - Добавлен unique index на (user1Id, user2Id) в chats
+//    - Добавлена связь messages.chatId → chats.id с cascade delete
+//    - Теперь удаление чата автоматически удаляет все его сообщения

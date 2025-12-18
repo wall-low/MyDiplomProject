@@ -309,7 +309,7 @@ class _FindTutorPageState extends State<FindTutorPage> {
           context,
           MaterialPageRoute(
             builder: (context) => ChatPage(
-              receiverUsername: tutor.username,
+              receiverName: tutor.name, // ИЗМЕНЕНО: передаём name
               receiverID: tutor.uid,
             ),
           ),
