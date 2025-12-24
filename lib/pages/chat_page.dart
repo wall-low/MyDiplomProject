@@ -8,7 +8,6 @@ import 'package:p7/components/chat_bubble.dart';
 import 'package:p7/components/my_text_field.dart';
 import 'package:p7/service/auth.dart';
 import 'package:p7/service/chat_service.dart';
-import 'package:p7/service/pocketbase_service.dart';
 import '../components/audio_player_widget.dart';
 import '../models/messenge.dart';
 
@@ -35,8 +34,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   final ChatService _chatService = ChatService();
   final Auth _auth = Auth();
   final fs.FlutterSoundRecorder _recorder = fs.FlutterSoundRecorder();
-  // ИЗМЕНЕНИЕ: Добавили PocketBase сервис для загрузки файлов
-  final PocketBaseService _pbService = PocketBaseService();
 
   bool _isRecording = false;
   final Map<String, double> _uploadingFiles = {};
@@ -184,29 +181,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     try {
       _simulateProgress(localId);
 
-      // ИЗМЕНЕНИЕ: uploadChatImage вместо Cloudinary.uploadAvatar
-      //
-      // БЫЛО (Cloudinary):
-      // final imageUrl = await CloudinaryService.uploadAvatar(filePath: pickedFile.path);
-      //
-      // СТАЛО (PocketBase):
-      // final imageUrl = await _pbService.uploadChatImage(...)
-      //
-      // Генерируем chatRoomId для фильтрации (как в chat_service.dart)
-      List<String> ids = [_auth.getCurrentUid(), widget.receiverID];
-      ids.sort();
-      String chatRoomId = ids.join('_');
-
-      final imageUrl = await _pbService.uploadChatImage(
-        filePath: pickedFile.path,
-        chatRoomId: chatRoomId,
-      );
-
+      // ✅ УПРОЩЕНО: Просто передаём локальный путь в chat_service
+      // chat_service.dart сам загрузит файл в PocketBase Storage
       if (!mounted) throw Exception('Upload cancelled');
 
       await _chatService.sendMessageWithImage(
         receiverId: widget.receiverID,
-        imageUrl: imageUrl,
+        filePath: pickedFile.path, // ✅ Передаём локальный путь
       );
 
       if (!_isUserScrolling) _scrollToBottom(animate: false);
@@ -359,28 +340,12 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         if (!_isUserScrolling) _scrollToBottom(animate: false);
         _simulateProgress(uploadId);
 
-        // ИЗМЕНЕНИЕ: uploadChatAudio вместо Cloudinary.uploadAudio
-        //
-        // БЫЛО (Cloudinary):
-        // final url = await CloudinaryService.uploadAudio(filePath: result);
-        //
-        // СТАЛО (PocketBase):
-        // final url = await _pbService.uploadChatAudio(...)
-        //
-        // Генерируем chatRoomId для фильтрации
-        List<String> ids = [_auth.getCurrentUid(), widget.receiverID];
-        ids.sort();
-        String chatRoomId = ids.join('_');
-
-        final url = await _pbService.uploadChatAudio(
-          filePath: result,
-          chatRoomId: chatRoomId,
-        );
-
+        // ✅ УПРОЩЕНО: Просто передаём локальный путь в chat_service
+        // chat_service.dart сам загрузит файл в PocketBase Storage
         if (mounted) {
           await _chatService.sendMessageWithAudio(
             receiverId: widget.receiverID,
-            audioUrl: url,
+            filePath: result, // ✅ Передаём локальный путь
           );
           if (!_isUserScrolling) _scrollToBottom(animate: false);
         }
@@ -451,36 +416,45 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   void _restoreScrollPosition() {
     if (!_scrollController.hasClients || !mounted) return;
 
-    final maxExtent = _scrollController.position.maxScrollExtent;
-    final currentScroll = _scrollController.position.pixels;
-    final savedPosition = _scrollPositions[_chatKey];
+    try {
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      final currentScroll = _scrollController.position.pixels;
+      final savedPosition = _scrollPositions[_chatKey];
 
-    if (savedPosition == null || savedPosition == -1) {
-      // Нет сохранённой позиции или был внизу -> прокручиваем в низ
-      // Проверяем что maxExtent уже рассчитан и мы еще не внизу
-      if (maxExtent > 0 && (maxExtent - currentScroll > 10.0)) {
-        _scrollController.jumpTo(maxExtent);
-      } else if (maxExtent == 0) {
-        // Если maxExtent еще 0, пробуем снова через небольшую задержку
-        Future.delayed(const Duration(milliseconds: 50), () {
-          if (mounted && _scrollController.hasClients) {
-            final maxExtent = _scrollController.position.maxScrollExtent;
-            final currentScroll = _scrollController.position.pixels;
-            if (maxExtent - currentScroll > 10.0) {
-              _scrollController.jumpTo(maxExtent);
+      if (savedPosition == null || savedPosition == -1) {
+        // Нет сохранённой позиции или был внизу -> прокручиваем в низ
+        // Проверяем что maxExtent уже рассчитан и мы еще не внизу
+        if (maxExtent > 0 && (maxExtent - currentScroll > 10.0)) {
+          _scrollController.jumpTo(maxExtent);
+        } else if (maxExtent == 0) {
+          // Если maxExtent еще 0, пробуем снова через небольшую задержку
+          Future.delayed(const Duration(milliseconds: 50), () {
+            if (mounted && _scrollController.hasClients) {
+              try {
+                final maxExtent = _scrollController.position.maxScrollExtent;
+                final currentScroll = _scrollController.position.pixels;
+                if (maxExtent - currentScroll > 10.0) {
+                  _scrollController.jumpTo(maxExtent);
+                }
+              } catch (e) {
+                // Игнорируем если ScrollPosition еще не готов
+              }
             }
-          }
-        });
+          });
+        }
+        _isUserScrolling = false;
+      } else {
+        // Восстанавливаем сохранённую позицию
+        final targetPosition = savedPosition < maxExtent ? savedPosition : maxExtent;
+        // Проверяем что позиция действительно отличается
+        if ((targetPosition - currentScroll).abs() > 1.0) {
+          _scrollController.jumpTo(targetPosition);
+        }
+        _isUserScrolling = true;
       }
-      _isUserScrolling = false;
-    } else {
-      // Восстанавливаем сохранённую позицию
-      final targetPosition = savedPosition < maxExtent ? savedPosition : maxExtent;
-      // Проверяем что позиция действительно отличается
-      if ((targetPosition - currentScroll).abs() > 1.0) {
-        _scrollController.jumpTo(targetPosition);
-      }
-      _isUserScrolling = true;
+    } catch (e) {
+      // Игнорируем если ScrollPosition еще не готов
+      // Это может происходить при быстром переключении между чатами
     }
   }
 
@@ -859,18 +833,23 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   Widget _buildMessage(Message msg, bool isMine, String docId) {
     if (msg.type == 'audio') {
+      // ✅ ИСПРАВЛЕНО: Используем fileUrl вместо message для аудио
+      final audioUrl = msg.fileUrl ?? msg.message;
+
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Align(
           alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
           child: ChatAudioPlayer(
-            url: msg.message,
+            url: audioUrl,
             isCurrentUser: isMine,
             timestamp: msg.timestamp,
           ),
         ),
       );
     } else if (msg.type == 'image') {
+      // ✅ ИСПРАВЛЕНО: Используем fileUrl вместо message для изображений
+      final imageUrl = msg.fileUrl ?? msg.message;
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Align(
@@ -887,7 +866,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                       InteractiveViewer(
                         child: Center(
                           child: CachedNetworkImage(
-                            imageUrl: msg.message,
+                            imageUrl: imageUrl,
                             placeholder: (context, url) => Container(
                               width: 250,
                               height: 250,
@@ -927,7 +906,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
               );
             },
             child: Hero(
-              tag: msg.message,
+              tag: imageUrl,
               child: Container(
                 constraints: BoxConstraints(
                   maxWidth: MediaQuery.of(context).size.width * 0.7,
@@ -937,7 +916,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: CachedNetworkImage(
-                        imageUrl: msg.message,
+                        imageUrl: imageUrl,
                         fit: BoxFit.cover,
                         width: 250,
                         height: 250,

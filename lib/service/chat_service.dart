@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http; // ✅ Для MultipartFile
 import 'package:p7/models/messenge.dart';
 import 'package:p7/models/chat.dart';
 import 'package:p7/service/auth.dart';
@@ -400,44 +401,57 @@ class ChatService extends ChangeNotifier {
     }
   }
 
-  /// Отправка изображения
+  /// Отправка изображения через PocketBase Storage
   ///
-  /// Аналогично sendMessage, но с type = 'image'
+  /// ПАРАМЕТРЫ:
+  /// - receiverId: ID получателя
+  /// - filePath: Локальный путь к файлу изображения
+  ///
+  /// АЛГОРИТМ:
+  /// 1. Получаем chatId
+  /// 2. Загружаем файл через FormData в поле 'file'
+  /// 3. Обновляем метаданные чата
   Future<void> sendMessageWithImage({
     required String receiverId,
-    required String imageUrl,
+    required String filePath, // ✅ ИЗМЕНЕНО: filePath вместо imageUrl
   }) async {
     try {
       final currentUserId = Auth().getCurrentUid();
       final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
 
+      print('[ChatService] 📤 Отправка изображения от: $currentUserId → $receiverId');
+      print('[ChatService] 📁 Путь к файлу: $filePath');
+
       // ✅ ШАГ 1: Получаем или создаём чат
       final chatId = await _getChatIdByUsers(currentUserId, receiverId);
 
       final messageTimestamp = DateTime.now();
-      final msg = Message(
-        senderID: currentUserId,
-        senderEmail: currentUserEmail,
-        receiverID: receiverId,
-        message: imageUrl, // URL изображения
-        timestamp: messageTimestamp,
-        type: 'image',
-      );
 
-      // ✅ ШАГ 2: Создаём сообщение с chatId
-      final messageData = {
-        ...msg.toMap(),
-        'chatId': chatId, // ✅ ИЗМЕНЕНО
+      // ✅ ШАГ 2: Подготавливаем данные с файлом
+      final body = <String, dynamic>{
+        'chatId': chatId,
+        'senderId': currentUserId,
+        'senderEmail': currentUserEmail,
+        'receiverId': receiverId,
+        'message': '', // Пустое для файлов
+        'type': 'image',
         'isRead': false,
+        'timestamp': messageTimestamp.toIso8601String(),
       };
 
-      await _pb.collection('messages').create(body: messageData);
+      // ✅ Загружаем файл через http.MultipartFile
+      final file = await http.MultipartFile.fromPath('file', filePath);
 
-      print('[ChatService] Изображение отправлено: $chatId');
+      final createdMessage = await _pb.collection('messages').create(
+        body: body,
+        files: [file],
+      );
+
+      print('[ChatService] ✅ Изображение отправлено: ${createdMessage.id}');
 
       // ✅ ШАГ 3: Обновляем метаданные
       await _updateChatMetadata(
-        chatId: chatId, // ✅ ИЗМЕНЕНО
+        chatId: chatId,
         lastMessage: '📷 Фото',
         lastMessageType: 'image',
         lastSenderId: currentUserId,
@@ -446,49 +460,62 @@ class ChatService extends ChangeNotifier {
 
       _invalidateChatsCache();
     } catch (e) {
-      print('[ChatService] Ошибка отправки изображения: $e');
+      print('[ChatService] ❌ Ошибка отправки изображения: $e');
       rethrow;
     }
   }
 
-  /// Отправка аудио
+  /// Отправка аудио через PocketBase Storage
   ///
-  /// Аналогично sendMessage, но с type = 'audio'
+  /// ПАРАМЕТРЫ:
+  /// - receiverId: ID получателя
+  /// - filePath: Локальный путь к аудио файлу
+  ///
+  /// АЛГОРИТМ:
+  /// 1. Получаем chatId
+  /// 2. Загружаем файл через FormData в поле 'file'
+  /// 3. Обновляем метаданные чата
   Future<void> sendMessageWithAudio({
     required String receiverId,
-    required String audioUrl,
+    required String filePath, // ✅ ИЗМЕНЕНО: filePath вместо audioUrl
   }) async {
     try {
       final currentUserId = Auth().getCurrentUid();
       final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
 
+      print('[ChatService] 📤 Отправка аудио от: $currentUserId → $receiverId');
+      print('[ChatService] 📁 Путь к файлу: $filePath');
+
       // ✅ ШАГ 1: Получаем или создаём чат
       final chatId = await _getChatIdByUsers(currentUserId, receiverId);
 
       final messageTimestamp = DateTime.now();
-      final msg = Message(
-        senderID: currentUserId,
-        senderEmail: currentUserEmail,
-        receiverID: receiverId,
-        message: audioUrl, // URL аудио
-        timestamp: messageTimestamp,
-        type: 'audio',
-      );
 
-      // ✅ ШАГ 2: Создаём сообщение с chatId
-      final messageData = {
-        ...msg.toMap(),
-        'chatId': chatId, // ✅ ИЗМЕНЕНО
+      // ✅ ШАГ 2: Подготавливаем данные с файлом
+      final body = <String, dynamic>{
+        'chatId': chatId,
+        'senderId': currentUserId,
+        'senderEmail': currentUserEmail,
+        'receiverId': receiverId,
+        'message': '', // Пустое для файлов
+        'type': 'audio',
         'isRead': false,
+        'timestamp': messageTimestamp.toIso8601String(),
       };
 
-      await _pb.collection('messages').create(body: messageData);
+      // ✅ Загружаем файл через http.MultipartFile
+      final file = await http.MultipartFile.fromPath('file', filePath);
 
-      print('[ChatService] Аудио отправлено: $chatId');
+      final createdMessage = await _pb.collection('messages').create(
+        body: body,
+        files: [file],
+      );
+
+      print('[ChatService] ✅ Аудио отправлено: ${createdMessage.id}');
 
       // ✅ ШАГ 3: Обновляем метаданные
       await _updateChatMetadata(
-        chatId: chatId, // ✅ ИЗМЕНЕНО
+        chatId: chatId,
         lastMessage: '🎵 Аудио',
         lastMessageType: 'audio',
         lastSenderId: currentUserId,
@@ -497,7 +524,7 @@ class ChatService extends ChangeNotifier {
 
       _invalidateChatsCache();
     } catch (e) {
-      print('[ChatService] Ошибка отправки аудио: $e');
+      print('[ChatService] ❌ Ошибка отправки аудио: $e');
       rethrow;
     }
   }
@@ -626,8 +653,9 @@ class ChatService extends ChangeNotifier {
 
       print('[ChatService] 📊 Найдено сообщений: ${result.items.length}');
 
-      final messages =
-          result.items.map((record) => Message.fromRecord(record)).toList();
+      final messages = result.items
+          .map((record) => Message.fromRecord(record, pb: _pb))
+          .toList();
 
       if (!controller.isClosed) {
         controller.add(messages);
@@ -689,8 +717,10 @@ class ChatService extends ChangeNotifier {
             perPage: 500, // Ограничение (можно добавить пагинацию)
           );
 
-      // Преобразуем RecordModel в Message
-      return result.items.map((record) => Message.fromRecord(record)).toList();
+      // Преобразуем RecordModel в Message (передаём pb для построения fileUrl)
+      return result.items
+          .map((record) => Message.fromRecord(record, pb: _pb))
+          .toList();
     } catch (e) {
       print('[ChatService] Ошибка получения сообщений: $e');
       return [];

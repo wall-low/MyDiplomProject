@@ -4,17 +4,24 @@ import 'package:pocketbase/pocketbase.dart';
 ///
 /// Мигрировано с Firestore на PocketBase
 /// Добавлен метод fromRecord() для преобразования RecordModel
+///
+/// СТРУКТУРА (ОБНОВЛЕНО ПОД POCKETBASE STORAGE):
+/// - Текстовые сообщения: type=text, message содержит текст, file=null
+/// - Изображения: type=image, file содержит имя файла, message=пустая строка
+/// - Аудио: type=audio, file содержит имя файла, message=пустая строка
 class Message {
   final String senderID;
   final String senderEmail;
   final String receiverID;
-  final String message;
+  final String message; // Текст сообщения (только для type=text)
   final DateTime timestamp; // ИЗМЕНЕНО: Timestamp → DateTime
-  final String type;
-  final String? fileName;
-  final int? fileSize;
-  final Duration? duration;
+  final String type; // "text" | "image" | "audio"
+  final String? file; // ✅ НОВОЕ: Имя файла в PocketBase Storage (для image/audio)
+  final String? fileName; // Оригинальное имя файла (опционально)
+  final int? fileSize; // Размер файла в байтах
+  final Duration? duration; // Длительность аудио
   final bool isRead;
+  final String? fileUrl; // ✅ НОВОЕ: Полный URL файла (вычисляется в fromRecord)
 
   Message({
     required this.senderID,
@@ -23,10 +30,12 @@ class Message {
     required this.message,
     required this.timestamp,
     required this.type,
+    this.file, // ✅ НОВОЕ поле
     this.fileName,
     this.fileSize,
     this.duration,
     this.isRead = false, // По умолчанию false
+    this.fileUrl, // ✅ НОВОЕ: URL файла
   }) : assert(type == 'text' || type == 'image' || type == 'audio');
 
   /// Преобразование Message в Map для отправки в PocketBase
@@ -113,7 +122,10 @@ class Message {
   /// - record.data - Map с данными сообщения
   /// - record.created - дата создания (ISO 8601 строка)
   /// - record.updated - дата обновления (ISO 8601 строка)
-  factory Message.fromRecord(RecordModel record) {
+  ///
+  /// ОБНОВЛЕНО: Добавлена поддержка поля 'file' (PocketBase Storage)
+  /// ✅ НОВОЕ: Автоматически вычисляет fileUrl для изображений/аудио
+  factory Message.fromRecord(RecordModel record, {PocketBase? pb}) {
     final data = record.data;
 
     // Парсинг timestamp из record.created (ISO 8601)
@@ -140,6 +152,17 @@ class Message {
       }
     }
 
+    // ✅ НОВОЕ: Вычисляем fileUrl если есть file
+    String? fileUrl;
+    final fileName = data['file'] as String?;
+    if (fileName != null && fileName.isNotEmpty && pb != null) {
+      try {
+        fileUrl = pb.getFileUrl(record, fileName).toString();
+      } catch (e) {
+        print('[Message] Ошибка построения URL файла: $e');
+      }
+    }
+
     return Message(
       // PocketBase использует camelCase: senderId, receiverId
       senderID: data['senderId'] as String? ?? '',
@@ -148,10 +171,12 @@ class Message {
       message: data['message'] as String? ?? '',
       timestamp: parsedTimestamp,
       type: data['type'] as String? ?? 'text',
+      file: fileName, // ✅ Имя файла из PocketBase Storage
       fileName: data['fileName'] as String?,
       fileSize: data['fileSize'] as int?,
       duration: parsedDuration,
       isRead: data['isRead'] as bool? ?? false,
+      fileUrl: fileUrl, // ✅ НОВОЕ: URL файла
     );
   }
 
@@ -167,10 +192,12 @@ class Message {
     String? message,
     DateTime? timestamp, // ИЗМЕНЕНО: Timestamp → DateTime
     String? type,
+    String? file, // ✅ НОВОЕ
     String? fileName,
     int? fileSize,
     Duration? duration,
     bool? isRead,
+    String? fileUrl, // ✅ НОВОЕ
   }) {
     return Message(
       senderID: senderID ?? this.senderID,
@@ -179,10 +206,12 @@ class Message {
       message: message ?? this.message,
       timestamp: timestamp ?? this.timestamp,
       type: type ?? this.type,
+      file: file ?? this.file, // ✅ НОВОЕ
       fileName: fileName ?? this.fileName,
       fileSize: fileSize ?? this.fileSize,
       duration: duration ?? this.duration,
       isRead: isRead ?? this.isRead,
+      fileUrl: fileUrl ?? this.fileUrl, // ✅ НОВОЕ
     );
   }
 }
