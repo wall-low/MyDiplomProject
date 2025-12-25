@@ -3,7 +3,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:p7/components/my_button.dart';
 import 'package:p7/components/my_text_field.dart';
 import 'package:p7/service/auth.dart';
-import 'package:p7/pages/home_page.dart';
+import 'package:p7/pages/main_navigation.dart';
 import '../components/load_animation.dart';
 
 // УДАЛЕНО: import 'package:firebase_auth/firebase_auth.dart';
@@ -113,16 +113,17 @@ class _LoginPageState extends State<LoginPage> {
         setState(() => _isLoading = false);
       }
 
-      // ИЗМЕНЕНО: Прямой переход на HomePage после успешного входа
+      // ИЗМЕНЕНО: Прямой переход на MainNavigation после успешного входа
       //
       // ЛОГИКА:
       // - При логине пользователь УЖЕ имеет заполненный профиль (заполнялся при регистрации)
       // - AuthGate нужен только при запуске приложения (проверка сохраненной сессии)
-      // - После успешного входа сразу переходим на HomePage без проверок
+      // - После успешного входа сразу переходим на MainNavigation (с Bottom Navigation Bar)
+      // - Это обеспечивает единообразный UX с регистрацией
       if (mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const HomePage()),
+          MaterialPageRoute(builder: (context) => const MainNavigation()),
         );
       }
     } on ClientException catch (e) {

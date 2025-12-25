@@ -6,7 +6,7 @@ migrate((db) => {
   // add
   collection.schema.addField(new SchemaField({
     "system": false,
-    "id": "eqkapbej",
+    "id": "rbmdrowb",
     "name": "file",
     "type": "file",
     "required": false,
@@ -16,8 +16,8 @@ migrate((db) => {
       "mimeTypes": [
         "image/png",
         "image/jpeg",
-        "image/webp",
         "image/gif",
+        "image/webp",
         "video/mpeg",
         "audio/mp4",
         "audio/aac",
@@ -25,8 +25,24 @@ migrate((db) => {
       ],
       "thumbs": [],
       "maxSelect": 1,
-      "maxSize": 5242880,
+      "maxSize": 10485760,
       "protected": false
+    }
+  }))
+
+  // update
+  collection.schema.addField(new SchemaField({
+    "system": false,
+    "id": "rh3dzyoa",
+    "name": "message",
+    "type": "text",
+    "required": false,
+    "presentable": false,
+    "unique": false,
+    "options": {
+      "min": null,
+      "max": 5000,
+      "pattern": ""
     }
   }))
 
@@ -36,7 +52,23 @@ migrate((db) => {
   const collection = dao.findCollectionByNameOrId("t4vpsvfwgt5wlfo")
 
   // remove
-  collection.schema.removeField("eqkapbej")
+  collection.schema.removeField("rbmdrowb")
+
+  // update
+  collection.schema.addField(new SchemaField({
+    "system": false,
+    "id": "rh3dzyoa",
+    "name": "message",
+    "type": "text",
+    "required": true,
+    "presentable": false,
+    "unique": false,
+    "options": {
+      "min": null,
+      "max": 5000,
+      "pattern": ""
+    }
+  }))
 
   return dao.saveCollection(collection)
 })

@@ -4,7 +4,7 @@ import 'package:p7/components/load_animation.dart';
 import 'package:p7/components/my_button.dart';
 import 'package:p7/components/my_text_field.dart';
 import 'package:p7/service/databases.dart';
-import 'package:p7/pages/home_page.dart';
+import 'package:p7/pages/main_navigation.dart';
 
 class RegisterProfilePage extends StatefulWidget {
   final String email;
@@ -147,16 +147,16 @@ class _RegisterProfilePageState extends State<RegisterProfilePage> {
 
         await Future.delayed(const Duration(milliseconds: 500));
 
-        // ИЗМЕНЕНО: AuthGate → HomePage
+        // ИЗМЕНЕНО: AuthGate → MainNavigation
         //
         // ЛОГИКА:
         // - Профиль уже сохранен в PocketBase
         // - Пользователь авторизован
-        // - Нет смысла идти через AuthGate, сразу переходим на HomePage
-        // - AuthGate нужен только при запуске приложения
+        // - Переходим на MainNavigation (с Bottom Navigation Bar)
+        // - Это обеспечивает единообразный UX с обычным входом
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const HomePage()),
+            MaterialPageRoute(builder: (context) => const MainNavigation()),
                 (route) => false,
           );
         }

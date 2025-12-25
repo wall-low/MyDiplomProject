@@ -836,14 +836,63 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       // ✅ ИСПРАВЛЕНО: Используем fileUrl вместо message для аудио
       final audioUrl = msg.fileUrl ?? msg.message;
 
+      debugPrint('[ChatPage] 🎵 Аудио сообщение: fileUrl=${msg.fileUrl}, message="${msg.message}", final audioUrl="$audioUrl"');
+
+      // Защита от пустого URL
+      if (audioUrl.isEmpty) {
+        debugPrint('[ChatPage] ⚠️ ПУСТОЙ URL для аудио! Показываем ошибку.');
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Align(
+            alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text('Ошибка загрузки аудио'),
+            ),
+          ),
+        );
+      }
+
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Align(
           alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-          child: ChatAudioPlayer(
-            url: audioUrl,
-            isCurrentUser: isMine,
-            timestamp: msg.timestamp,
+          child: Builder(
+            builder: (context) {
+              try {
+                return ChatAudioPlayer(
+                  url: audioUrl,
+                  isCurrentUser: isMine,
+                  timestamp: msg.timestamp,
+                );
+              } catch (e) {
+                debugPrint('[ChatPage] ❌ Ошибка создания ChatAudioPlayer: $e');
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('⚠️ Ошибка загрузки аудио'),
+                      const SizedBox(height: 4),
+                      Text(
+                        audioUrl.length > 50
+                          ? '${audioUrl.substring(0, 50)}...'
+                          : audioUrl,
+                        style: const TextStyle(fontSize: 10),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            },
           ),
         ),
       );

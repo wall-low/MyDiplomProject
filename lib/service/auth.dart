@@ -71,8 +71,11 @@ class Auth {
         'username': username, // ДОБАВЛЕНО: обязательное поле для PocketBase
         'password': password,
         'passwordConfirm': password,
-        'role': 'Ученик', // ДОБАВЛЕНО: временное значение для обязательного поля
-        // Правильное значение role ("Ученик" или "Репетитор") будет установлено на 2-м шаге (RegisterProfilePage)
+        'role': 'Ученик', // ВРЕМЕННОЕ значение, будет обновлено на RegisterProfilePage
+        'name': 'Временное имя', // ВРЕМЕННОЕ значение, будет обновлено на RegisterProfilePage
+        'city': 'Москва', // ВРЕМЕННОЕ значение, будет обновлено на RegisterProfilePage
+        'birthDate': '2000-01-01', // ВРЕМЕННОЕ значение, будет обновлено на RegisterProfilePage
+        // Все эти поля обязательны в PocketBase, но реальные значения пользователь введёт на RegisterProfilePage
       });
 
       // ШАГ 2: Авторизуемся сразу после регистрации
