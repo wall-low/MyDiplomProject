@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io'; // ✅ Для File.readAsBytes()
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http; // ✅ Для MultipartFile
 import 'package:p7/models/messenge.dart';
@@ -439,8 +440,30 @@ class ChatService extends ChangeNotifier {
         'timestamp': messageTimestamp.toIso8601String(),
       };
 
-      // ✅ Загружаем файл через http.MultipartFile
-      final file = await http.MultipartFile.fromPath('file', filePath);
+      // ✅ ИСПРАВЛЕНИЕ: Используем fromBytes() для явного контроля MIME-типа
+      // Определяем MIME-тип по расширению файла
+      String imageMimeType = 'image/jpeg'; // Default
+      if (filePath.endsWith('.png')) {
+        imageMimeType = 'image/png';
+      } else if (filePath.endsWith('.jpg') || filePath.endsWith('.jpeg')) {
+        imageMimeType = 'image/jpeg';
+      } else if (filePath.endsWith('.gif')) {
+        imageMimeType = 'image/gif';
+      } else if (filePath.endsWith('.webp')) {
+        imageMimeType = 'image/webp';
+      }
+
+      print('[ChatService] 🖼️ Detected image MIME type: $imageMimeType');
+
+      final fileBytes = await File(filePath).readAsBytes();
+      final fileName = filePath.split('/').last;
+
+      final file = http.MultipartFile.fromBytes(
+        'file',
+        fileBytes,
+        filename: fileName,
+        contentType: http.MediaType.parse(imageMimeType),
+      );
 
       final createdMessage = await _pb.collection('messages').create(
         body: body,
@@ -504,7 +527,38 @@ class ChatService extends ChangeNotifier {
       };
 
       // ✅ Загружаем файл через http.MultipartFile
-      final file = await http.MultipartFile.fromPath('file', filePath);
+      // ВАЖНО: Определяем MIME-тип СТРОГО по настройкам PocketBase!
+      // Настройки в Admin UI: .m4a → audio/x-m4a (НЕ audio/mp4!)
+      String mimeType = 'audio/x-m4a'; // Default для аудио
+      if (filePath.endsWith('.m4a')) {
+        mimeType = 'audio/x-m4a'; // ✅ ИСПРАВЛЕНО: соответствует PocketBase настройкам
+      } else if (filePath.endsWith('.aac')) {
+        mimeType = 'audio/aac';
+      } else if (filePath.endsWith('.wav')) {
+        mimeType = 'audio/wav';
+      } else if (filePath.endsWith('.mp3')) {
+        mimeType = 'audio/mpeg';
+      } else if (filePath.endsWith('.oga') || filePath.endsWith('.ogg')) {
+        mimeType = 'audio/ogg';
+      } else if (filePath.endsWith('.mp4')) {
+        mimeType = 'audio/mp4'; // Для чистых .mp4 аудио файлов
+      }
+
+      // ✅ ИСПРАВЛЕНИЕ: Используем fromBytes() для ЯВНОГО контроля MIME-типа
+      // ПРОБЛЕМА: На Android, fromPath() использует native детекцию, которая
+      // неправильно определяет .m4a как audio/mpeg вместо audio/x-m4a
+      // РЕШЕНИЕ: Читаем файл в bytes и создаём MultipartFile вручную
+      final fileBytes = await File(filePath).readAsBytes();
+      final fileName = filePath.split('/').last;
+
+      final file = http.MultipartFile.fromBytes(
+        'file',
+        fileBytes,
+        filename: fileName,
+        contentType: http.MediaType.parse(mimeType), // ✅ Явно указываем правильный MIME
+      );
+
+      print('[ChatService] 🎵 Отправка аудио: $fileName (${mimeType})');
 
       final createdMessage = await _pb.collection('messages').create(
         body: body,
@@ -512,6 +566,22 @@ class ChatService extends ChangeNotifier {
       );
 
       print('[ChatService] ✅ Аудио отправлено: ${createdMessage.id}');
+      print('[ChatService] 📋 Детали сообщения:');
+      print('  - file: ${createdMessage.data['file']}');
+      print('  - type: ${createdMessage.data['type']}');
+      print('  - message: "${createdMessage.data['message']}"');
+
+      // Пытаемся построить URL и проверить его
+      if (createdMessage.data['file'] != null) {
+        try {
+          final testUrl = _pb.getFileUrl(createdMessage, createdMessage.data['file']).toString();
+          print('[ChatService] 🔗 Построенный URL: $testUrl');
+        } catch (e) {
+          print('[ChatService] ❌ Ошибка построения URL: $e');
+        }
+      } else {
+        print('[ChatService] ⚠️ Поле file пустое! Файл не загружен в PocketBase.');
+      }
 
       // ✅ ШАГ 3: Обновляем метаданные
       await _updateChatMetadata(

@@ -155,11 +155,25 @@ class Message {
     // ✅ НОВОЕ: Вычисляем fileUrl если есть file
     String? fileUrl;
     final fileName = data['file'] as String?;
+
     if (fileName != null && fileName.isNotEmpty && pb != null) {
       try {
         fileUrl = pb.getFileUrl(record, fileName).toString();
+        // Логируем только для аудио/изображений (для отладки)
+        if (data['type'] == 'audio' || data['type'] == 'image') {
+          print('[Message] 📁 Файл ${data['type']}:');
+          print('  - fileName: $fileName');
+          print('  - fileUrl: $fileUrl');
+          print('  - recordId: ${record.id}');
+        }
       } catch (e) {
-        print('[Message] Ошибка построения URL файла: $e');
+        print('[Message] ❌ Ошибка построения URL файла: $e');
+      }
+    } else {
+      if (data['type'] == 'audio' || data['type'] == 'image') {
+        print('[Message] ⚠️ Нет файла для ${data['type']}!');
+        print('  - fileName: $fileName');
+        print('  - pb: ${pb != null ? "OK" : "NULL"}');
       }
     }
 

@@ -32,17 +32,21 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
   void initState() {
     super.initState();
 
+    print('[AudioPlayer] 🎬 initState для URL: ${widget.url}');
+
     _rippleController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     );
 
+    // ✅ ВАЖНО: Сначала настроить AudioContext, ПОТОМ загружать source
     _player.setAudioContext(
       AudioContext(
         iOS: AudioContextIOS(
           category: AVAudioSessionCategory.playback,
           options: {
-            AVAudioSessionOptions.defaultToSpeaker,
+            // ✅ ИСПРАВЛЕНО: Удалил defaultToSpeaker (работает только с playAndRecord)
+            // AVAudioSessionOptions.defaultToSpeaker,
           },
         ),
         android: AudioContextAndroid(
@@ -55,6 +59,9 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
       ),
     );
 
+    // ✅ ИСПРАВЛЕНИЕ: Загружаем аудио ПОСЛЕ setAudioContext
+    _loadAudioDuration();
+
     _player.onDurationChanged.listen((d) {
       setState(() => _duration = d);
     });
@@ -64,6 +71,7 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
     });
 
     _player.onPlayerStateChanged.listen((state) {
+      print('[AudioPlayer] State changed: $state');
       setState(() {
         _isPlaying = state == PlayerState.playing;
         if (_isPlaying) {
@@ -74,13 +82,46 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
         }
       });
     });
+
+    // ✅ НОВОЕ: Слушаем ошибки
+    _player.onPlayerComplete.listen((event) {
+      print('[AudioPlayer] ✅ Воспроизведение завершено');
+    });
+
+    // ✅ НОВОЕ: Обработка ошибок загрузки
+    _player.onLog.listen((msg) {
+      print('[AudioPlayer] 📋 Log: $msg');
+    });
+  }
+
+  /// ✅ НОВЫЙ МЕТОД: Предзагрузка аудио для получения duration
+  Future<void> _loadAudioDuration() async {
+    try {
+      print('[AudioPlayer] 📥 Загрузка метаданных аудио...');
+      // ✅ ИСПРАВЛЕНИЕ: Используем setSource с явным mimeType для Android
+      // PocketBase возвращает Content-Type: video/mp4, но нужен audio/mp4
+      await _player.setSource(
+        UrlSource(widget.url, mimeType: 'audio/mp4'),
+      );
+      print('[AudioPlayer] ✅ Метаданные загружены');
+    } catch (e) {
+      print('[AudioPlayer] ❌ Ошибка загрузки метаданных: $e');
+    }
   }
 
   void _togglePlay() async {
-    if (_isPlaying) {
-      await _player.pause();
-    } else {
-      await _player.play(UrlSource(widget.url));
+    try {
+      if (_isPlaying) {
+        print('[AudioPlayer] ⏸️ Пауза');
+        await _player.pause();
+      } else {
+        print('[AudioPlayer] ▶️ Попытка воспроизведения: ${widget.url}');
+        // ✅ ИСПРАВЛЕНИЕ: Явно указываем mimeType для Android
+        await _player.play(UrlSource(widget.url, mimeType: 'audio/mp4'));
+        print('[AudioPlayer] ✅ play() вызван успешно');
+      }
+    } catch (e) {
+      print('[AudioPlayer] ❌ ОШИБКА воспроизведения: $e');
     }
   }
 
@@ -129,15 +170,24 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
         ? scheme.onPrimary
         : scheme.primary;
 
-    return Align(
-      alignment: widget.isCurrentUser
-          ? Alignment.centerRight
-          : Alignment.centerLeft,
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        margin: const EdgeInsets.symmetric(vertical: 3, horizontal: 12),
-        constraints: const BoxConstraints(maxWidth: 240),
-        decoration: BoxDecoration(
+    // ✅ ОБЁРТКА ДЛЯ ЗАЩИТЫ ОТ OVERFLOW
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Ограничиваем максимальную ширину с учётом доступного места
+        final maxWidth = constraints.maxWidth > 280 ? 240.0 : constraints.maxWidth * 0.85;
+
+        return Align(
+          alignment: widget.isCurrentUser
+              ? Alignment.centerRight
+              : Alignment.centerLeft,
+          child: Container(
+            padding: const EdgeInsets.all(10),
+            margin: const EdgeInsets.symmetric(vertical: 3, horizontal: 12),
+            constraints: BoxConstraints(
+              maxWidth: maxWidth,
+              minWidth: 180,
+            ),
+            decoration: BoxDecoration(
           color: bubbleColor,
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
@@ -223,13 +273,17 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
                         child: AnimatedBuilder(
                           animation: _rippleController,
                           builder: (context, child) {
-                            return CustomPaint(
-                              painter: SoundWavesPainter(
-                                animation: _rippleController,
-                                color: progressColor,
-                                isPlaying: _isPlaying,
-                              ),
-                              size: const Size(double.infinity, 24),
+                            return LayoutBuilder(
+                              builder: (context, constraints) {
+                                return CustomPaint(
+                                  painter: SoundWavesPainter(
+                                    animation: _rippleController,
+                                    color: progressColor,
+                                    isPlaying: _isPlaying,
+                                  ),
+                                  size: Size(constraints.maxWidth, 24),
+                                );
+                              },
                             );
                           },
                         ),
@@ -242,9 +296,10 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
                         child: SizedBox(
                           height: 3,
                           child: LinearProgressIndicator(
-                            value: _duration.inSeconds == 0
-                                ? 0
-                                : _position.inSeconds / _duration.inSeconds,
+                            // ✅ ЗАЩИТА: Проверяем на null, zero и infinity
+                            value: _duration.inSeconds > 0 && _position.inSeconds >= 0
+                                ? (_position.inSeconds / _duration.inSeconds).clamp(0.0, 1.0)
+                                : 0.0,
                             color: progressColor,
                             backgroundColor: widget.isCurrentUser
                                 ? Colors.white.withValues(alpha: 0.25)
@@ -256,7 +311,8 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
 
                       // Длительность аудио
                       Text(
-                        _position.inSeconds > 0
+                        // ✅ ЗАЩИТА: Предотвращаем отрицательные значения
+                        _position.inSeconds > 0 && _duration.inSeconds > _position.inSeconds
                             ? _formatDuration(_duration - _position)
                             : _formatDuration(_duration),
                         style: TextStyle(
@@ -289,8 +345,10 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
             ],
           ],
         ),
-      ),
-    );
+          ),
+        ); // ✅ Закрываем Align
+      }, // ✅ Закрываем LayoutBuilder builder
+    ); // ✅ Закрываем LayoutBuilder
   }
 }
 
