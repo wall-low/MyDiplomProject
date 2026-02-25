@@ -681,28 +681,47 @@ class ChatService extends ChangeNotifier {
   Future<void> _subscribeToMessages(
       String chatId, StreamController<List<Message>> controller) async {
     try {
+      print('[ChatService] 🔔 Подписка на realtime для chatId: $chatId');
+
+      // ✅ ИСПРАВЛЕНИЕ: Подписываемся БЕЗ фильтра, проверяем внутри callback
+      // ПРИЧИНА: PocketBase subscription с фильтром на RelationField может не срабатывать
       final unsubscribe = await _pb.collection('messages').subscribe(
-        '*', // Слушаем все события
+        '*', // Слушаем ВСЕ события (без фильтра!)
         (e) {
-          print(
-              '[ChatService] Realtime событие: ${e.action} для записи ${e.record?.id}');
+          print('[ChatService] 🔥 Realtime событие получено!');
+          print('  - action: ${e.action}');
+          print('  - record.id: ${e.record?.id}');
+          print('  - record.data: ${e.record?.data}');
+          print('  - Ожидаемый chatId: $chatId');
 
           // Проверяем принадлежность сообщения к этому чату
           if (e.record != null) {
-            final recordChatId = e.record!.data['chatId'] as String?; // ✅ ИЗМЕНЕНО
-            if (recordChatId == chatId) {
+            // ✅ ПРОВЕРЯЕМ ОБА ВАРИАНТА НАЗВАНИЯ ПОЛЯ
+            final recordChatId = e.record!.data['chatId'] as String?;
+            final recordChatRoomId = e.record!.data['chatRoomId'] as String?;
+
+            print('  - record.chatId: $recordChatId');
+            print('  - record.chatRoomId: $recordChatRoomId');
+
+            // Проверяем совпадение с любым из вариантов
+            if (recordChatId == chatId || recordChatRoomId == chatId) {
+              print('[ChatService] ✅ Сообщение относится к текущему чату! Перезагружаем...');
               // Перезагружаем все сообщения при изменении
               _loadInitialMessages(chatId, controller);
+            } else {
+              print('[ChatService] ⚠️ Сообщение НЕ относится к текущему чату (пропускаем)');
             }
           }
         },
-        filter: 'chatId="$chatId"', // ✅ ИЗМЕНЕНО
+        // ✅ УБРАЛИ ФИЛЬТР! Теперь слушаем ВСЕ сообщения, но проверяем chatId внутри callback
       );
+
+      print('[ChatService] ✅ Подписка создана успешно');
 
       // Сохраняем unsubscribe функцию для очистки
       _subscriptions[chatId] = unsubscribe;
     } catch (e) {
-      print('[ChatService] Ошибка подписки на realtime: $e');
+      print('[ChatService] ❌ Ошибка подписки на realtime: $e');
       if (!controller.isClosed) {
         controller.addError(e);
       }
@@ -874,8 +893,55 @@ class ChatService extends ChangeNotifier {
       }
 
       print('[ChatService] Помечено прочитанными: ${result.items.length} сообщений');
+
+      // ✅ ИСПРАВЛЕНИЕ: Обнуляем счетчик ВСЕГДА, даже если нет непрочитанных
+      // Причина: пользователь мог уже прочитать сообщения, но счетчик еще не обнулился
+      await _resetUnreadCount(chatId, userID1);
     } catch (e) {
       print('[ChatService] Ошибка пометки сообщений прочитанными: $e');
+    }
+  }
+
+  /// ✅ НОВЫЙ МЕТОД: Обнулить счетчик непрочитанных для конкретного пользователя
+  ///
+  /// ПАРАМЕТРЫ:
+  /// - chatId: ID записи в коллекции chats
+  /// - userId: ID пользователя, для которого обнуляем счетчик
+  ///
+  /// ЛОГИКА:
+  /// 1. Получаем метаданные чата
+  /// 2. Определяем какой счетчик обнулить (user1 или user2)
+  /// 3. Обновляем запись в chats
+  Future<void> _resetUnreadCount(String chatId, String userId) async {
+    try {
+      print('[ChatService] 🔄 Обнуление счетчика для chatId: $chatId, userId: $userId');
+
+      // Получаем текущую запись чата
+      final record = await _pb.collection('chats').getOne(chatId);
+
+      final user1Id = record.data['user1Id'] as String;
+      final user2Id = record.data['user2Id'] as String;
+
+      // Определяем какой счетчик обнулить
+      final updateData = <String, dynamic>{};
+      if (userId == user1Id) {
+        updateData['unreadCountUser1'] = 0;
+        print('[ChatService] Обнуляем unreadCountUser1');
+      } else if (userId == user2Id) {
+        updateData['unreadCountUser2'] = 0;
+        print('[ChatService] Обнуляем unreadCountUser2');
+      } else {
+        print('[ChatService] ⚠️ userId не совпадает ни с user1Id, ни с user2Id!');
+        return;
+      }
+
+      // Обновляем метаданные
+      await _pb.collection('chats').update(chatId, body: updateData);
+
+      print('[ChatService] ✅ Счетчик непрочитанных обнулён');
+    } catch (e) {
+      print('[ChatService] ❌ Ошибка обнуления счетчика: $e');
+      // Не пробрасываем ошибку, это не критично
     }
   }
 

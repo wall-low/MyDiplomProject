@@ -1,3 +1,4 @@
+import 'dart:async'; // ✅ Для StreamSubscription
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
@@ -27,6 +28,13 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
   late AnimationController _rippleController;
+
+  // ✅ ИСПРАВЛЕНИЕ: Сохраняем подписки для правильной очистки в dispose()
+  late final StreamSubscription<Duration> _durationSub;
+  late final StreamSubscription<Duration> _positionSub;
+  late final StreamSubscription<PlayerState> _stateSub;
+  late final StreamSubscription<void> _completeSub;
+  late final StreamSubscription<String> _logSub;
 
   @override
   void initState() {
@@ -62,34 +70,37 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
     // ✅ ИСПРАВЛЕНИЕ: Загружаем аудио ПОСЛЕ setAudioContext
     _loadAudioDuration();
 
-    _player.onDurationChanged.listen((d) {
-      setState(() => _duration = d);
+    // ✅ ИСПРАВЛЕНИЕ: Сохраняем подписки и проверяем mounted перед setState
+    _durationSub = _player.onDurationChanged.listen((d) {
+      if (mounted) setState(() => _duration = d);
     });
 
-    _player.onPositionChanged.listen((p) {
-      setState(() => _position = p);
+    _positionSub = _player.onPositionChanged.listen((p) {
+      if (mounted) setState(() => _position = p);
     });
 
-    _player.onPlayerStateChanged.listen((state) {
+    _stateSub = _player.onPlayerStateChanged.listen((state) {
       print('[AudioPlayer] State changed: $state');
-      setState(() {
-        _isPlaying = state == PlayerState.playing;
-        if (_isPlaying) {
-          _rippleController.repeat();
-        } else {
-          _rippleController.stop();
-          _rippleController.reset();
-        }
-      });
+      if (mounted) {
+        setState(() {
+          _isPlaying = state == PlayerState.playing;
+          if (_isPlaying) {
+            _rippleController.repeat();
+          } else {
+            _rippleController.stop();
+            _rippleController.reset();
+          }
+        });
+      }
     });
 
     // ✅ НОВОЕ: Слушаем ошибки
-    _player.onPlayerComplete.listen((event) {
+    _completeSub = _player.onPlayerComplete.listen((event) {
       print('[AudioPlayer] ✅ Воспроизведение завершено');
     });
 
     // ✅ НОВОЕ: Обработка ошибок загрузки
-    _player.onLog.listen((msg) {
+    _logSub = _player.onLog.listen((msg) {
       print('[AudioPlayer] 📋 Log: $msg');
     });
   }
@@ -127,6 +138,14 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
 
   @override
   void dispose() {
+    // ✅ ИСПРАВЛЕНИЕ: Отменяем все подписки ПЕРЕД dispose player
+    // Это предотвращает вызов setState() после dispose виджета
+    _durationSub.cancel();
+    _positionSub.cancel();
+    _stateSub.cancel();
+    _completeSub.cancel();
+    _logSub.cancel();
+
     _player.dispose();
     _rippleController.dispose();
     super.dispose();

@@ -51,10 +51,19 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   static final Map<String, double> _scrollPositions = {};
   String get _chatKey => '${_auth.getCurrentUid()}_${widget.receiverID}';
 
+  // ✅ ИСПРАВЛЕНИЕ: Сохраняем ссылку на stream в переменной
+  // Проблема: Каждый раз при build создавался новый stream
+  // Решение: Создаём stream один раз в initState()
+  late final Stream<List<Message>> _messagesStream;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // ✅ ИСПРАВЛЕНИЕ: Инициализируем stream ОДИН РАЗ
+    final myId = _auth.getCurrentUid();
+    _messagesStream = _chatService.getMessagesStream(myId, widget.receiverID);
 
     _controller.addListener(() {
       _hasTextNotifier.value = _controller.text.trim().isNotEmpty;
@@ -496,8 +505,10 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
             //
             // Используем realtime subscriptions через PocketBase subscribe()
             // Сообщения обновляются автоматически при изменениях в БД
+            //
+            // ✅ ИСПРАВЛЕНИЕ: Используем _messagesStream (инициализирован в initState)
             child: StreamBuilder<List<Message>>(
-              stream: _chatService.getMessagesStream(myId, widget.receiverID),
+              stream: _messagesStream,
               builder: (ctx, snap) {
                 if (snap.hasError) {
                   return Center(
