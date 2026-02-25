@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:p7/components/input_box.dart';
 import 'package:p7/models/user.dart';
+import 'package:p7/models/tutor_profile.dart';
 import 'package:p7/pages/setting_page.dart';
+import 'package:p7/pages/tutor_profile_setup_page.dart';
 import 'package:p7/service/database_provider.dart';
+import 'package:p7/service/tutor_profile_service.dart';
 import 'package:provider/provider.dart';
 
 import 'package:p7/components/avatar_picker.dart';
@@ -17,7 +20,10 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   late final DatabaseProvider _databaseProvider;
+  final _tutorProfileService = TutorProfileService();
+
   UserProfile? _user;
+  TutorProfile? _tutorProfile; // Профиль репетитора (если есть)
   final _bioCtrl = TextEditingController();
 
   bool _loading = true;
@@ -37,9 +43,17 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _loadUser() async {
     final u = await _databaseProvider.userProfile(widget.uid);
+
+    // Если пользователь - репетитор, загружаем его профиль
+    TutorProfile? tutorProf;
+    if (u?.role == 'Репетитор') {
+      tutorProf = await _tutorProfileService.getTutorProfileByUserId(widget.uid);
+    }
+
     if (mounted) {
       setState(() {
         _user = u;
+        _tutorProfile = tutorProf;
         _loading = false;
       });
     }
@@ -196,6 +210,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
                         // Карточка "О себе"
                         _buildBioCard(colorScheme),
+                        const SizedBox(height: 16),
+
+                        // Карточка "Профиль репетитора" (только для репетиторов)
+                        if (isTutor) _buildTutorProfileCard(colorScheme),
                       ],
                     ),
                   ),
@@ -361,6 +379,299 @@ class _ProfilePageState extends State<ProfilePage> {
           ],
         ),
       ),
+    );
+  }
+
+  // Карточка профиля репетитора
+  Widget _buildTutorProfileCard(ColorScheme colorScheme) {
+    // Если профиль репетитора не заполнен, показываем кнопку создания
+    if (_tutorProfile == null) {
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Icon(
+                Icons.school,
+                size: 48,
+                color: colorScheme.primary.withValues(alpha: 0.5),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Профиль репетитора не заполнен',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Заполните профиль, чтобы ученики могли найти вас',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const TutorProfileSetupPage(),
+                    ),
+                  );
+                  // Если профиль создан, перезагружаем страницу
+                  if (result == true) {
+                    _loadUser();
+                  }
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Заполнить профиль'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Профиль заполнен - показываем данные
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Заголовок
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.school, color: colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'ПРОФИЛЬ РЕПЕТИТОРА',
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const TutorProfileSetupPage(
+                          isEditing: true,
+                        ),
+                      ),
+                    );
+                    if (result == true) {
+                      _loadUser();
+                    }
+                  },
+                  icon: Icon(Icons.edit, color: colorScheme.primary),
+                  tooltip: 'Редактировать профиль',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 16),
+
+            // Рейтинг
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _tutorProfile!.isReallyNewbie
+                        ? Icons.new_releases
+                        : Icons.star,
+                    color: Colors.amber,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _tutorProfile!.getRatingDisplay(),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Предметы
+            if (_tutorProfile!.subjects.isNotEmpty) ...[
+              _buildTutorInfoSection(
+                icon: Icons.book,
+                title: 'Предметы',
+                colorScheme: colorScheme,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _tutorProfile!.subjects
+                    .map((subject) => Chip(
+                          label: Text(subject),
+                          backgroundColor:
+                              colorScheme.primary.withValues(alpha: 0.1),
+                          labelStyle: TextStyle(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ))
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Цена
+            _buildTutorInfoRow(
+              icon: Icons.attach_money,
+              label: 'Стоимость',
+              value: _tutorProfile!.getPriceDisplay(),
+              colorScheme: colorScheme,
+            ),
+            const SizedBox(height: 12),
+
+            // Опыт
+            if (_tutorProfile!.experience != null) ...[
+              _buildTutorInfoRow(
+                icon: Icons.work_outline,
+                label: 'Опыт работы',
+                value: _tutorProfile!.getExperienceDisplay(),
+                colorScheme: colorScheme,
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Формат занятий
+            _buildTutorInfoRow(
+              icon: Icons.computer,
+              label: 'Формат занятий',
+              value: _tutorProfile!.getLessonFormatDisplay(),
+              colorScheme: colorScheme,
+            ),
+
+            // Образование
+            if (_tutorProfile!.education != null &&
+                _tutorProfile!.education!.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildTutorInfoSection(
+                icon: Icons.school_outlined,
+                title: 'Образование',
+                colorScheme: colorScheme,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _tutorProfile!.education!,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: colorScheme.onSurface,
+                  height: 1.5,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Секция информации репетитора
+  Widget _buildTutorInfoSection({
+    required IconData icon,
+    required String title,
+    required ColorScheme colorScheme,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: colorScheme.primary),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.primary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Строка информации репетитора
+  Widget _buildTutorInfoRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required ColorScheme colorScheme,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: colorScheme.primaryContainer.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 20, color: colorScheme.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: colorScheme.onSurface.withValues(alpha: 0.6),
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: TextStyle(
+                  color: colorScheme.onSurface,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

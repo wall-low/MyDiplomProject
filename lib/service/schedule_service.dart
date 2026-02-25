@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:pocketbase/pocketbase.dart';
 import '../models/schedule_slot.dart';
 import 'pocketbase_service.dart';
 
