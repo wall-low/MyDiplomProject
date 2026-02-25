@@ -320,11 +320,12 @@ class TutorProfileService extends ChangeNotifier {
 
       debugPrint('[TutorProfileService] 🔍 Поиск репетиторов: $filterStr');
 
-      // Запрос к PocketBase
+      // Запрос к PocketBase с expand для загрузки данных пользователя
       final result = await _pb.collection('tutor_profiles').getList(
             filter: filterStr,
             sort: '-rating,+priceMin', // Сортировка: сначала по рейтингу, потом по цене
             perPage: 100,
+            expand: 'userId', // Загружаем связанные данные пользователя
           );
 
       debugPrint('[TutorProfileService] ✅ Найдено репетиторов: ${result.totalItems}');

@@ -72,13 +72,6 @@ class _SchedulePageState extends State<SchedulePage> {
         centerTitle: true,
         backgroundColor: colorScheme.surface,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(
-            Icons.arrow_back_ios,
-            color: colorScheme.primary,
-          ),
-          onPressed: () => Navigator.pop(context),
-        ),
       ),
       body: Column(
         children: [
