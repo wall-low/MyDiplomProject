@@ -258,6 +258,27 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
     final currentUserId = _auth.getCurrentUid();
     final isMyBooking = slot.isBooked && slot.studentId == currentUserId;
 
+    // Определяем цвет и текст статуса
+    Color statusColor;
+    String statusText;
+
+    if (slot.isPast) {
+      statusColor = Colors.grey;
+      statusText = 'Прошло';
+    } else if (slot.isPending && isMyBooking) {
+      statusColor = Colors.orange;
+      statusText = '⏳ Ожидает подтверждения';
+    } else if (slot.isConfirmed && isMyBooking) {
+      statusColor = Colors.green;
+      statusText = '✅ Подтверждено';
+    } else if (slot.isBooked && !isMyBooking) {
+      statusColor = Colors.red;
+      statusText = 'Занято';
+    } else {
+      statusColor = Colors.green;
+      statusText = '🟢 Свободно';
+    }
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -273,11 +294,7 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
               width: 4,
               height: 60,
               decoration: BoxDecoration(
-                color: slot.isPast
-                    ? Colors.grey
-                    : (slot.isBooked
-                        ? (isMyBooking ? Colors.blue : Colors.red)
-                        : Colors.green),
+                color: statusColor,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -316,29 +333,13 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: slot.isPast
-                          ? Colors.grey.withValues(alpha: 0.1)
-                          : (slot.isBooked
-                              ? (isMyBooking
-                                  ? Colors.blue.withValues(alpha: 0.1)
-                                  : Colors.red.withValues(alpha: 0.1))
-                              : Colors.green.withValues(alpha: 0.1)),
+                      color: statusColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      slot.isPast
-                          ? 'Прошло'
-                          : (slot.isBooked
-                              ? (isMyBooking
-                                  ? 'Вы забронировали'
-                                  : 'Забронировано')
-                              : 'Свободно'),
+                      statusText,
                       style: TextStyle(
-                        color: slot.isPast
-                            ? Colors.grey
-                            : (slot.isBooked
-                                ? (isMyBooking ? Colors.blue : Colors.red)
-                                : Colors.green),
+                        color: statusColor,
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                       ),
@@ -360,9 +361,25 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
   /// Кнопка действия (Забронировать или Отменить бронирование)
   Widget _buildActionButton(
       ScheduleSlot slot, bool isMyBooking, ColorScheme colorScheme) {
-    if (slot.isBooked) {
-      // Если забронирован текущим учеником → кнопка "Отменить"
-      if (isMyBooking) {
+
+    // Если слот забронирован/запрошен текущим учеником
+    if (isMyBooking) {
+      if (slot.isPending) {
+        // Запрос на подтверждении → "Отменить запрос"
+        return ElevatedButton(
+          onPressed: () => _cancelBooking(slot),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: const Text('Отменить запрос'),
+        );
+      } else if (slot.isConfirmed) {
+        // Подтверждено → "Отменить"
         return ElevatedButton(
           onPressed: () => _cancelBooking(slot),
           style: ElevatedButton.styleFrom(
@@ -375,36 +392,38 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
           ),
           child: const Text('Отменить'),
         );
-      } else {
-        // Если забронирован другим учеником → кнопка неактивна
-        return ElevatedButton(
-          onPressed: null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.grey[300],
-            foregroundColor: Colors.grey[600],
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-          child: const Text('Занято'),
-        );
       }
-    } else {
-      // Если свободен → кнопка "Забронировать"
+    }
+
+    // Если слот занят другим учеником
+    if (slot.isBooked && !isMyBooking) {
       return ElevatedButton(
-        onPressed: () => _bookSlot(slot),
+        onPressed: null,
         style: ElevatedButton.styleFrom(
-          backgroundColor: colorScheme.primary,
-          foregroundColor: Colors.white,
+          backgroundColor: Colors.grey[300],
+          foregroundColor: Colors.grey[600],
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        child: const Text('Забронировать'),
+        child: const Text('Занято'),
       );
     }
+
+    // Если свободен → кнопка "Забронировать"
+    return ElevatedButton(
+      onPressed: () => _bookSlot(slot),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: colorScheme.primary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      child: const Text('Забронировать'),
+    );
   }
 
   /// Открыть календарь для выбора даты
@@ -431,9 +450,9 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Подтверждение'),
+          title: const Text('Отправить запрос?'),
           content: Text(
-            'Забронировать занятие на ${DateFormat('d MMMM', 'ru').format(slot.date)} с ${slot.startTime} до ${slot.endTime}?',
+            'Вы отправите запрос на занятие ${DateFormat('d MMMM', 'ru').format(slot.date)} с ${slot.startTime} до ${slot.endTime}.\n\nРепетитор получит уведомление и сможет подтвердить или отклонить запрос.',
           ),
           actions: [
             TextButton(
@@ -442,7 +461,7 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Забронировать'),
+              child: const Text('Отправить запрос'),
             ),
           ],
         ),
@@ -450,24 +469,17 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
 
       if (confirmed != true) return;
 
-      // Выполняем бронирование
+      // Выполняем бронирование (отправка запроса)
       await _scheduleService.bookSlot(slot.id, _auth.getCurrentUid());
 
       if (mounted) {
-        // Показываем уведомление об успехе
+        // Показываем уведомление об отправке запроса
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('✅ Занятие забронировано'),
-            backgroundColor: Colors.green,
+            content: const Text('⏳ Запрос отправлен!\nОжидайте подтверждения репетитора'),
+            backgroundColor: Colors.orange,
             behavior: SnackBarBehavior.floating,
-            action: SnackBarAction(
-              label: 'Мои занятия',
-              textColor: Colors.white,
-              onPressed: () {
-                // Переход на страницу "Мои занятия"
-                Navigator.pop(context); // Закрываем текущую страницу
-              },
-            ),
+            duration: const Duration(seconds: 4),
           ),
         );
 
@@ -531,14 +543,22 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
   /// Отменить бронирование
   Future<void> _cancelBooking(ScheduleSlot slot) async {
     try {
+      // Определяем текст в зависимости от статуса
+      final isPending = slot.isPending;
+      final title = isPending ? 'Отменить запрос?' : 'Отмена бронирования';
+      final content = isPending
+          ? 'Отменить запрос на занятие ${DateFormat('d MMMM', 'ru').format(slot.date)} с ${slot.startTime} до ${slot.endTime}?'
+          : 'Отменить занятие на ${DateFormat('d MMMM', 'ru').format(slot.date)} с ${slot.startTime} до ${slot.endTime}?';
+      final successMessage = isPending
+          ? '✅ Запрос отменён'
+          : '✅ Бронирование отменено';
+
       // Показываем диалог подтверждения
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Отмена бронирования'),
-          content: Text(
-            'Отменить занятие на ${DateFormat('d MMMM', 'ru').format(slot.date)} с ${slot.startTime} до ${slot.endTime}?',
-          ),
+          title: Text(title),
+          content: Text(content),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -562,8 +582,8 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Бронирование отменено'),
+          SnackBar(
+            content: Text(successMessage),
             backgroundColor: Colors.orange,
             behavior: SnackBarBehavior.floating,
           ),

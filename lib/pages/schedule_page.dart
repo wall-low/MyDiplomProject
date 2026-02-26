@@ -14,19 +14,31 @@ class SchedulePage extends StatefulWidget {
   State<SchedulePage> createState() => _SchedulePageState();
 }
 
-class _SchedulePageState extends State<SchedulePage> {
+class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderStateMixin {
   final ScheduleService _scheduleService = ScheduleService();
   final Auth _auth = Auth();
   final Databases _db = Databases();
   DateTime _selectedDate = DateTime.now();
   bool _isTutor = false;
   bool _isLoading = true;
+  late AnimationController _refreshController;
 
   @override
   void initState() {
     super.initState();
     initializeDateFormatting('ru', null);
+    // Инициализируем контроллер анимации для кнопки обновления
+    _refreshController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
     _loadUserRole();
+  }
+
+  @override
+  void dispose() {
+    _refreshController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadUserRole() async {
@@ -45,6 +57,29 @@ class _SchedulePageState extends State<SchedulePage> {
         });
       }
     }
+  }
+
+  /// Обновить расписание вручную
+  ///
+  /// Запускает анимацию вращения кнопки и обновляет список слотов через setState()
+  void _refreshSchedule() {
+    // Запускаем анимацию вращения
+    _refreshController.forward(from: 0.0);
+
+    // Обновляем список слотов
+    setState(() {
+      debugPrint('[SchedulePage] 🔄 Ручное обновление расписания');
+    });
+
+    // Показываем уведомление
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('✅ Расписание обновлено'),
+        backgroundColor: Theme.of(context).colorScheme.primary,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 1),
+      ),
+    );
   }
 
   @override
@@ -73,28 +108,36 @@ class _SchedulePageState extends State<SchedulePage> {
         centerTitle: true,
         backgroundColor: colorScheme.surface,
         elevation: 0,
-        actions: _isTutor
-            ? [
-                // Кнопка настройки недельного графика (для репетитора)
-                IconButton(
-                  icon: const Icon(Icons.event_repeat),
-                  tooltip: 'Недельный график',
-                  onPressed: () async {
-                    final result = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const WeeklyTemplateSetupPage(),
-                      ),
-                    );
+        actions: [
+          // Кнопка обновления (для всех пользователей)
+          RotationTransition(
+            turns: _refreshController,
+            child: IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Обновить',
+              onPressed: _refreshSchedule,
+            ),
+          ),
+          // Кнопка настройки недельного графика (только для репетиторов)
+          if (_isTutor)
+            IconButton(
+              icon: const Icon(Icons.event_repeat),
+              tooltip: 'Недельный график',
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const WeeklyTemplateSetupPage(),
+                  ),
+                );
 
-                    // Если шаблон был применён, обновляем список слотов
-                    if (result == true && mounted) {
-                      setState(() {});
-                    }
-                  },
-                ),
-              ]
-            : null,
+                // Если шаблон был применён, обновляем список слотов
+                if (result == true && mounted) {
+                  setState(() {});
+                }
+              },
+            ),
+        ],
       ),
       body: Column(
         children: [

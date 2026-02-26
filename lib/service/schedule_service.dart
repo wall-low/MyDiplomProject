@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/schedule_slot.dart';
 import '../models/weekly_template.dart';
@@ -342,6 +343,182 @@ class ScheduleService extends ChangeNotifier {
     } catch (e) {
       debugPrint('[ScheduleService] Ошибка получения запросов: $e');
       return [];
+    }
+  }
+
+  /// Получить запросы ученика (pending + confirmed)
+  ///
+  /// Ученик видит свои запросы:
+  /// - pending: ожидают подтверждения репетитора
+  /// - confirmed: подтверждены репетитором
+  /// - free/отклонённые: не показываем (слот освобождается)
+  ///
+  /// Фильтр: studentId совпадает и bookingStatus = 'pending' или 'confirmed'
+  Future<List<ScheduleSlot>> getStudentRequests(String studentId) async {
+    try {
+      final result = await _pb.collection('slots').getList(
+            filter: 'studentId="$studentId" && (bookingStatus="pending" || bookingStatus="confirmed")',
+            sort: '+date,+startTime', // Сортировка по дате и времени
+            perPage: 500,
+          );
+
+      debugPrint('[ScheduleService] Запросов ученика: ${result.totalItems}');
+
+      return result.items.map((record) => ScheduleSlot.fromRecord(record)).toList();
+    } catch (e) {
+      debugPrint('[ScheduleService] Ошибка получения запросов ученика: $e');
+      return [];
+    }
+  }
+
+  /// Получить только pending запросы ученика (для счётчика)
+  ///
+  /// Показываем только ожидающие подтверждения запросы
+  Future<int> getStudentPendingCount(String studentId) async {
+    try {
+      final result = await _pb.collection('slots').getList(
+            filter: 'studentId="$studentId" && bookingStatus="pending"',
+            perPage: 1, // Нам нужен только count
+          );
+
+      return result.totalItems;
+    } catch (e) {
+      debugPrint('[ScheduleService] Ошибка получения количества pending: $e');
+      return 0;
+    }
+  }
+
+  // ============================================================================
+  // REALTIME SUBSCRIPTIONS: Real-time обновления для уведомлений
+  // ============================================================================
+
+  /// Stream для real-time подсчёта pending запросов репетитора
+  ///
+  /// Использует PocketBase realtime subscriptions для автоматического обновления
+  /// счётчика уведомлений при изменении статусов бронирования
+  Stream<int> getPendingRequestsCountStream(String tutorId) async* {
+    try {
+      debugPrint('[ScheduleService] 🔔 Подписка на pending запросы репетитора: $tutorId');
+
+      // Начальное значение
+      int currentCount = await _getCount('tutorId="$tutorId" && bookingStatus="pending"');
+      yield currentCount;
+
+      // Создаём StreamController для обработки событий
+      final controller = StreamController<int>();
+
+      // Подписываемся на ВСЕ изменения в коллекции slots
+      // Фильтруем события внутри callback (как в chat_service)
+      final unsubscribe = await _pb.collection('slots').subscribe(
+        '*', // Слушаем все события
+        (e) async {
+          debugPrint('[ScheduleService] 🔔 Событие: ${e.action} для слота ${e.record?.id}');
+
+          // Проверяем, относится ли событие к нашему репетитору
+          if (e.record != null) {
+            final slotTutorId = e.record!.data['tutorId'] as String?;
+            final bookingStatus = e.record!.data['bookingStatus'] as String?;
+
+            debugPrint('[ScheduleService]   - tutorId: $slotTutorId (нужен: $tutorId)');
+            debugPrint('[ScheduleService]   - bookingStatus: $bookingStatus');
+
+            // Если событие касается нашего репетитора → пересчитываем
+            if (slotTutorId == tutorId) {
+              final count = await _getCount('tutorId="$tutorId" && bookingStatus="pending"');
+              debugPrint('[ScheduleService] 🔔 Новый счётчик: $count');
+              controller.add(count);
+            }
+          }
+        },
+      );
+
+      // Отдаём события из контроллера
+      yield* controller.stream;
+
+      // Очистка при отмене подписки
+      await unsubscribe();
+      await controller.close();
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка подписки на pending (tutor): $e');
+      yield 0;
+    }
+  }
+
+  /// Stream для real-time подсчёта pending запросов ученика
+  ///
+  /// Использует PocketBase realtime subscriptions для автоматического обновления
+  /// счётчика уведомлений при изменении статусов бронирования
+  Stream<int> getStudentPendingCountStream(String studentId) async* {
+    try {
+      debugPrint('[ScheduleService] 🔔 Подписка на pending запросы ученика: $studentId');
+
+      // Начальное значение
+      int currentCount = await _getCount('studentId="$studentId" && bookingStatus="pending"');
+      yield currentCount;
+
+      // Создаём StreamController для обработки событий
+      final controller = StreamController<int>();
+
+      // Подписываемся на ВСЕ изменения в коллекции slots
+      // Фильтруем события внутри callback (как в chat_service)
+      final unsubscribe = await _pb.collection('slots').subscribe(
+        '*', // Слушаем все события
+        (e) async {
+          debugPrint('[ScheduleService] 🔔 Событие: ${e.action} для слота ${e.record?.id}');
+
+          // Проверяем, относится ли событие к нашему ученику
+          if (e.record != null) {
+            final slotStudentId = e.record!.data['studentId'] as String?;
+            final bookingStatus = e.record!.data['bookingStatus'] as String?;
+
+            debugPrint('[ScheduleService]   - studentId: $slotStudentId (нужен: $studentId)');
+            debugPrint('[ScheduleService]   - bookingStatus: $bookingStatus');
+
+            // Если событие касается нашего ученика → пересчитываем
+            if (slotStudentId == studentId) {
+              final count = await _getCount('studentId="$studentId" && bookingStatus="pending"');
+              debugPrint('[ScheduleService] 🔔 Новый счётчик: $count');
+              controller.add(count);
+            }
+          }
+        },
+      );
+
+      // Отдаём события из контроллера
+      yield* controller.stream;
+
+      // Очистка при отмене подписки
+      await unsubscribe();
+      await controller.close();
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка подписки на pending (student): $e');
+      yield 0;
+    }
+  }
+
+  /// Вспомогательный метод для подсчёта записей по фильтру
+  Future<int> _getCount(String filter) async {
+    try {
+      final result = await _pb.collection('slots').getList(
+        filter: filter,
+        perPage: 1,
+      );
+      return result.totalItems;
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка подсчёта: $e');
+      return 0;
+    }
+  }
+
+  /// Отписаться от всех realtime подписок
+  ///
+  /// Вызывается в dispose() для освобождения ресурсов
+  Future<void> unsubscribeFromSlots() async {
+    try {
+      await _pb.collection('slots').unsubscribe();
+      debugPrint('[ScheduleService] ✅ Отписались от slots subscriptions');
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка отписки: $e');
     }
   }
 

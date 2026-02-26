@@ -8,6 +8,7 @@ import 'package:p7/service/databases.dart';
 import 'package:p7/service/schedule_service.dart';
 import 'chat_page.dart';
 import 'booking_requests_page.dart';
+import 'student_booking_requests_page.dart';
 
 // УДАЛЕНО: import 'package:cloud_firestore/cloud_firestore.dart';
 // УДАЛЕНО: import 'dart:async' и Timer - больше не нужны!
@@ -19,7 +20,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   final ChatService _chatService = ChatService();
   final Auth _auth = Auth();
@@ -36,11 +37,25 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    // Никаких дополнительных действий - Stream подключится автоматически
+    // Добавляем observer для отслеживания жизненного цикла приложения
+    WidgetsBinding.instance.addObserver(this);
+
+    // Загружаем роль пользователя и запускаем подписку на уведомления
     _loadUserRoleAndRequests();
   }
 
-  /// Загрузить роль пользователя и количество запросов (для репетиторов)
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    // Обновляем счётчик при возврате в приложение
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('[HomePage] 🔄 Приложение вернулось на передний план, обновляем счётчик');
+      _loadUserRoleAndRequests();
+    }
+  }
+
+  /// Загрузить роль пользователя и запустить real-time подписку на запросы
   Future<void> _loadUserRoleAndRequests() async {
     try {
       final user = await _db.getUserFromPocketBase(_auth.getCurrentUid());
@@ -49,34 +64,58 @@ class _HomePageState extends State<HomePage> {
           _isTutor = user.role == 'Репетитор';
         });
 
-        // Если репетитор - загружаем количество запросов
-        if (_isTutor) {
-          _loadPendingRequestsCount();
-        }
+        // Запускаем real-time подписку на pending запросы
+        _subscribeToPendingRequests();
       }
     } catch (e) {
       print('[HomePage] Ошибка загрузки роли: $e');
     }
   }
 
-  /// Загрузить количество pending запросов
-  Future<void> _loadPendingRequestsCount() async {
-    try {
-      final requests = await _scheduleService.getPendingRequests(_auth.getCurrentUid());
-      if (mounted) {
-        setState(() {
-          _pendingRequestsCount = requests.length;
-        });
-      }
-    } catch (e) {
-      print('[HomePage] Ошибка загрузки запросов: $e');
+  /// Подписаться на real-time обновления pending запросов
+  ///
+  /// Использует PocketBase realtime subscriptions для автоматического обновления
+  /// счётчика колокольчика при изменении статусов бронирования
+  void _subscribeToPendingRequests() {
+    final userId = _auth.getCurrentUid();
+
+    Stream<int> countStream;
+
+    if (_isTutor) {
+      // Репетитор: подписываемся на запросы от учеников
+      debugPrint('[HomePage] 🔔 Подписка на запросы репетитора');
+      countStream = _scheduleService.getPendingRequestsCountStream(userId);
+    } else {
+      // Ученик: подписываемся на свои pending запросы
+      debugPrint('[HomePage] 🔔 Подписка на запросы ученика');
+      countStream = _scheduleService.getStudentPendingCountStream(userId);
     }
+
+    // Слушаем изменения и обновляем UI
+    countStream.listen(
+      (count) {
+        if (mounted) {
+          debugPrint('[HomePage] 🔔 Обновление счётчика: $count');
+          setState(() {
+            _pendingRequestsCount = count;
+          });
+        }
+      },
+      onError: (error) {
+        debugPrint('[HomePage] ❌ Ошибка подписки: $error');
+      },
+    );
   }
 
   @override
   void dispose() {
-    // НОВОЕ: Отписываемся от realtime подписок
+    // Убираем observer жизненного цикла
+    WidgetsBinding.instance.removeObserver(this);
+
+    // Отписываемся от realtime подписок
     _chatService.unsubscribeFromChats();
+    _scheduleService.unsubscribeFromSlots();
+
     super.dispose();
   }
 
@@ -88,55 +127,64 @@ class _HomePageState extends State<HomePage> {
         centerTitle: true,
         title: Text("Ч А Т Ы"),
         foregroundColor: Theme.of(context).colorScheme.primary,
-        actions: _isTutor
-            ? [
-                // Колокольчик с уведомлениями о запросах (только для репетиторов)
-                Stack(
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.notifications_outlined),
-                      onPressed: () async {
-                        // Переход на страницу запросов
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const BookingRequestsPage(),
-                          ),
-                        );
-                        // После возвращения обновляем счётчик
-                        _loadPendingRequestsCount();
-                      },
-                    ),
-                    // Бейдж с количеством запросов
-                    if (_pendingRequestsCount > 0)
-                      Positioned(
-                        right: 8,
-                        top: 8,
-                        child: Container(
-                          padding: EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: Colors.red,
-                            shape: BoxShape.circle,
-                          ),
-                          constraints: BoxConstraints(
-                            minWidth: 18,
-                            minHeight: 18,
-                          ),
-                          child: Text(
-                            _pendingRequestsCount > 9 ? '9+' : '$_pendingRequestsCount',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
+        actions: [
+          // Колокольчик с уведомлениями о запросах (для всех пользователей)
+          Stack(
+            children: [
+              IconButton(
+                icon: Icon(Icons.notifications_outlined),
+                onPressed: () async {
+                  // Переход на разные страницы в зависимости от роли
+                  if (_isTutor) {
+                    // Репетитор → запросы от учеников
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const BookingRequestsPage(),
                       ),
-                  ],
+                    );
+                  } else {
+                    // Ученик → свои запросы
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const StudentBookingRequestsPage(),
+                      ),
+                    );
+                  }
+                  // УДАЛЕНО: _loadPendingRequestsCount();
+                  // Счётчик обновляется автоматически через realtime subscription!
+                },
+              ),
+              // Бейдж с количеством запросов
+              if (_pendingRequestsCount > 0)
+                Positioned(
+                  right: 8,
+                  top: 8,
+                  child: Container(
+                    padding: EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    child: Text(
+                      _pendingRequestsCount > 9 ? '9+' : '$_pendingRequestsCount',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ),
-              ]
-            : null,
+            ],
+          ),
+        ],
       ),
       body: _buildUserList(),
     );
