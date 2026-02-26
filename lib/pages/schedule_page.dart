@@ -488,6 +488,9 @@ class _SchedulePageState extends State<SchedulePage> {
       final start = '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}';
       final end = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
 
+      print('[SchedulePage] 📝 Создание слота: ${_selectedDate.toString().split(' ')[0]} $start-$end');
+      print('[SchedulePage] 👤 TutorID: ${_auth.getCurrentUid()}');
+
       await _scheduleService.addSlot(
         tutorId: _auth.getCurrentUid(),
         date: _selectedDate,
@@ -495,22 +498,30 @@ class _SchedulePageState extends State<SchedulePage> {
         endTime: end,
       );
 
+      print('[SchedulePage] ✅ Слот создан успешно');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Слот добавлен'),
+            content: const Text('✅ Слот добавлен'),
             backgroundColor: Theme.of(context).colorScheme.primary,
             behavior: SnackBarBehavior.floating,
           ),
         );
+        // Обновляем список слотов
+        setState(() {});
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      print('[SchedulePage] ❌ Ошибка добавления слота: $e');
+      print('[SchedulePage] 📋 StackTrace: $stackTrace');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Ошибка добавления слота'),
+          SnackBar(
+            content: Text('❌ Ошибка: ${e.toString()}'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
           ),
         );
       }

@@ -396,41 +396,9 @@ dependencies:
 ```
 
 #### Flutter Connection Setup
-```dart
-// lib/service/pocketbase_service.dart
-import 'package:pocketbase/pocketbase.dart';
-
-class PocketBaseService {
-  static final PocketBaseService _instance = PocketBaseService._internal();
-  late final PocketBase pb;
-
-  factory PocketBaseService() {
-    return _instance;
-  }
-
-  PocketBaseService._internal() {
-    // Для локальной разработки (Docker)
-    String baseUrl;
-    if (Platform.isAndroid) {
-      baseUrl = 'http://10.0.2.2:8090'; // Android emulator → host machine
-    } else if (Platform.isIOS) {
-      baseUrl = 'http://localhost:8090'; // iOS simulator
-    } else {
-      baseUrl = 'http://localhost:8090'; // Desktop/Web
-    }
-
-    // Для продакшена (VPS)
-    // baseUrl = 'https://your-domain.com';
-
-    pb = PocketBase(baseUrl);
-  }
-
-  PocketBase get client => pb;
-}
-
-// Использование:
-final pb = PocketBaseService().client;
-```
+- Singleton service: `lib/service/pocketbase_service.dart`
+- Android emulator: `http://10.0.2.2:8090`
+- iOS simulator: `http://localhost:8090`
 
 #### Current Collections (migrated from Firestore)
 
@@ -619,59 +587,12 @@ This ensures the same chatroom for any pair of users regardless of who initiates
 
 ### Auto-Refresh Pattern (FutureBuilder with Manual Reload)
 
-**ПРОБЛЕМА**: FutureBuilder загружает данные только при первом билде виджета. Если данные изменились (новое сообщение в БД), UI не обновляется автоматически.
+**РЕШЕНИЕ**: `ValueKey` + `_refreshKey` для принудительного пересоздания FutureBuilder.
 
-**РЕШЕНИЕ**: Используем `ValueKey` + `_refreshKey` для принудительного пересоздания FutureBuilder:
-
-```dart
-class _HomePageState extends State<HomePage> {
-  int _refreshKey = 0;
-
-  void _refreshChats() {
-    setState(() {
-      _refreshKey++; // Изменяем ключ → FutureBuilder пересоздаётся → future вызывается заново
-    });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _refreshChats(); // Auto-refresh при открытии страницы
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<List<Chat>>(
-      key: ValueKey(_refreshKey), // При изменении ключа FutureBuilder пересоздаётся
-      future: _chatService.getUserChatsFromMetadata(),
-      builder: (context, snapshot) {
-        // Оборачиваем в RefreshIndicator для pull-to-refresh
-        return RefreshIndicator(
-          onRefresh: () async {
-            _refreshChats();
-            await Future.delayed(Duration(milliseconds: 500));
-          },
-          child: ListView.builder(...),
-        );
-      },
-    );
-  }
-}
-```
-
-**Три механизма авто-обновления:**
-1. **Auto-refresh on page load**: `initState()` → `_refreshChats()`
-2. **Pull-to-refresh**: `RefreshIndicator` → пользователь тянет вниз → `_refreshChats()`
-3. **Auto-refresh after navigation**:
-   ```dart
-   await Navigator.push(context, ChatPage(...));
-   _refreshChats(); // Обновляем после возврата из чата
-   ```
-
-**Альтернативы (НЕ использованы):**
-- ❌ StreamBuilder - требует реализации realtime subscriptions (сложнее)
-- ❌ Manual refresh button - плохой UX, требует действия от пользователя
-- ✅ ValueKey pattern - простой, работает с любым Future
+**Три механизма:**
+1. Auto-refresh on page load: `initState()` → `_refreshChats()`
+2. Pull-to-refresh: `RefreshIndicator`
+3. Auto-refresh after navigation from ChatPage
 
 ### Message Types
 Messages support three types (stored in 'type' field):
@@ -697,48 +618,15 @@ Messages support three types (stored in 'type' field):
 4. Review updates if same student leaves another review (weight increases)
 
 #### Rating Query Strategy
-```dart
-// Get reviews from last 6 months
-final sixMonthsAgo = DateTime.now().subtract(Duration(days: 180));
-final reviewsQuery = FirebaseFirestore.instance
-  .collection('Reviews')
-  .where('tutorId', isEqualTo: tutorId)
-  .where('timestamp', isGreaterThan: sixMonthsAgo)
-  .where('isVerified', isEqualTo: true);
-
-// Calculate weighted average
-double calculateRating(List<Review> reviews) {
-  if (reviews.isEmpty) return 0.0;
-
-  double totalWeightedRating = 0;
-  int totalWeight = 0;
-
-  for (var review in reviews) {
-    totalWeightedRating += review.rating * review.weight;
-    totalWeight += review.weight;
-  }
-
-  return totalWeightedRating / totalWeight;
-}
-```
+- Filter reviews from last 6 months with `isVerified = true`
+- Calculate weighted average: `sum(rating * weight) / sum(weight)`
 
 ### Search and Filter Implementation Notes
 
-#### Subject Search
-- Store subjects as array in TutorProfile
-- Use `arrayContains` for filtering: `.where('subjects', arrayContains: selectedSubject)`
-
-#### Price Filter
-- Query with range: `.where('priceMin', isLessThanOrEqualTo: maxPrice).where('priceMax', isGreaterThanOrEqualTo: minPrice)`
-- Note: Firestore compound queries may require composite index
-
-#### Rating Filter
-- Calculate rating on client side or use Cloud Functions to maintain `rating` field in TutorProfile
-- Filter: `.where('rating', isGreaterThanOrEqualTo: minRating)`
-
-#### Online/Offline Filter
-- Add `lessonFormat` field to TutorProfile: ['online', 'offline', 'both']
-- Filter: `.where('lessonFormat', arrayContains: selectedFormat)`
+- **Subject**: Store as JSON array, filter with PocketBase syntax
+- **Price**: Range filter on priceMin/priceMax fields
+- **Rating**: Filter on rating field in tutor_profiles
+- **Lesson Format**: JSON array: ["online", "offline", "both"]
 
 ### Audio Session
 App configures AudioSession at startup (main.dart) for music playback support using flutter_sound and audioplayers packages.
@@ -753,50 +641,20 @@ Handled via permission_handler package.
 
 ### Complete Lesson Flow (Booking → Lesson → Payment → Review)
 
-**ВАЖНО: Это полный цикл занятия, описывающий правильную последовательность действий**
+#### Main Flow:
+1. Student searches/finds tutor → Opens profile → Views schedule
+2. Books free slot (isBooked=true, NO payment yet)
+3. Lesson takes place
+4. **After lesson**: Auto payment dialog → Student pays (mock) → slot.isPaid=true
+5. **After payment**: Auto review form → Student rates (stars) + comment → Verified review created
+6. System updates tutor's weighted rating (6-month window)
 
-#### Main Flow (25 steps):
-1. Student searches for tutors using filters (subject, city, price, rating)
-2. System displays filtered tutor list
-3. Student opens tutor's detailed profile
-4. System shows tutor info (name, experience, education, subjects, price, rating, reviews)
-5. Student clicks "View Schedule"
-6. System displays available slots (date, time, price)
-7. Student selects free slot and clicks "Book" (NOT "Book and Pay")
-8. System books slot (isBooked = true, studentId) and sends notification to tutor
-9. System saves lesson to student's "My Lessons"
-10. **Lesson takes place** (offline or online)
-11. After lesson end time, system automatically sets slot to isPast = true
-12. **System automatically opens payment dialog** with lesson info and amount
-13. Student clicks "Pay" and confirms
-14. Payment system (mock) processes payment and returns "Success"
-15. System creates Payment record (status: 'completed') and updates slot (isPaid = true)
-16. System updates tutor profile (totalPaidLessons +1, lastPaidLessonDate) and sends notification
-17. **System automatically opens review form**
-18. Student rates (1-5 stars) and writes text comment
-19. Student submits review
-20. System calculates review weight (count of paid lessons between this student and tutor)
-21. System saves verified review (isVerified = true, with weight and rating)
-22. System recalculates tutor's weighted average rating (last 6 months only)
-23. System updates tutor's rating field in profile
-24. System sends push notification to tutor about new review
-25. Updated rating displays in tutor profile for all users
-
-#### Key Alternative Scenarios:
-- **A3: Chat communication** (between steps 9-10): Optional, only if student/tutor needs to clarify details
-- **A4: Cancel booking** (before step 10): Student cancels → slot freed → no payment, no review
-- **A5: Lesson didn't happen** (step 12): Student reports problem → complaint saved → no payment
-- **A6: Student postpones payment** (step 13): Lesson saved as "Unpaid" → can only leave unverified text review (no stars)
-- **A10: Unverified review** (alternative to step 17): If unpaid → form shows only text field (NO stars) → review saved as isVerified = false → rating NOT recalculated
-
-#### Critical Business Rules:
-- 🔴 **Payment happens AFTER lesson completion**, not before booking
-- 🔴 **Payment dialog appears automatically** after lesson end time
-- 🔴 **Verified reviews (with stars) only available after payment**
-- 🔴 **Unverified reviews (text only) available without payment** but marked and don't affect rating
-- 🔴 **Rating calculation uses only verified reviews from last 6 months**
-- 🔴 **Review weight = number of paid lessons between student and tutor**
-- 🔴 **New tutors (0 paid lessons) show "🆕 Новичок на платформе" badge instead of rating**
+#### Critical Rules:
+- 🔴 Payment AFTER lesson, not before booking
+- 🔴 Verified reviews (stars) only after payment
+- 🔴 Unverified reviews (text only) without payment → don't affect rating
+- 🔴 Rating weight = paid lessons count between student/tutor
+- 🔴 New tutors (0 paid) show "🆕 Новичок на платформе"
 
 ### Known Issues
 
@@ -816,176 +674,25 @@ Handled via permission_handler package.
 
 ## Migration Plan: Firebase → PocketBase
 
-### Code Examples: Before → After
+**Status: 80-85% ЗАВЕРШЕНО** (Steps 0-5 completed)
 
-#### Authentication
-```dart
-// BEFORE (Firebase)
-final userCredential = await FirebaseAuth.instance
-    .signInWithEmailAndPassword(email: email, password: password);
+### Migration Steps:
+- ✅ **Step 0**: PocketBase setup (Docker + collections)
+- ✅ **Step 1**: Authentication (email/password)
+- ✅ **Step 2**: User profiles
+- ✅ **Step 3**: Chat system (two-table pattern + auto-refresh)
+- ✅ **Step 4**: Schedule + Weekly Templates
+- ✅ **Step 5**: Basic search (city, name)
+- 🔄 **Step 6**: Cleanup (Cloudinary → PocketBase Storage migration)
 
-// AFTER (PocketBase)
-final authData = await pb.collection('users')
-    .authWithPassword(email, password);
-final user = authData.record;
-```
+**Progress: 80-85% COMPLETED**
 
-#### Get User Profile
-```dart
-// BEFORE (Firebase)
-final doc = await FirebaseFirestore.instance
-    .collection('Users')
-    .doc(uid)
-    .get();
-final user = UserProfile.fromDocument(doc);
-
-// AFTER (PocketBase)
-final record = await pb.collection('users').getOne(uid);
-final user = UserProfile.fromRecord(record);
-```
-
-#### Realtime Messages
-```dart
-// BEFORE (Firebase)
-FirebaseFirestore.instance
-    .collection('chat_room')
-    .doc(chatRoomId)
-    .collection('messages')
-    .orderBy('timestamp', descending: true)
-    .snapshots();
-
-// AFTER (PocketBase)
-pb.collection('messages').subscribe('*', (e) {
-  // e.action: 'create', 'update', 'delete'
-  // e.record: message record
-}, filter: 'chatRoomId="$chatRoomId"');
-
-// Or use getList() with auto-refresh
-```
-
-#### File Upload
-```dart
-// BEFORE (Cloudinary)
-final response = await cloudinary.uploadFile(
-  CloudinaryFile.fromFile(file.path, folder: 'avatars'),
-);
-final avatarUrl = response.secureUrl;
-
-// AFTER (PocketBase)
-final formData = FormData();
-formData.files.add(MapEntry(
-  'avatar',
-  MultipartFile.fromFileSync(file.path),
-));
-await pb.collection('users').update(userId, body: formData);
-
-// Get URL: pb.getFileUrl(userRecord, userRecord.data['avatar'])
-```
-
-### Step 0: Setup PocketBase ✅ COMPLETED
-1. ✅ **Docker setup complete** - файлы созданы:
-   - `pocketbase/Dockerfile`
-   - `pocketbase/docker-compose.yml`
-   - `pocketbase/.dockerignore`
-   - `pocketbase/README.md`
-2. ✅ PocketBase запущен (Docker)
-3. ✅ Admin UI настроен: http://localhost:8090/_/
-4. ✅ Коллекции созданы через Admin UI:
-   - ✅ users (Auth Collection) + доп. поля (username, name, birthDate, city, role, bio, avatar)
-   - ✅ messages (chatRoomId, senderId, receiverId, message, type, isRead)
-   - ✅ chats (chatRoomId, user1Id, user2Id, lastMessage, lastMessageType, lastTimestamp, unreadCounts) - **NEW**
-   - ✅ slots (tutorId, date, startTime, endTime, isBooked, isPaid, studentId)
-   - ✅ blocked_users (userId, blockedUserId)
-   - ✅ reports (reportedBy, messageId, messageOwnerId)
-5. ✅ Flutter зависимость добавлена: `pocketbase: ^0.18.0` в `pubspec.yaml`
-6. ✅ Создан `lib/service/pocketbase_service.dart` - Singleton для подключения
-
-### Step 1: Authentication Migration ✅ COMPLETED
-1. ✅ Created `lib/service/pocketbase_service.dart` - PocketBase client wrapper (Singleton pattern)
-2. ✅ Updated `lib/service/auth.dart`:
-   - ✅ Replaced Firebase Auth with PocketBase Auth
-   - ✅ Implemented `pb.collection('users').authWithPassword()`
-   - ✅ Implemented `pb.collection('users').create()` for registration
-   - ✅ **FIXED**: Added `'role': 'Ученик'` as default during registration
-   - ✅ Auto-persist via `pb.authStore` (SharedPreferences)
-3. ✅ Tested login/register/logout flows
-4. ✅ Firebase dependency removed
-
-### Step 2: User Profile Migration ✅ COMPLETED
-1. ✅ Updated `lib/service/databases.dart`:
-   - ✅ Replaced all Firestore calls with PocketBase
-   - ✅ Migrated `getUserFromFirebase()` → `getUserFromPocketBase()`
-   - ✅ Updated `saveInfoInFirebase()` → `saveInfoInPocketBase()`
-   - ✅ **FIXED**: Terminology renamed "Преподаватель" → "Репетитор" globally
-2. 🔄 Avatar uploads still use Cloudinary (ПЛАНИРУЕТСЯ миграция на PocketBase Storage)
-3. ✅ Profile view/edit functionality tested
-
-### Step 3: Chat System Migration ✅ COMPLETED
-1. ✅ Updated `lib/service/chat_service.dart`:
-   - ✅ Replaced Firestore messages with PocketBase messages collection
-   - ✅ **NEW**: Implemented two-table pattern (`messages` + `chats` metadata)
-   - ✅ **NEW**: Created `_createOrUpdateChatRoom()` for automatic metadata updates
-   - ✅ **NEW**: Created `getUserChatsFromMetadata()` for fast chat list loading
-   - ✅ Integrated metadata updates into all message sending methods
-2. ✅ Updated `lib/models/chat.dart` - новая модель для метаданных
-3. ✅ Updated `lib/pages/home_page.dart`:
-   - ✅ Switched from `getActiveChats()` to `getUserChatsFromMetadata()`
-   - ✅ **NEW**: Implemented auto-refresh with ValueKey pattern
-   - ✅ **NEW**: Added pull-to-refresh with RefreshIndicator
-   - ✅ **NEW**: Auto-refresh on page load and after returning from chat
-4. ✅ Text message sending tested ✅
-5. 🔄 Image/audio uploads still use Cloudinary (ПЛАНИРУЕТСЯ миграция на PocketBase Storage)
-6. 🔄 Realtime updates use polling (можно улучшить с pb.collection('messages').subscribe())
-
-### Step 4: Schedule System Migration ✅ COMPLETED + ENHANCED
-1. ✅ Updated `lib/service/schedule_service.dart`:
-   - Replaced Firestore slots with PocketBase slots collection
-   - Updated CRUD operations
-   - Migrated date/time handling
-   - ✅ **NEW**: Added template-based generation (generateSlotsFromTemplate, clearGeneratedFreeSlots)
-2. ✅ Tested slot creation, booking, cancellation
-3. ✅ Dual-mode UI: tutors see slots by date, students see all bookings
-4. ✅ **NEW**: Weekly Template System:
-   - Created `lib/models/weekly_template.dart` model
-   - Created `lib/service/weekly_template_service.dart` with CRUD operations
-   - Created `lib/pages/weekly_template_setup_page.dart` UI for template management
-   - Updated ScheduleSlot model with generatedFromTemplate, templateId, isPaid fields
-   - Integrated template button into SchedulePage AppBar
-   - Auto-generation of slots on 28-day rolling window
-
-### Step 5: Search & Filters ✅ COMPLETED (Basic)
-1. ✅ Updated `lib/pages/find_tutor_page.dart`:
-   - Replaced Firestore queries with PocketBase filters
-   - Uses filter syntax: `filter: 'role="tutor" && city="Moscow"'`
-2. ✅ Tested tutor search by city, name
-3. ⏳ Advanced filters (subjects, price, rating) - planned for Phase 1
-
-### Step 6: Cleanup
-1. 🔄 Remove Cloudinary dependencies from `pubspec.yaml` (ПОСЛЕ миграции на PocketBase Storage)
-2. 🔄 Delete `lib/service/cloudinary_service.dart` (ПОСЛЕ миграции на PocketBase Storage)
-3. ✅ Firebase dependencies removed
-4. ✅ Firebase config files deleted
-5. 🔄 Test full app flow end-to-end (ФИНАЛЬНОЕ ТЕСТИРОВАНИЕ)
-
-**Progress:**
-- ✅ **COMPLETED**: Steps 0-5 (Setup, Auth, Profiles, Chat System, Schedule, Basic Search) - ~12-14 days
-- 🔄 **REMAINING**: Step 6 (Cleanup + Cloudinary migration to PocketBase Storage) - ~2-3 days
-- **Total migration time**: ~14-17 days (80-85% ЗАВЕРШЕНО)
-
-**Текущие задачи для диплома:**
-- ✅ **DONE**: Система недельного шаблона расписания (weekly_templates collection + UI)
-- ✅ **DONE**: Детальный профиль репетитора (tutor_profile_page.dart с дизайном)
-- ⏳ Миграция файлов на PocketBase Storage (изображения/аудио в чатах)
-- ⏳ Создание tutor_profiles collection (предметы, цена, опыт, образование)
-- ⏳ Система отзывов и рейтингов (reviews collection)
-- ⏳ Имитация оплаты (payments collection)
-
-### Step 7: Deploy to Production
-1. Buy Russian VPS (Timeweb, Selectel, или другой)
-2. Deploy PocketBase with systemd/docker
-3. Setup HTTPS with Let's Encrypt
-4. Update Flutter app with production PocketBase URL
-5. Test on real devices
+**Осталось для диплома:**
+- ⏳ Cloudinary → PocketBase Storage (images/audio in chats)
+- ⏳ tutor_profiles collection (subjects, price, experience, education)
+- ⏳ reviews collection + rating system
+- ⏳ payments collection (mock payment)
+- ⏳ Deploy to Russian VPS (Timeweb/Selectel)
 
 ## Development Priorities for Diploma (AFTER Migration)
 

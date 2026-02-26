@@ -5,6 +5,7 @@ import 'package:pocketbase/pocketbase.dart';
 /// Мигрировано с Firestore на PocketBase
 /// Добавлен метод fromRecord() для преобразования RecordModel
 /// Добавлены поля для работы с недельным шаблоном
+/// Добавлено поле bookingStatus для системы подтверждения бронирований
 class ScheduleSlot {
   final String id;
   final String tutorId;
@@ -17,6 +18,7 @@ class ScheduleSlot {
   final DateTime createdAt; // ИЗМЕНЕНО: Timestamp → DateTime
   final bool generatedFromTemplate; // NEW: Создан ли автоматически из шаблона
   final String? templateId; // NEW: ID шаблона, из которого создан
+  final String bookingStatus; // NEW: Статус бронирования (free, pending, confirmed)
 
   ScheduleSlot({
     required this.id,
@@ -30,6 +32,7 @@ class ScheduleSlot {
     required this.createdAt,
     this.generatedFromTemplate = false,
     this.templateId,
+    this.bookingStatus = 'free', // По умолчанию свободен
   });
 
   /// Создание ScheduleSlot из RecordModel (PocketBase)
@@ -79,6 +82,7 @@ class ScheduleSlot {
       createdAt: parsedCreatedAt,
       generatedFromTemplate: data['generatedFromTemplate'] as bool? ?? false,
       templateId: data['templateId'] as String?,
+      bookingStatus: data['bookingStatus'] as String? ?? 'free',
     );
   }
 
@@ -126,6 +130,7 @@ class ScheduleSlot {
       createdAt: parsedCreatedAt,
       generatedFromTemplate: map['generatedFromTemplate'] ?? false,
       templateId: map['templateId'],
+      bookingStatus: map['bookingStatus'] ?? 'free',
     );
   }
 
@@ -162,6 +167,9 @@ class ScheduleSlot {
       'generatedFromTemplate': generatedFromTemplate,
       if (templateId != null) 'templateId': templateId,
 
+      // Статус бронирования
+      'bookingStatus': bookingStatus,
+
       // createdAt обычно не нужен в toMap() - PocketBase создает автоматически
       // Но оставим для совместимости
       'createdAt': createdAt.toIso8601String(),
@@ -181,6 +189,7 @@ class ScheduleSlot {
     DateTime? createdAt, // ИЗМЕНЕНО: Timestamp → DateTime
     bool? generatedFromTemplate,
     String? templateId,
+    String? bookingStatus,
   }) {
     return ScheduleSlot(
       id: id ?? this.id,
@@ -194,6 +203,7 @@ class ScheduleSlot {
       createdAt: createdAt ?? this.createdAt,
       generatedFromTemplate: generatedFromTemplate ?? this.generatedFromTemplate,
       templateId: templateId ?? this.templateId,
+      bookingStatus: bookingStatus ?? this.bookingStatus,
     );
   }
 
@@ -208,5 +218,38 @@ class ScheduleSlot {
       int.parse(endTime.split(':')[1]),
     );
     return slotDateTime.isBefore(now);
+  }
+
+  // Проверка статусов бронирования
+  bool get isFree => bookingStatus == 'free';
+  bool get isPending => bookingStatus == 'pending';
+  bool get isConfirmed => bookingStatus == 'confirmed';
+
+  // Получить emoji для статуса
+  String get statusEmoji {
+    switch (bookingStatus) {
+      case 'free':
+        return '🟢';
+      case 'pending':
+        return '⏳';
+      case 'confirmed':
+        return '✅';
+      default:
+        return '❓';
+    }
+  }
+
+  // Получить текст статуса
+  String get statusText {
+    switch (bookingStatus) {
+      case 'free':
+        return 'Свободно';
+      case 'pending':
+        return 'Ожидает подтверждения';
+      case 'confirmed':
+        return 'Подтверждено';
+      default:
+        return 'Неизвестно';
+    }
   }
 }

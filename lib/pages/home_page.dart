@@ -5,7 +5,9 @@ import 'package:p7/models/chat.dart';
 import 'package:p7/service/auth.dart';
 import 'package:p7/service/chat_service.dart';
 import 'package:p7/service/databases.dart';
+import 'package:p7/service/schedule_service.dart';
 import 'chat_page.dart';
+import 'booking_requests_page.dart';
 
 // УДАЛЕНО: import 'package:cloud_firestore/cloud_firestore.dart';
 // УДАЛЕНО: import 'dart:async' и Timer - больше не нужны!
@@ -21,6 +23,11 @@ class _HomePageState extends State<HomePage> {
 
   final ChatService _chatService = ChatService();
   final Auth _auth = Auth();
+  final ScheduleService _scheduleService = ScheduleService();
+  final Databases _db = Databases();
+
+  bool _isTutor = false; // Роль пользователя
+  int _pendingRequestsCount = 0; // Количество запросов
 
   String getCurrentUser(){
     return _auth.getCurrentUid();
@@ -30,6 +37,40 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     // Никаких дополнительных действий - Stream подключится автоматически
+    _loadUserRoleAndRequests();
+  }
+
+  /// Загрузить роль пользователя и количество запросов (для репетиторов)
+  Future<void> _loadUserRoleAndRequests() async {
+    try {
+      final user = await _db.getUserFromPocketBase(_auth.getCurrentUid());
+      if (user != null && mounted) {
+        setState(() {
+          _isTutor = user.role == 'Репетитор';
+        });
+
+        // Если репетитор - загружаем количество запросов
+        if (_isTutor) {
+          _loadPendingRequestsCount();
+        }
+      }
+    } catch (e) {
+      print('[HomePage] Ошибка загрузки роли: $e');
+    }
+  }
+
+  /// Загрузить количество pending запросов
+  Future<void> _loadPendingRequestsCount() async {
+    try {
+      final requests = await _scheduleService.getPendingRequests(_auth.getCurrentUid());
+      if (mounted) {
+        setState(() {
+          _pendingRequestsCount = requests.length;
+        });
+      }
+    } catch (e) {
+      print('[HomePage] Ошибка загрузки запросов: $e');
+    }
   }
 
   @override
@@ -47,6 +88,55 @@ class _HomePageState extends State<HomePage> {
         centerTitle: true,
         title: Text("Ч А Т Ы"),
         foregroundColor: Theme.of(context).colorScheme.primary,
+        actions: _isTutor
+            ? [
+                // Колокольчик с уведомлениями о запросах (только для репетиторов)
+                Stack(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.notifications_outlined),
+                      onPressed: () async {
+                        // Переход на страницу запросов
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const BookingRequestsPage(),
+                          ),
+                        );
+                        // После возвращения обновляем счётчик
+                        _loadPendingRequestsCount();
+                      },
+                    ),
+                    // Бейдж с количеством запросов
+                    if (_pendingRequestsCount > 0)
+                      Positioned(
+                        right: 8,
+                        top: 8,
+                        child: Container(
+                          padding: EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          constraints: BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          child: Text(
+                            _pendingRequestsCount > 9 ? '9+' : '$_pendingRequestsCount',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ]
+            : null,
       ),
       body: _buildUserList(),
     );

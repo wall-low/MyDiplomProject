@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:p7/models/tutor_profile.dart';
 import 'package:p7/models/user.dart';
 import 'package:p7/pages/chat_page.dart';
-import 'package:p7/pages/schedule_page.dart';
+import 'package:p7/pages/tutor_schedule_view_page.dart';
 
 /// Страница детального профиля репетитора
 ///
@@ -428,11 +428,14 @@ class TutorProfilePage extends StatelessWidget {
               flex: 2,
               child: ElevatedButton(
                 onPressed: () {
-                  // Открываем расписание репетитора
+                  // Открываем расписание репетитора для просмотра и бронирования
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => const SchedulePage(),
+                      builder: (context) => TutorScheduleViewPage(
+                        tutorId: userProfile.uid,
+                        tutorName: userProfile.name,
+                      ),
                     ),
                   );
                 },

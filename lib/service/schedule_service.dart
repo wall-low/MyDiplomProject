@@ -125,8 +125,14 @@ class ScheduleService extends ChangeNotifier {
     required String endTime,
   }) async {
     try {
+      debugPrint('[ScheduleService] ========== СОЗДАНИЕ СЛОТА ==========');
+      debugPrint('[ScheduleService] 👤 TutorID: $tutorId');
+      debugPrint('[ScheduleService] 📅 Date: $date');
+      debugPrint('[ScheduleService] ⏰ Time: $startTime - $endTime');
+
       // Обнуляем время, оставляем только дату
       final dateOnly = DateTime(date.year, date.month, date.day);
+      debugPrint('[ScheduleService] 📅 Date normalized: $dateOnly');
 
       // ИЗМЕНЕНИЕ 5: Timestamp.now() → DateTime.now()
       //
@@ -145,13 +151,24 @@ class ScheduleService extends ChangeNotifier {
         createdAt: DateTime.now(), // Для модели
       );
 
-      // Создаем слот в PocketBase
-      await _pb.collection('slots').create(body: slot.toMap());
+      final slotMap = slot.toMap();
+      debugPrint('[ScheduleService] 📦 Slot data to send: $slotMap');
+      debugPrint('[ScheduleService] 🌐 PocketBase URL: ${_pb.baseUrl}');
+      debugPrint('[ScheduleService] 🔑 Auth valid: ${_pb.authStore.isValid}');
 
-      debugPrint('[ScheduleService] Слот создан: $dateOnly $startTime-$endTime');
+      // Создаем слот в PocketBase
+      debugPrint('[ScheduleService] 🚀 Sending create request...');
+      final record = await _pb.collection('slots').create(body: slotMap);
+
+      debugPrint('[ScheduleService] ✅ Слот создан успешно!');
+      debugPrint('[ScheduleService] 🆔 Record ID: ${record.id}');
+      debugPrint('[ScheduleService] 📄 Record data: ${record.data}');
+      debugPrint('[ScheduleService] ==========================================');
+
       notifyListeners(); // Уведомляем слушателей (ChangeNotifier)
-    } catch (e) {
-      debugPrint('[ScheduleService] Ошибка добавления слота: $e');
+    } catch (e, stackTrace) {
+      debugPrint('[ScheduleService] ❌ ОШИБКА добавления слота: $e');
+      debugPrint('[ScheduleService] 📋 StackTrace: $stackTrace');
       rethrow;
     }
   }
@@ -224,24 +241,59 @@ class ScheduleService extends ChangeNotifier {
     }
   }
 
+  /// Получить слот по ID
+  ///
+  /// Проверяет существование слота перед бронированием
+  /// Возвращает null, если слот не найден
+  Future<ScheduleSlot?> getSlotById(String slotId) async {
+    try {
+      final record = await _pb.collection('slots').getOne(slotId);
+      return ScheduleSlot.fromRecord(record);
+    } catch (e) {
+      debugPrint('[ScheduleService] Ошибка получения слота $slotId: $e');
+      return null;
+    }
+  }
+
   /// Забронировать слот (для ученика)
   ///
-  /// Ученик бронирует свободный слот репетитора
-  /// Помечаем слот как занятый и сохраняем ID ученика
+  /// НОВАЯ ЛОГИКА: Отправка запроса на бронирование
+  /// - Устанавливаем bookingStatus = 'pending'
+  /// - isBooked = true (временно занят)
+  /// - Репетитор должен подтвердить или отклонить
   Future<void> bookSlot(String slotId, String studentId) async {
     try {
+      // 1. Проверяем существование слота
+      final slot = await getSlotById(slotId);
+
+      if (slot == null) {
+        throw Exception('Слот не найден. Возможно, он был удалён репетитором.');
+      }
+
+      // 2. Проверяем, не забронирован ли слот уже
+      if (slot.isBooked) {
+        throw Exception('Слот уже забронирован. Попробуйте выбрать другое время.');
+      }
+
+      // 3. Проверяем, не прошёл ли слот
+      if (slot.isPast) {
+        throw Exception('Это время уже прошло. Выберите другой слот.');
+      }
+
+      // 4. НОВОЕ: Создаём запрос на бронирование (pending)
       await _pb.collection('slots').update(
         slotId,
         body: {
-          'isBooked': true,
+          'isBooked': true, // Временно блокируем слот
           'studentId': studentId,
+          'bookingStatus': 'pending', // Ожидает подтверждения репетитора
         },
       );
 
-      debugPrint('[ScheduleService] Слот забронирован: $slotId для студента $studentId');
+      debugPrint('[ScheduleService] Запрос на бронирование отправлен: $slotId для студента $studentId');
       notifyListeners();
     } catch (e) {
-      debugPrint('[ScheduleService] Ошибка бронирования слота: $e');
+      debugPrint('[ScheduleService] Ошибка отправки запроса: $e');
       rethrow;
     }
   }
@@ -256,6 +308,7 @@ class ScheduleService extends ChangeNotifier {
         body: {
           'isBooked': false,
           'studentId': null, // Убираем ID ученика
+          'bookingStatus': 'free', // Возвращаем статус в свободный
         },
       );
 
@@ -263,6 +316,88 @@ class ScheduleService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('[ScheduleService] Ошибка отмены бронирования: $e');
+      rethrow;
+    }
+  }
+
+  // ============================================================================
+  // НОВЫЕ МЕТОДЫ: Система подтверждения бронирований
+  // ============================================================================
+
+  /// Получить все запросы на бронирование для репетитора (статус pending)
+  ///
+  /// Репетитор видит список всех учеников, которые запросили бронирование
+  /// Фильтр: tutorId совпадает и bookingStatus = 'pending'
+  Future<List<ScheduleSlot>> getPendingRequests(String tutorId) async {
+    try {
+      final result = await _pb.collection('slots').getList(
+            filter: 'tutorId="$tutorId" && bookingStatus="pending"',
+            sort: '+date,+startTime', // Сортировка по дате и времени
+            perPage: 500,
+          );
+
+      debugPrint('[ScheduleService] Запросов на бронирование: ${result.totalItems}');
+
+      return result.items.map((record) => ScheduleSlot.fromRecord(record)).toList();
+    } catch (e) {
+      debugPrint('[ScheduleService] Ошибка получения запросов: $e');
+      return [];
+    }
+  }
+
+  /// Подтвердить запрос на бронирование (для репетитора)
+  ///
+  /// Алгоритм:
+  /// 1. Устанавливаем bookingStatus = 'confirmed'
+  /// 2. isBooked остаётся true
+  /// 3. studentId остаётся
+  ///
+  /// После подтверждения слот считается полностью забронированным
+  Future<void> approveBooking(String slotId) async {
+    try {
+      debugPrint('[ScheduleService] 🟢 Подтверждение запроса на слот: $slotId');
+
+      await _pb.collection('slots').update(
+        slotId,
+        body: {
+          'bookingStatus': 'confirmed',
+          // isBooked и studentId уже установлены, не трогаем
+        },
+      );
+
+      debugPrint('[ScheduleService] ✅ Запрос подтверждён: $slotId');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка подтверждения запроса: $e');
+      rethrow;
+    }
+  }
+
+  /// Отклонить запрос на бронирование (для репетитора)
+  ///
+  /// Алгоритм:
+  /// 1. Устанавливаем bookingStatus = 'free'
+  /// 2. isBooked = false (освобождаем слот)
+  /// 3. studentId = null (убираем ученика)
+  ///
+  /// После отклонения слот становится снова свободным для бронирования
+  Future<void> rejectBooking(String slotId) async {
+    try {
+      debugPrint('[ScheduleService] 🔴 Отклонение запроса на слот: $slotId');
+
+      await _pb.collection('slots').update(
+        slotId,
+        body: {
+          'bookingStatus': 'free',
+          'isBooked': false, // Освобождаем слот
+          'studentId': null, // Убираем ученика
+        },
+      );
+
+      debugPrint('[ScheduleService] ✅ Запрос отклонён, слот освобождён: $slotId');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка отклонения запроса: $e');
       rethrow;
     }
   }
