@@ -67,6 +67,9 @@ Table slots {
 
   studentId text [null, note: 'RelationField → users.id (optional)']
 
+  generatedFromTemplate bool [default: false, note: 'BoolField - Создан ли из шаблона автоматически']
+  templateId text [null, note: 'RelationField → weekly_templates.id (optional)']
+
   created date [note: 'AutodateField']
   updated date [note: 'AutodateField']
 
@@ -78,6 +81,38 @@ Table slots {
   Note: '''
   Временные слоты репетиторов
   startTime/endTime - TextField, т.к. только время без даты
+  generatedFromTemplate - true если создан автоматически из weekly_templates
+  '''
+}
+
+Table weekly_templates {
+  id text [pk]
+  tutorId text [note: 'RelationField → users.id']
+  dayOfWeek number [note: 'NumberField - 1-7 (1=Пн, 7=Вс)']
+  startTime text [note: 'TextField - "HH:MM" (pattern: ^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$)']
+  endTime text [note: 'TextField - "HH:MM" (pattern: ^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$)']
+  isActive bool [default: true, note: 'BoolField - Активен ли шаблон']
+
+  created date [note: 'AutodateField']
+  updated date [note: 'AutodateField']
+
+  Indexes {
+    tutorId [name: 'idx_tutorId']
+    (tutorId, dayOfWeek) [name: 'idx_tutor_day']
+  }
+
+  Note: '''
+  Недельный шаблон расписания репетитора
+
+  Архитектура:
+  - weekly_templates: абстрактный график ("каждый понедельник 10:00-12:00")
+  - slots: конкретные слоты на конкретные даты ("15 марта 2026 10:00-12:00")
+
+  Процесс:
+  1. Репетитор настраивает weekly_templates через WeeklyTemplateSetupPage
+  2. При нажатии "Применить" система генерирует slots на 28 дней вперёд
+  3. Старые сгенерированные свободные слоты удаляются (забронированные остаются)
+  4. Новые слоты создаются с полями generatedFromTemplate=true, templateId
   '''
 }
 
@@ -202,6 +237,10 @@ Table reviews {
 // Слоты
 Ref: slots.tutorId > users.id
 Ref: slots.studentId > users.id
+Ref: slots.templateId > weekly_templates.id
+
+// Недельные шаблоны
+Ref: weekly_templates.tutorId > users.id
 
 // Сообщения
 Ref: messages.chatId > chats.id [delete: cascade]
@@ -245,7 +284,7 @@ Ref: reviews.lessonId > slots.id
 // - users (Auth Collection)
 // - messages (текстовые + URL файлов)
 // - chats (метаданные для списка чатов) - Two-Table Pattern ✅
-// - slots (расписание)
+// - slots (расписание) + weekly_templates (недельный шаблон) ✅
 // - blocked_users (блокировки)
 // - reports (жалобы)
 

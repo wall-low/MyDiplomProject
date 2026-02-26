@@ -33,6 +33,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **Авторизация через PocketBase** (email/password) - МИГРИРОВАНО
 - ✅ **Роли пользователей** (Репетитор/Ученик) - терминология обновлена
 - ✅ **Базовые профили** с данными из PocketBase - МИГРИРОВАНО
+- ✅ **Детальный профиль репетитора** (tutor_profile_page.dart):
+  - Дизайн с gradient header и аватаром
+  - Карточки с информацией о репетиторе
+  - Кнопки "Написать" и "Расписание"
+  - Навигация из find_tutor_page через кнопку "Подробнее"
 - ✅ **Чат система** - ПОЛНОСТЬЮ МИГРИРОВАНО:
   - Текстовые сообщения через PocketBase
   - Двух-табличная архитектура (`messages` + `chats` metadata)
@@ -40,17 +45,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Непрочитанные сообщения с счётчиками
 - 🔄 **Изображения и аудио в чатах** - используют Cloudinary (ПЛАНИРУЕТСЯ МИГРАЦИЯ на PocketBase Storage)
 - ✅ **Поиск репетиторов** по городу
-- ✅ **Система расписания** (добавление слотов, бронирование)
+- ✅ **Система расписания** - ПОЛНОСТЬЮ ОБНОВЛЕНА:
+  - Добавление/удаление слотов вручную
+  - Бронирование слотов учениками
+  - **Недельный шаблон расписания** (weekly_templates):
+    - Настройка графика по дням недели (Пн-Вс)
+    - Автоматическая генерация слотов на 28 дней вперёд
+    - Копирование понедельника на будни (Вт-Пт)
+    - Сохранение забронированных слотов при пересоздании шаблона
+    - Отдельная страница WeeklyTemplateSetupPage для управления
 - ✅ **Блокировка пользователей**
 - ✅ **Светлая/тёмная тема** с сохранением предпочтений
 
 ### 🚧 Нужно добавить для диплома
 - **Профиль репетитора** (расширенный):
-  - Предметы преподавания (список с возможностью множественного выбора)
-  - Стоимость занятия (диапазон или фиксированная цена)
-  - Опыт работы (лет)
-  - Образование (учебное заведение, специальность)
-  - Рейтинг и отзывы
+  - ✅ UI страницы готов (tutor_profile_page.dart)
+  - ⏳ Предметы преподавания (список с возможностью множественного выбора)
+  - ⏳ Стоимость занятия (диапазон или фиксированная цена)
+  - ⏳ Опыт работы (лет)
+  - ⏳ Образование (учебное заведение, специальность)
+  - ⏳ Рейтинг и отзывы
 
 - **Поиск и фильтрация**:
   - Поиск по предмету (основной фильтр)
@@ -923,13 +937,21 @@ await pb.collection('users').update(userId, body: formData);
 5. 🔄 Image/audio uploads still use Cloudinary (ПЛАНИРУЕТСЯ миграция на PocketBase Storage)
 6. 🔄 Realtime updates use polling (можно улучшить с pb.collection('messages').subscribe())
 
-### Step 4: Schedule System Migration ✅ COMPLETED
+### Step 4: Schedule System Migration ✅ COMPLETED + ENHANCED
 1. ✅ Updated `lib/service/schedule_service.dart`:
    - Replaced Firestore slots with PocketBase slots collection
    - Updated CRUD operations
    - Migrated date/time handling
+   - ✅ **NEW**: Added template-based generation (generateSlotsFromTemplate, clearGeneratedFreeSlots)
 2. ✅ Tested slot creation, booking, cancellation
 3. ✅ Dual-mode UI: tutors see slots by date, students see all bookings
+4. ✅ **NEW**: Weekly Template System:
+   - Created `lib/models/weekly_template.dart` model
+   - Created `lib/service/weekly_template_service.dart` with CRUD operations
+   - Created `lib/pages/weekly_template_setup_page.dart` UI for template management
+   - Updated ScheduleSlot model with generatedFromTemplate, templateId, isPaid fields
+   - Integrated template button into SchedulePage AppBar
+   - Auto-generation of slots on 28-day rolling window
 
 ### Step 5: Search & Filters ✅ COMPLETED (Basic)
 1. ✅ Updated `lib/pages/find_tutor_page.dart`:
@@ -951,8 +973,10 @@ await pb.collection('users').update(userId, body: formData);
 - **Total migration time**: ~14-17 days (80-85% ЗАВЕРШЕНО)
 
 **Текущие задачи для диплома:**
+- ✅ **DONE**: Система недельного шаблона расписания (weekly_templates collection + UI)
+- ✅ **DONE**: Детальный профиль репетитора (tutor_profile_page.dart с дизайном)
 - ⏳ Миграция файлов на PocketBase Storage (изображения/аудио в чатах)
-- ⏳ Создание tutor_profiles collection (расширенный профиль репетитора)
+- ⏳ Создание tutor_profiles collection (предметы, цена, опыт, образование)
 - ⏳ Система отзывов и рейтингов (reviews collection)
 - ⏳ Имитация оплаты (payments collection)
 
@@ -966,10 +990,11 @@ await pb.collection('users').update(userId, body: formData);
 ## Development Priorities for Diploma (AFTER Migration)
 
 ### Phase 1: Extended Tutor Profile
-1. Add subjects, price, experience, education fields to user registration
-2. Create tutor_profiles collection in PocketBase
-3. Update profile_page.dart to show extended info
-4. Update find_tutor_page.dart with subject/price filters
+1. ✅ **DONE**: Создана детальная страница профиля (tutor_profile_page.dart)
+2. ⏳ Add subjects, price, experience, education fields to tutor_profiles collection
+3. ⏳ Update TutorProfilePage to show real data from tutor_profiles
+4. ⏳ Update find_tutor_page.dart with subject/price filters
+5. ✅ **DONE**: Система недельного шаблона расписания (WeeklyTemplateSetupPage)
 
 ### Phase 2: Reviews and Ratings
 1. Create reviews model and collection
