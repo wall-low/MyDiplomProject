@@ -8,6 +8,7 @@ import 'package:p7/models/user.dart';
 import 'package:p7/models/tutor_profile.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'chat_page.dart';
+import 'tutor_profile_page.dart';
 import 'package:p7/service/pocketbase_service.dart';
 
 /// Комбинированные данные: профиль репетитора + базовые данные пользователя
@@ -797,9 +798,9 @@ class _FindTutorPageState extends State<FindTutorPage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ChatPage(
-                        receiverName: user.name,
-                        receiverID: user.uid,
+                      builder: (context) => TutorProfilePage(
+                        tutorProfile: tutor,
+                        userProfile: user,
                       ),
                     ),
                   );

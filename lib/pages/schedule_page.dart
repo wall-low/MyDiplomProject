@@ -5,6 +5,7 @@ import '../models/schedule_slot.dart';
 import '../service/auth.dart';
 import '../service/databases.dart';
 import '../service/schedule_service.dart';
+import 'weekly_template_setup_page.dart';
 
 class SchedulePage extends StatefulWidget {
   const SchedulePage({super.key});
@@ -72,6 +73,28 @@ class _SchedulePageState extends State<SchedulePage> {
         centerTitle: true,
         backgroundColor: colorScheme.surface,
         elevation: 0,
+        actions: _isTutor
+            ? [
+                // Кнопка настройки недельного графика (для репетитора)
+                IconButton(
+                  icon: const Icon(Icons.event_repeat),
+                  tooltip: 'Недельный график',
+                  onPressed: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const WeeklyTemplateSetupPage(),
+                      ),
+                    );
+
+                    // Если шаблон был применён, обновляем список слотов
+                    if (result == true && mounted) {
+                      setState(() {});
+                    }
+                  },
+                ),
+              ]
+            : null,
       ),
       body: Column(
         children: [

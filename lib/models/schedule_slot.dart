@@ -4,6 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 ///
 /// Мигрировано с Firestore на PocketBase
 /// Добавлен метод fromRecord() для преобразования RecordModel
+/// Добавлены поля для работы с недельным шаблоном
 class ScheduleSlot {
   final String id;
   final String tutorId;
@@ -11,8 +12,11 @@ class ScheduleSlot {
   final String startTime; // Формат: "09:00"
   final String endTime; // Формат: "10:00"
   final bool isBooked;
+  final bool isPaid; // NEW: Оплачено ли занятие
   final String? studentId; // ID ученика, если слот забронирован
   final DateTime createdAt; // ИЗМЕНЕНО: Timestamp → DateTime
+  final bool generatedFromTemplate; // NEW: Создан ли автоматически из шаблона
+  final String? templateId; // NEW: ID шаблона, из которого создан
 
   ScheduleSlot({
     required this.id,
@@ -21,8 +25,11 @@ class ScheduleSlot {
     required this.startTime,
     required this.endTime,
     this.isBooked = false,
+    this.isPaid = false,
     this.studentId,
     required this.createdAt,
+    this.generatedFromTemplate = false,
+    this.templateId,
   });
 
   /// Создание ScheduleSlot из RecordModel (PocketBase)
@@ -67,8 +74,11 @@ class ScheduleSlot {
       startTime: data['startTime'] as String? ?? '',
       endTime: data['endTime'] as String? ?? '',
       isBooked: data['isBooked'] as bool? ?? false,
+      isPaid: data['isPaid'] as bool? ?? false,
       studentId: data['studentId'] as String?,
       createdAt: parsedCreatedAt,
+      generatedFromTemplate: data['generatedFromTemplate'] as bool? ?? false,
+      templateId: data['templateId'] as String?,
     );
   }
 
@@ -111,8 +121,11 @@ class ScheduleSlot {
       startTime: map['startTime'] ?? '',
       endTime: map['endTime'] ?? '',
       isBooked: map['isBooked'] ?? false,
+      isPaid: map['isPaid'] ?? false,
       studentId: map['studentId'],
       createdAt: parsedCreatedAt,
+      generatedFromTemplate: map['generatedFromTemplate'] ?? false,
+      templateId: map['templateId'],
     );
   }
 
@@ -142,7 +155,12 @@ class ScheduleSlot {
       'startTime': startTime,
       'endTime': endTime,
       'isBooked': isBooked,
-      'studentId': studentId,
+      'isPaid': isPaid,
+      if (studentId != null) 'studentId': studentId,
+
+      // Новые поля для работы с шаблоном
+      'generatedFromTemplate': generatedFromTemplate,
+      if (templateId != null) 'templateId': templateId,
 
       // createdAt обычно не нужен в toMap() - PocketBase создает автоматически
       // Но оставим для совместимости
@@ -158,8 +176,11 @@ class ScheduleSlot {
     String? startTime,
     String? endTime,
     bool? isBooked,
+    bool? isPaid,
     String? studentId,
     DateTime? createdAt, // ИЗМЕНЕНО: Timestamp → DateTime
+    bool? generatedFromTemplate,
+    String? templateId,
   }) {
     return ScheduleSlot(
       id: id ?? this.id,
@@ -168,8 +189,11 @@ class ScheduleSlot {
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
       isBooked: isBooked ?? this.isBooked,
+      isPaid: isPaid ?? this.isPaid,
       studentId: studentId ?? this.studentId,
       createdAt: createdAt ?? this.createdAt,
+      generatedFromTemplate: generatedFromTemplate ?? this.generatedFromTemplate,
+      templateId: templateId ?? this.templateId,
     );
   }
 

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/schedule_slot.dart';
+import '../models/weekly_template.dart';
 import 'pocketbase_service.dart';
 
 /// Сервис для работы с расписанием репетиторов (слоты времени)
@@ -314,6 +315,242 @@ class ScheduleService extends ChangeNotifier {
       debugPrint('[ScheduleService] Ошибка получения слотов студента: $e');
       return [];
     }
+  }
+
+  // ============================================================================
+  // НОВЫЕ МЕТОДЫ: Генерация слотов из недельного шаблона
+  // ============================================================================
+
+  /// Сгенерировать слоты из недельного шаблона на N дней вперед
+  ///
+  /// Алгоритм:
+  /// 1. Загружает активные шаблоны репетитора из weekly_templates
+  /// 2. Проходит по каждому дню в диапазоне (daysAhead)
+  /// 3. Для каждого дня находит соответствующие шаблоны по dayOfWeek
+  /// 4. Создает слоты в таблице slots с флагом generatedFromTemplate=true
+  /// 5. Пропускает, если слот уже существует (не дублирует)
+  ///
+  /// Параметры:
+  /// - tutorId: ID репетитора
+  /// - daysAhead: количество дней вперед для генерации (по умолчанию 28 = 4 недели)
+  ///
+  /// Возвращает: количество созданных слотов
+  Future<int> generateSlotsFromTemplate({
+    required String tutorId,
+    int daysAhead = 28,
+  }) async {
+    int createdCount = 0;
+
+    try {
+      debugPrint('[ScheduleService] 🔄 Начало генерации слотов на $daysAhead дней');
+
+      // 1. Загружаем активные шаблоны репетитора
+      final templatesResult = await _pb.collection('weekly_templates').getList(
+            filter: 'tutorId="$tutorId" && isActive=true',
+            perPage: 500,
+          );
+
+      if (templatesResult.items.isEmpty) {
+        debugPrint('[ScheduleService] ⚠️ Шаблон не настроен');
+        return 0;
+      }
+
+      debugPrint('[ScheduleService] ✅ Загружено ${templatesResult.items.length} шаблонов');
+
+      // 2. Группируем шаблоны по дням недели
+      Map<int, List<WeeklyTemplate>> templatesByDay = {};
+      for (var record in templatesResult.items) {
+        final template = WeeklyTemplate.fromRecord(record);
+        final day = template.dayOfWeek;
+        templatesByDay[day] = templatesByDay[day] ?? [];
+        templatesByDay[day]!.add(template);
+      }
+
+      // 3. Проходим по каждому дню в диапазоне
+      final today = DateTime.now();
+
+      for (int i = 0; i <= daysAhead; i++) {
+        final date = today.add(Duration(days: i));
+        final dateOnly = DateTime(date.year, date.month, date.day);
+        final dayOfWeek = date.weekday; // 1=Пн, 7=Вс
+
+        // Есть ли шаблон для этого дня недели?
+        if (!templatesByDay.containsKey(dayOfWeek)) continue;
+
+        // 4. Для каждого шаблона создаем слот
+        for (var template in templatesByDay[dayOfWeek]!) {
+          // Проверяем, существует ли уже слот на эту дату/время
+          final dateStr = _formatDate(dateOnly);
+          final existing = await _pb.collection('slots').getList(
+                filter:
+                    'tutorId="$tutorId" && date="$dateStr" && startTime="${template.startTime}" && endTime="${template.endTime}"',
+                perPage: 1,
+              );
+
+          if (existing.items.isEmpty) {
+            // Слота нет → создаем
+            await _pb.collection('slots').create(body: {
+              'tutorId': tutorId,
+              'date': dateStr,
+              'startTime': template.startTime,
+              'endTime': template.endTime,
+              'isBooked': false,
+              'isPaid': false,
+              'generatedFromTemplate': true,
+              'templateId': template.id,
+            });
+
+            createdCount++;
+            debugPrint(
+                '[ScheduleService] ✅ Создан слот: $dateStr ${template.startTime}-${template.endTime}');
+          }
+        }
+      }
+
+      debugPrint('[ScheduleService] ✅ Генерация завершена: создано $createdCount слотов');
+
+      notifyListeners();
+      return createdCount;
+    } catch (e, stackTrace) {
+      debugPrint('[ScheduleService] ❌ Ошибка генерации слотов:');
+      debugPrint('  Error: $e');
+      debugPrint('  StackTrace: $stackTrace');
+      return createdCount;
+    }
+  }
+
+  /// Проверить и сгенерировать слоты, если их недостаточно
+  ///
+  /// Алгоритм "скользящего окна":
+  /// 1. Находит самый дальний слот репетитора
+  /// 2. Вычисляет, на сколько дней вперед есть слоты
+  /// 3. Если слотов меньше чем на minDaysAhead дней → генерирует еще на daysToGenerate
+  ///
+  /// Параметры:
+  /// - tutorId: ID репетитора
+  /// - minDaysAhead: минимальное количество дней вперед (по умолчанию 14)
+  /// - daysToGenerate: сколько дней генерировать при нехватке (по умолчанию 28)
+  ///
+  /// Возвращает: true, если генерация была выполнена
+  Future<bool> checkAndGenerateSlots(
+    String tutorId, {
+    int minDaysAhead = 14,
+    int daysToGenerate = 28,
+  }) async {
+    try {
+      debugPrint('[ScheduleService] 🔍 Проверка необходимости генерации слотов');
+
+      // 1. Находим самый дальний слот
+      final farthestSlotResult = await _pb.collection('slots').getList(
+            filter: 'tutorId="$tutorId"',
+            sort: '-date', // Сортировка по убыванию
+            perPage: 1,
+          );
+
+      if (farthestSlotResult.items.isEmpty) {
+        // Слотов вообще нет → генерируем
+        debugPrint('[ScheduleService] ⚠️ Слотов нет, генерируем на $daysToGenerate дней');
+        await generateSlotsFromTemplate(
+            tutorId: tutorId, daysAhead: daysToGenerate);
+        return true;
+      }
+
+      // 2. Вычисляем, на сколько дней вперед есть слоты
+      final farthestDate = DateTime.parse(farthestSlotResult.items.first.data['date']);
+      final today = DateTime.now();
+      final daysAhead = farthestDate.difference(today).inDays;
+
+      debugPrint('[ScheduleService] 📊 Слоты есть на $daysAhead дней вперед');
+
+      // 3. Если осталось меньше minDaysAhead дней → генерируем еще
+      if (daysAhead < minDaysAhead) {
+        debugPrint(
+            '[ScheduleService] ⚠️ Слотов мало (<$minDaysAhead дней), генерируем еще на $daysToGenerate дней');
+        await generateSlotsFromTemplate(
+            tutorId: tutorId, daysAhead: daysToGenerate);
+        return true;
+      } else {
+        debugPrint('[ScheduleService] ✅ Слотов достаточно');
+        return false;
+      }
+    } catch (e, stackTrace) {
+      debugPrint('[ScheduleService] ❌ Ошибка проверки слотов:');
+      debugPrint('  Error: $e');
+      debugPrint('  StackTrace: $stackTrace');
+      return false;
+    }
+  }
+
+  /// Удалить все сгенерированные свободные слоты (для пересоздания)
+  ///
+  /// Используется при изменении шаблона:
+  /// 1. Удаляет все свободные слоты, созданные из шаблона
+  /// 2. НЕ трогает забронированные слоты
+  /// 3. После этого вызывается generateSlotsFromTemplate() для создания новых
+  ///
+  /// Возвращает: количество удаленных слотов
+  Future<int> clearGeneratedFreeSlots(String tutorId) async {
+    int deletedCount = 0;
+
+    try {
+      debugPrint('[ScheduleService] 🗑️ Очистка сгенерированных свободных слотов');
+
+      // Находим все сгенерированные свободные слоты в будущем
+      final today = DateTime.now();
+      final todayStr = _formatDate(today);
+
+      final result = await _pb.collection('slots').getList(
+            filter:
+                'tutorId="$tutorId" && generatedFromTemplate=true && isBooked=false && date>="$todayStr"',
+            perPage: 500,
+          );
+
+      debugPrint('[ScheduleService] 🔍 Найдено ${result.items.length} слотов для удаления');
+
+      // Удаляем каждый слот
+      for (var record in result.items) {
+        await _pb.collection('slots').delete(record.id);
+        deletedCount++;
+      }
+
+      debugPrint('[ScheduleService] ✅ Удалено $deletedCount слотов');
+
+      notifyListeners();
+      return deletedCount;
+    } catch (e, stackTrace) {
+      debugPrint('[ScheduleService] ❌ Ошибка очистки слотов:');
+      debugPrint('  Error: $e');
+      debugPrint('  StackTrace: $stackTrace');
+      return deletedCount;
+    }
+  }
+
+  /// Получить забронированные слоты, которые не вписываются в новый шаблон
+  ///
+  /// Используется для предупреждения репетитора при изменении шаблона
+  /// Возвращает список забронированных слотов в будущем
+  Future<List<ScheduleSlot>> getBookedFutureSlots(String tutorId) async {
+    try {
+      final today = DateTime.now();
+      final todayStr = _formatDate(today);
+
+      final result = await _pb.collection('slots').getList(
+            filter:
+                'tutorId="$tutorId" && isBooked=true && date>="$todayStr"',
+            sort: '+date,+startTime',
+            perPage: 500,
+          );
+
+      return result.items.map((record) => ScheduleSlot.fromRecord(record)).toList();
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка получения забронированных слотов: $e');
+      return [];
+    }
+  }
+
+  /// Форматирование даты для PocketBase (YYYY-MM-DD)
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }
 }
 
