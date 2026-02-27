@@ -1,11 +1,14 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import '../components/user_avatar.dart';
 import '../models/schedule_slot.dart';
 import '../service/auth.dart';
 import '../service/databases.dart';
 import '../service/schedule_service.dart';
 import 'weekly_template_setup_page.dart';
+import 'chat_page.dart';
 
 class SchedulePage extends StatefulWidget {
   const SchedulePage({super.key});
@@ -22,6 +25,9 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
   bool _isTutor = false;
   bool _isLoading = true;
   late AnimationController _refreshController;
+
+  // Отслеживание перевернутых карточек
+  final Set<String> _flippedCards = {};
 
   @override
   void initState() {
@@ -317,98 +323,321 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
   }
 
   Widget _buildSlotCard(ScheduleSlot slot, ColorScheme colorScheme) {
+    final isFlipped = _flippedCards.contains(slot.id);
+
+    return GestureDetector(
+      onTap: () {
+        // Переворачиваем карточку только если она забронирована
+        if (slot.isBooked && slot.studentId != null) {
+          setState(() {
+            if (isFlipped) {
+              _flippedCards.remove(slot.id);
+            } else {
+              _flippedCards.add(slot.id);
+            }
+          });
+        } else if (!slot.isBooked && !slot.isPast) {
+          // Для свободных слотов показываем опции
+          _showSlotOptions(slot);
+        }
+      },
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 600),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          final rotateAnim = Tween(begin: pi, end: 0.0).animate(animation);
+          return AnimatedBuilder(
+            animation: rotateAnim,
+            child: child,
+            builder: (context, child) {
+              final isUnder = (ValueKey(isFlipped) != child!.key);
+              var tilt = ((animation.value - 0.5).abs() - 0.5) * 0.003;
+              tilt *= isUnder ? -1.0 : 1.0;
+              final value = isUnder ? min(rotateAnim.value, pi / 2) : rotateAnim.value;
+              return Transform(
+                transform: Matrix4.rotationY(value)..setEntry(3, 0, tilt),
+                alignment: Alignment.center,
+                child: child,
+              );
+            },
+          );
+        },
+        child: isFlipped
+            ? _buildFlippedCard(slot, colorScheme)
+            : _buildFrontCard(slot, colorScheme),
+      ),
+    );
+  }
+
+  /// Передняя сторона карточки (время + статус)
+  Widget _buildFrontCard(ScheduleSlot slot, ColorScheme colorScheme) {
     return Card(
+      key: const ValueKey(false),
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: slot.isBooked ? null : () => _showSlotOptions(slot),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 4,
-                height: 50,
-                decoration: BoxDecoration(
-                  color: slot.isBooked
-                      ? Colors.red
-                      : (slot.isPast ? Colors.grey : Colors.green),
-                  borderRadius: BorderRadius.circular(2),
-                ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              width: 4,
+              height: 50,
+              decoration: BoxDecoration(
+                color: slot.isBooked
+                    ? Colors.red
+                    : (slot.isPast ? Colors.grey : Colors.green),
+                borderRadius: BorderRadius.circular(2),
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 20,
-                          color: colorScheme.primary,
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.access_time,
+                        size: 20,
+                        color: colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${slot.startTime} - ${slot.endTime}',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '${slot.startTime} - ${slot.endTime}',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: slot.isBooked
+                              ? Colors.red.withValues(alpha: 0.1)
+                              : (slot.isPast
+                                  ? Colors.grey.withValues(alpha: 0.1)
+                                  : Colors.green.withValues(alpha: 0.1)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          slot.isBooked
+                              ? 'Забронировано'
+                              : (slot.isPast ? 'Прошло' : 'Свободно'),
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: colorScheme.onSurface,
+                            color: slot.isBooked
+                                ? Colors.red
+                                : (slot.isPast ? Colors.grey : Colors.green),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ],
+                      ),
+                      if (slot.isBooked && slot.studentId != null)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 8),
+                          child: Icon(
+                            Icons.touch_app,
+                            size: 16,
+                            color: colorScheme.secondary,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            if (!slot.isBooked && !slot.isPast)
+              IconButton(
+                icon: Icon(
+                  Icons.delete_outline,
+                  color: colorScheme.error,
+                ),
+                onPressed: () => _deleteSlot(slot.id),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Обратная сторона карточки (информация об ученике/репетиторе)
+  Widget _buildFlippedCard(ScheduleSlot slot, ColorScheme colorScheme) {
+    // Определяем чей профиль показывать:
+    // - Репетитор видит ученика (studentId)
+    // - Ученик видит репетитора (tutorId)
+    final otherUserId = _isTutor ? slot.studentId! : slot.tutorId;
+    final roleLabel = _isTutor ? 'Ученик' : 'Репетитор';
+
+    return Card(
+      key: const ValueKey(true),
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: FutureBuilder(
+          future: _db.getUserFromPocketBase(otherUserId),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return SizedBox(
+                height: 82,
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: colorScheme.primary,
+                  ),
+                ),
+              );
+            }
+
+            final otherUser = snapshot.data!;
+
+            return Column(
+              children: [
+                Row(
+                  children: [
+                    // Аватар
+                    UserAvatar(
+                      avatarUrl: otherUser.avatarUrl,
+                      size: 56,
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: slot.isBooked
-                                ? Colors.red.withValues(alpha: 0.1)
-                                : (slot.isPast
-                                    ? Colors.grey.withValues(alpha: 0.1)
-                                    : Colors.green.withValues(alpha: 0.1)),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            slot.isBooked
-                                ? 'Забронировано'
-                                : (slot.isPast ? 'Прошло' : 'Свободно'),
+                    const SizedBox(width: 16),
+                    // Информация о пользователе
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            roleLabel,
                             style: TextStyle(
-                              color: slot.isBooked
-                                  ? Colors.red
-                                  : (slot.isPast ? Colors.grey : Colors.green),
+                              color: colorScheme.secondary,
                               fontSize: 12,
-                              fontWeight: FontWeight.w500,
                             ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            otherUser.name,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            otherUser.city,
+                            style: TextStyle(
+                              color: colorScheme.secondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-              if (!slot.isBooked && !slot.isPast)
-                IconButton(
-                  icon: Icon(
-                    Icons.delete_outline,
-                    color: colorScheme.error,
+                const SizedBox(height: 12),
+                // Кнопка "Написать"
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatPage(
+                            receiverName: otherUser.name,
+                            receiverID: otherUserId,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    label: const Text('Написать'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: colorScheme.primary,
+                      foregroundColor: colorScheme.onPrimary,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
                   ),
-                  onPressed: () => _deleteSlot(slot.id),
                 ),
-            ],
-          ),
+              ],
+            );
+          },
         ),
       ),
+    );
+  }
+
+  /// Виджет с информацией об ученике
+  Widget _buildStudentInfo(String studentId, ColorScheme colorScheme) {
+    return FutureBuilder(
+      future: _db.getUserFromPocketBase(studentId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Загрузка...',
+                style: TextStyle(
+                  color: colorScheme.secondary,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          );
+        }
+
+        final student = snapshot.data!;
+
+        return Row(
+          children: [
+            // Аватар ученика (используем готовый компонент UserAvatar)
+            UserAvatar(
+              avatarUrl: student.avatarUrl,
+              size: 32,
+            ),
+            const SizedBox(width: 8),
+            // Имя ученика
+            Expanded(
+              child: Text(
+                'Ученик: ${student.name}',
+                style: TextStyle(
+                  color: colorScheme.onSurface,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 

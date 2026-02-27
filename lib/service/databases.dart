@@ -134,7 +134,30 @@ class Databases {
       //
       // fromRecord() - новый метод в lib/models/user.dart
       // Преобразует RecordModel (PocketBase) в UserProfile (наша модель)
-      return UserProfile.fromRecord(record);
+
+      // ИСПРАВЛЕНИЕ: Генерируем полный URL аватара
+      //
+      // ПРОБЛЕМА:
+      // UserProfile.fromRecord() сохраняет только имя файла (avatar)
+      // Но UI компоненты ожидают полный URL для Image.network()
+      //
+      // РЕШЕНИЕ:
+      // Генерируем полный URL через PocketBaseService.getFileUrl()
+      final user = UserProfile.fromRecord(record);
+
+      // Если есть аватар - генерируем полный URL
+      String? fullAvatarUrl;
+      final avatar = record.data['avatar'] as String?;
+      if (avatar != null && avatar.isNotEmpty) {
+        fullAvatarUrl = PocketBaseService().getFileUrl(
+          record,
+          avatar,
+          thumb: '200x200', // Thumbnail для оптимизации загрузки
+        );
+      }
+
+      // Возвращаем UserProfile с полным URL аватара
+      return user.copyWith(avatarUrl: fullAvatarUrl);
     } on ClientException catch (e) {
       // 404 - пользователь не найден (профиль не заполнен)
       // 403 - нет прав доступа
@@ -243,8 +266,24 @@ class Databases {
       //
       // result.items - это List<RecordModel>
       // Преобразуем каждый RecordModel в UserProfile
+
+      // ИСПРАВЛЕНИЕ: Генерируем полные URL аватаров для всех репетиторов
       final tutors = result.items.map((record) {
-        return UserProfile.fromRecord(record);
+        final user = UserProfile.fromRecord(record);
+
+        // Генерируем полный URL аватара если есть
+        String? fullAvatarUrl;
+        final avatar = record.data['avatar'] as String?;
+        if (avatar != null && avatar.isNotEmpty) {
+          fullAvatarUrl = PocketBaseService().getFileUrl(
+            record,
+            avatar,
+            thumb: '200x200',
+          );
+        }
+
+        // Возвращаем UserProfile с полным URL
+        return user.copyWith(avatarUrl: fullAvatarUrl);
       }).toList();
 
       print('[Databases] Найдено репетиторов: ${tutors.length}');

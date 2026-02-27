@@ -187,30 +187,45 @@ class _FindTutorPageState extends State<FindTutorPage> {
           if (userRecordsRaw != null && userRecordsRaw is List && userRecordsRaw.isNotEmpty) {
             final userRecordRaw = userRecordsRaw.first;
             if (userRecordRaw is RecordModel) {
+              // ИСПРАВЛЕНИЕ: Генерируем полный URL аватара
               final userProfile = UserProfile.fromRecord(userRecordRaw);
+
+              // Генерируем полный URL аватара (как в databases.dart)
+              String? fullAvatarUrl;
+              final avatar = userRecordRaw.data['avatar'] as String?;
+              if (avatar != null && avatar.isNotEmpty) {
+                fullAvatarUrl = PocketBaseService().getFileUrl(
+                  userRecordRaw,
+                  avatar,
+                  thumb: '200x200',
+                );
+              }
+
+              // Обновляем профиль с полным URL
+              final userProfileWithAvatar = userProfile.copyWith(avatarUrl: fullAvatarUrl);
 
               // Применяем дополнительные фильтры (город, имя)
               // Эти фильтры применяем на клиенте, т.к. они относятся к users, а не tutor_profiles
 
               // Исключаем текущего пользователя
-              if (userProfile.uid == _auth.getCurrentUid()) continue;
+              if (userProfileWithAvatar.uid == _auth.getCurrentUid()) continue;
 
               // Фильтр по городу
-              if (_selectedCity != null && userProfile.city != _selectedCity) {
+              if (_selectedCity != null && userProfileWithAvatar.city != _selectedCity) {
                 continue;
               }
 
               // Фильтр по имени
               if (_searchQuery.isNotEmpty) {
-                if (!userProfile.name.toLowerCase().contains(_searchQuery) &&
-                    !userProfile.username.toLowerCase().contains(_searchQuery)) {
+                if (!userProfileWithAvatar.name.toLowerCase().contains(_searchQuery) &&
+                    !userProfileWithAvatar.username.toLowerCase().contains(_searchQuery)) {
                   continue;
                 }
               }
 
               tutors.add(TutorWithUserData(
                 tutorProfile: tutorProfile,
-                userProfile: userProfile,
+                userProfile: userProfileWithAvatar,
               ));
             }
           }
