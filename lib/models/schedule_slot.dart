@@ -6,6 +6,7 @@ import 'package:pocketbase/pocketbase.dart';
 /// Добавлен метод fromRecord() для преобразования RecordModel
 /// Добавлены поля для работы с недельным шаблоном
 /// Добавлено поле bookingStatus для системы подтверждения бронирований
+/// Добавлены поля для постоянного расписания (recurring bookings)
 class ScheduleSlot {
   final String id;
   final String tutorId;
@@ -19,6 +20,8 @@ class ScheduleSlot {
   final bool generatedFromTemplate; // NEW: Создан ли автоматически из шаблона
   final String? templateId; // NEW: ID шаблона, из которого создан
   final String bookingStatus; // NEW: Статус бронирования (free, pending, confirmed)
+  final bool isRecurring; // NEW: Часть постоянного расписания
+  final String? recurringGroupId; // NEW: ID группы повторяющихся занятий
 
   ScheduleSlot({
     required this.id,
@@ -33,6 +36,8 @@ class ScheduleSlot {
     this.generatedFromTemplate = false,
     this.templateId,
     this.bookingStatus = 'free', // По умолчанию свободен
+    this.isRecurring = false, // По умолчанию не повторяющееся
+    this.recurringGroupId,
   });
 
   /// Создание ScheduleSlot из RecordModel (PocketBase)
@@ -83,6 +88,8 @@ class ScheduleSlot {
       generatedFromTemplate: data['generatedFromTemplate'] as bool? ?? false,
       templateId: data['templateId'] as String?,
       bookingStatus: data['bookingStatus'] as String? ?? 'free',
+      isRecurring: data['isRecurring'] as bool? ?? false,
+      recurringGroupId: data['recurringGroupId'] as String?,
     );
   }
 
@@ -131,6 +138,8 @@ class ScheduleSlot {
       generatedFromTemplate: map['generatedFromTemplate'] ?? false,
       templateId: map['templateId'],
       bookingStatus: map['bookingStatus'] ?? 'free',
+      isRecurring: map['isRecurring'] ?? false,
+      recurringGroupId: map['recurringGroupId'],
     );
   }
 
@@ -170,6 +179,10 @@ class ScheduleSlot {
       // Статус бронирования
       'bookingStatus': bookingStatus,
 
+      // Постоянное расписание
+      'isRecurring': isRecurring,
+      if (recurringGroupId != null) 'recurringGroupId': recurringGroupId,
+
       // createdAt обычно не нужен в toMap() - PocketBase создает автоматически
       // Но оставим для совместимости
       'createdAt': createdAt.toIso8601String(),
@@ -190,6 +203,8 @@ class ScheduleSlot {
     bool? generatedFromTemplate,
     String? templateId,
     String? bookingStatus,
+    bool? isRecurring,
+    String? recurringGroupId,
   }) {
     return ScheduleSlot(
       id: id ?? this.id,
@@ -204,6 +219,8 @@ class ScheduleSlot {
       generatedFromTemplate: generatedFromTemplate ?? this.generatedFromTemplate,
       templateId: templateId ?? this.templateId,
       bookingStatus: bookingStatus ?? this.bookingStatus,
+      isRecurring: isRecurring ?? this.isRecurring,
+      recurringGroupId: recurringGroupId ?? this.recurringGroupId,
     );
   }
 

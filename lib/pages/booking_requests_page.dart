@@ -5,10 +5,32 @@ import '../service/auth.dart';
 import '../service/databases.dart';
 import '../service/schedule_service.dart';
 
+/// Группа запросов (для постоянного расписания)
+class BookingRequestGroup {
+  final bool isRecurring;
+  final String? recurringGroupId;
+  final List<ScheduleSlot> slots;
+  final String? studentId;
+
+  BookingRequestGroup({
+    required this.isRecurring,
+    this.recurringGroupId,
+    required this.slots,
+    this.studentId,
+  });
+
+  // Первый слот для отображения информации
+  ScheduleSlot get firstSlot => slots.first;
+
+  // Количество занятий
+  int get count => slots.length;
+}
+
 /// Страница запросов на бронирование (для репетиторов)
 ///
 /// Функции:
 /// - Просмотр всех pending запросов от учеников
+/// - Группировка постоянных расписаний (один запрос вместо N)
 /// - Подтверждение запроса (bookingStatus → confirmed)
 /// - Отклонение запроса (освобождение слота)
 class BookingRequestsPage extends StatefulWidget {
@@ -68,7 +90,7 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
     );
   }
 
-  /// Список запросов
+  /// Список запросов (с группировкой)
   Widget _buildRequestsList(ColorScheme colorScheme) {
     return FutureBuilder<List<ScheduleSlot>>(
       key: ValueKey(_refreshKey),
@@ -144,20 +166,74 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
           );
         }
 
+        // Группируем запросы по recurringGroupId
+        final groups = _groupRequests(requests);
+
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: requests.length,
+          itemCount: groups.length,
           itemBuilder: (context, index) {
-            final request = requests[index];
-            return _buildRequestCard(request, colorScheme);
+            final group = groups[index];
+            return _buildGroupCard(group, colorScheme);
           },
         );
       },
     );
   }
 
-  /// Карточка запроса
-  Widget _buildRequestCard(ScheduleSlot request, ColorScheme colorScheme) {
+  /// Группировка запросов по recurringGroupId
+  List<BookingRequestGroup> _groupRequests(List<ScheduleSlot> requests) {
+    final Map<String, List<ScheduleSlot>> groupsMap = {};
+    final List<ScheduleSlot> singleRequests = [];
+
+    // Разделяем на группы и одиночные запросы
+    for (final request in requests) {
+      if (request.isRecurring && request.recurringGroupId != null) {
+        // Добавляем в группу
+        if (!groupsMap.containsKey(request.recurringGroupId)) {
+          groupsMap[request.recurringGroupId!] = [];
+        }
+        groupsMap[request.recurringGroupId!]!.add(request);
+      } else {
+        // Одиночный запрос
+        singleRequests.add(request);
+      }
+    }
+
+    // Создаем объекты BookingRequestGroup
+    final List<BookingRequestGroup> result = [];
+
+    // Добавляем группы
+    groupsMap.forEach((groupId, slots) {
+      // Сортируем слоты по дате
+      slots.sort((a, b) => a.date.compareTo(b.date));
+      result.add(BookingRequestGroup(
+        isRecurring: true,
+        recurringGroupId: groupId,
+        slots: slots,
+        studentId: slots.first.studentId,
+      ));
+    });
+
+    // Добавляем одиночные запросы
+    for (final slot in singleRequests) {
+      result.add(BookingRequestGroup(
+        isRecurring: false,
+        slots: [slot],
+        studentId: slot.studentId,
+      ));
+    }
+
+    // Сортируем по дате первого занятия
+    result.sort((a, b) => a.firstSlot.date.compareTo(b.firstSlot.date));
+
+    return result;
+  }
+
+  /// Карточка группы запросов (может быть одна или несколько занятий)
+  Widget _buildGroupCard(BookingRequestGroup group, ColorScheme colorScheme) {
+    final request = group.firstSlot;
+    final isRecurring = group.isRecurring;
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
       elevation: 2,
@@ -201,10 +277,13 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
                             ),
                           ),
                           Text(
-                            'Запрос на занятие',
+                            isRecurring
+                                ? 'Постоянное расписание (${group.count} занятий)'
+                                : 'Запрос на занятие',
                             style: TextStyle(
                               fontSize: 14,
-                              color: colorScheme.secondary,
+                              color: isRecurring ? Colors.orange[700] : colorScheme.secondary,
+                              fontWeight: isRecurring ? FontWeight.w500 : FontWeight.normal,
                             ),
                           ),
                         ],
@@ -220,50 +299,68 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withValues(alpha: 0.3),
+                color: isRecurring
+                    ? Colors.orange.withValues(alpha: 0.1)
+                    : colorScheme.primaryContainer.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 20,
-                    color: colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          DateFormat('d MMMM, EEEE', 'ru').format(request.date),
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
+                  Row(
+                    children: [
+                      Icon(
+                        isRecurring ? Icons.repeat : Icons.calendar_today,
+                        size: 20,
+                        color: isRecurring ? Colors.orange[700] : colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.access_time,
-                              size: 16,
-                              color: colorScheme.secondary,
-                            ),
-                            const SizedBox(width: 6),
                             Text(
-                              '${request.startTime} - ${request.endTime}',
+                              isRecurring
+                                  ? 'Каждый ${_getDayName(request.date.weekday)}'
+                                  : DateFormat('d MMMM, EEEE', 'ru').format(request.date),
                               style: TextStyle(
-                                fontSize: 14,
-                                color: colorScheme.secondary,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                color: colorScheme.onSurface,
                               ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.access_time,
+                                  size: 16,
+                                  color: colorScheme.secondary,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${request.startTime} - ${request.endTime}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: colorScheme.secondary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
+                  if (isRecurring) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Первое занятие: ${DateFormat('d MMMM', 'ru').format(group.slots.first.date)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.secondary,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -274,7 +371,9 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _rejectRequest(request),
+                    onPressed: () => isRecurring
+                        ? _rejectRecurringGroup(group)
+                        : _rejectRequest(request),
                     icon: Icon(Icons.close, size: 18),
                     label: Text('Отклонить'),
                     style: OutlinedButton.styleFrom(
@@ -290,7 +389,9 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _approveRequest(request),
+                    onPressed: () => isRecurring
+                        ? _approveRecurringGroup(group)
+                        : _approveRequest(request),
                     icon: Icon(Icons.check, size: 18),
                     label: Text('Подтвердить'),
                     style: ElevatedButton.styleFrom(
@@ -423,5 +524,120 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
         );
       }
     }
+  }
+
+  /// Подтвердить группу повторяющихся занятий
+  Future<void> _approveRecurringGroup(BookingRequestGroup group) async {
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Подтвердить постоянное расписание?'),
+          content: Text(
+            'Будет подтверждено ${group.count} занятий:\n'
+            'Каждый ${_getDayName(group.firstSlot.date.weekday)} с ${group.firstSlot.startTime} до ${group.firstSlot.endTime}',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Отмена'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+              ),
+              child: Text('Подтвердить'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
+      // Подтверждаем всю группу
+      final count = await _scheduleService.approveRecurringGroup(group.recurringGroupId!);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Подтверждено постоянное расписание ($count занятий)'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _refreshList();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Ошибка: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Отклонить группу повторяющихся занятий
+  Future<void> _rejectRecurringGroup(BookingRequestGroup group) async {
+    try {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Отклонить постоянное расписание?'),
+          content: Text(
+            'Будет отклонено ${group.count} занятий. Все слоты будут освобождены.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Назад'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: Text('Отклонить'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
+      // Отклоняем всю группу
+      final count = await _scheduleService.rejectRecurringGroup(group.recurringGroupId!);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Отклонено постоянное расписание ($count занятий)'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        _refreshList();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Ошибка: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Получить название дня недели
+  String _getDayName(int weekday) {
+    const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+    return days[weekday - 1];
   }
 }

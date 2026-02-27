@@ -64,11 +64,15 @@ Table slots {
 
   isBooked bool [default: false, note: 'BoolField - Забронирован слот']
   isPaid bool [default: false, note: 'BoolField - Оплачено занятие']
+  bookingStatus text [default: 'free', note: 'SelectField - "free" | "pending" | "confirmed"']
 
   studentId text [null, note: 'RelationField → users.id (optional)']
 
   generatedFromTemplate bool [default: false, note: 'BoolField - Создан ли из шаблона автоматически']
   templateId text [null, note: 'RelationField → weekly_templates.id (optional)']
+
+  isRecurring bool [default: false, note: 'BoolField - Часть постоянного расписания']
+  recurringGroupId text [null, note: 'TextField - ID группы повторяющихся занятий (optional)']
 
   created date [note: 'AutodateField']
   updated date [note: 'AutodateField']
@@ -76,12 +80,26 @@ Table slots {
   Indexes {
     tutorId [name: 'idx_tutorId']
     date [name: 'idx_date']
+    recurringGroupId [name: 'idx_recurringGroupId']
   }
 
   Note: '''
   Временные слоты репетиторов
-  startTime/endTime - TextField, т.к. только время без даты
-  generatedFromTemplate - true если создан автоматически из weekly_templates
+
+  Поля:
+  - startTime/endTime: TextField, т.к. только время без даты
+  - generatedFromTemplate: true если создан автоматически из weekly_templates
+  - bookingStatus: "free" (свободен) | "pending" (ожидает подтверждения) | "confirmed" (подтверждён)
+  - isRecurring: true если это часть постоянного расписания
+  - recurringGroupId: ID группы повторяющихся занятий (одинаковый для всех слотов постоянного расписания)
+
+  Постоянное расписание (Recurring Bookings):
+  - Ученик бронирует "Постоянно" → система генерирует уникальный recurringGroupId
+  - Бронируются все доступные слоты на это время на 3 месяца вперед
+  - Все слоты получают: isRecurring=true, recurringGroupId="recurring_123456_abc"
+  - Отмена всей группы: один запрос по recurringGroupId
+  - Автогенерация новых слотов: при создании новых слотов через Weekly Template
+    система проверяет активные recurringGroupId и автоматически бронирует новые слоты
   '''
 }
 

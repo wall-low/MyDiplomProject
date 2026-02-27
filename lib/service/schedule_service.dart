@@ -321,6 +321,214 @@ class ScheduleService extends ChangeNotifier {
     }
   }
 
+  /// Забронировать постоянное расписание (каждую неделю)
+  ///
+  /// Находит все доступные слоты на это же время/день недели на 3 месяца вперёд
+  /// и бронирует их одной группой с уникальным recurringGroupId
+  ///
+  /// Параметры:
+  /// - initialSlot: Первый слот для бронирования
+  /// - studentId: ID ученика
+  ///
+  /// Возвращает:
+  /// - Map с ключами: 'groupId', 'totalBooked', 'errors'
+  Future<Map<String, dynamic>> bookRecurringSlots({
+    required ScheduleSlot initialSlot,
+    required String studentId,
+  }) async {
+    int successCount = 0;
+    List<String> errors = [];
+
+    try {
+      // Генерируем уникальный ID для группы повторяющихся занятий
+      final groupId = 'recurring_${DateTime.now().millisecondsSinceEpoch}_${studentId.substring(0, 8)}';
+
+      debugPrint('[ScheduleService] 🔄 Постоянное расписание');
+      debugPrint('[ScheduleService] 🆔 Group ID: $groupId');
+      debugPrint('[ScheduleService] 📅 Начальная дата: ${initialSlot.date}');
+      debugPrint('[ScheduleService] ⏰ Время: ${initialSlot.startTime} - ${initialSlot.endTime}');
+
+      // Определяем день недели (1 = Понедельник, 7 = Воскресенье)
+      final weekday = initialSlot.date.weekday;
+      debugPrint('[ScheduleService] 📆 День недели: $weekday');
+
+      // Ищем все слоты на ближайшие 3 месяца (примерно 12 недель)
+      final endDate = DateTime.now().add(const Duration(days: 90));
+
+      // Получаем все слоты репетитора
+      final allSlots = await getTutorSchedule(initialSlot.tutorId);
+
+      // Фильтруем: тот же день недели, время, свободные, в будущем
+      final matchingSlots = allSlots.where((slot) {
+        return slot.date.weekday == weekday &&
+               slot.startTime == initialSlot.startTime &&
+               slot.endTime == initialSlot.endTime &&
+               !slot.isBooked &&
+               !slot.isPast &&
+               slot.date.isBefore(endDate) &&
+               slot.date.isAfter(DateTime.now().subtract(const Duration(days: 1)));
+      }).toList();
+
+      debugPrint('[ScheduleService] 🎯 Найдено подходящих слотов: ${matchingSlots.length}');
+
+      // Бронируем каждый слот с общим groupId
+      for (final slot in matchingSlots) {
+        try {
+          await _pb.collection('slots').update(
+            slot.id,
+            body: {
+              'isBooked': true,
+              'studentId': studentId,
+              'bookingStatus': 'pending',
+              'isRecurring': true,
+              'recurringGroupId': groupId,
+            },
+          );
+          successCount++;
+          debugPrint('[ScheduleService] ✅ Забронирован: ${slot.date.toString().split(' ')[0]}');
+        } catch (e) {
+          debugPrint('[ScheduleService] ❌ Ошибка бронирования ${slot.date}: $e');
+          errors.add('${slot.date.toString().split(' ')[0]}: ${e.toString()}');
+        }
+      }
+
+      debugPrint('[ScheduleService] 📊 Результат: $successCount забронировано');
+
+      notifyListeners();
+
+      return {
+        'groupId': groupId,
+        'totalBooked': successCount,
+        'errors': errors,
+      };
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Критическая ошибка постоянного расписания: $e');
+      rethrow;
+    }
+  }
+
+  /// Отменить все слоты в группе повторяющихся занятий
+  Future<int> cancelRecurringGroup(String recurringGroupId) async {
+    try {
+      debugPrint('[ScheduleService] 🗑️ Отмена группы: $recurringGroupId');
+
+      // Находим все слоты с этим groupId
+      final result = await _pb.collection('slots').getList(
+        filter: 'recurringGroupId="$recurringGroupId"',
+        perPage: 500,
+      );
+
+      int cancelledCount = 0;
+
+      // Отменяем каждый слот
+      for (final record in result.items) {
+        try {
+          await _pb.collection('slots').update(
+            record.id,
+            body: {
+              'isBooked': false,
+              'studentId': null,
+              'bookingStatus': 'free',
+              'isRecurring': false,
+              'recurringGroupId': null,
+            },
+          );
+          cancelledCount++;
+        } catch (e) {
+          debugPrint('[ScheduleService] ❌ Ошибка отмены слота ${record.id}: $e');
+        }
+      }
+
+      debugPrint('[ScheduleService] ✅ Отменено $cancelledCount слотов');
+      notifyListeners();
+
+      return cancelledCount;
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка отмены группы: $e');
+      rethrow;
+    }
+  }
+
+  /// Подтвердить всю группу повторяющихся занятий (для репетитора)
+  Future<int> approveRecurringGroup(String recurringGroupId) async {
+    try {
+      debugPrint('[ScheduleService] ✅ Подтверждение группы: $recurringGroupId');
+
+      // Находим все слоты с этим groupId и статусом pending
+      final result = await _pb.collection('slots').getList(
+        filter: 'recurringGroupId="$recurringGroupId" && bookingStatus="pending"',
+        perPage: 500,
+      );
+
+      int approvedCount = 0;
+
+      // Подтверждаем каждый слот
+      for (final record in result.items) {
+        try {
+          await _pb.collection('slots').update(
+            record.id,
+            body: {
+              'bookingStatus': 'confirmed',
+            },
+          );
+          approvedCount++;
+        } catch (e) {
+          debugPrint('[ScheduleService] ❌ Ошибка подтверждения слота ${record.id}: $e');
+        }
+      }
+
+      debugPrint('[ScheduleService] ✅ Подтверждено $approvedCount слотов');
+      notifyListeners();
+
+      return approvedCount;
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка подтверждения группы: $e');
+      rethrow;
+    }
+  }
+
+  /// Отклонить всю группу повторяющихся занятий (для репетитора)
+  Future<int> rejectRecurringGroup(String recurringGroupId) async {
+    try {
+      debugPrint('[ScheduleService] ❌ Отклонение группы: $recurringGroupId');
+
+      // Находим все слоты с этим groupId и статусом pending
+      final result = await _pb.collection('slots').getList(
+        filter: 'recurringGroupId="$recurringGroupId" && bookingStatus="pending"',
+        perPage: 500,
+      );
+
+      int rejectedCount = 0;
+
+      // Освобождаем каждый слот
+      for (final record in result.items) {
+        try {
+          await _pb.collection('slots').update(
+            record.id,
+            body: {
+              'isBooked': false,
+              'studentId': null,
+              'bookingStatus': 'free',
+              'isRecurring': false,
+              'recurringGroupId': null,
+            },
+          );
+          rejectedCount++;
+        } catch (e) {
+          debugPrint('[ScheduleService] ❌ Ошибка отклонения слота ${record.id}: $e');
+        }
+      }
+
+      debugPrint('[ScheduleService] ✅ Отклонено $rejectedCount слотов');
+      notifyListeners();
+
+      return rejectedCount;
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка отклонения группы: $e');
+      rethrow;
+    }
+  }
+
   // ============================================================================
   // НОВЫЕ МЕТОДЫ: Система подтверждения бронирований
   // ============================================================================

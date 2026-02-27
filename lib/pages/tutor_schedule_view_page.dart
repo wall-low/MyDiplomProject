@@ -446,45 +446,123 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
   /// Забронировать слот
   Future<void> _bookSlot(ScheduleSlot slot) async {
     try {
-      // Показываем диалог подтверждения
-      final confirmed = await showDialog<bool>(
+      // Переменная для диалога
+      bool isRecurring = false;
+
+      // Показываем диалог подтверждения с опцией постоянного расписания
+      final result = await showDialog<Map<String, dynamic>>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Отправить запрос?'),
-          content: Text(
-            'Вы отправите запрос на занятие ${DateFormat('d MMMM', 'ru').format(slot.date)} с ${slot.startTime} до ${slot.endTime}.\n\nРепетитор получит уведомление и сможет подтвердить или отклонить запрос.',
+        builder: (context) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Отправить запрос?'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Запрос на занятие ${DateFormat('d MMMM', 'ru').format(slot.date)} с ${slot.startTime} до ${slot.endTime}.',
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Чекбокс "Постоянно (каждую неделю)"
+                  CheckboxListTile(
+                    value: isRecurring,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        isRecurring = value ?? false;
+                      });
+                    },
+                    title: const Text(
+                      'Постоянно (каждую неделю)',
+                      style: TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                    subtitle: Text(
+                      isRecurring
+                          ? 'Система забронирует все доступные слоты на это время на ближайшие 3 месяца'
+                          : 'Занятие в это же время каждую неделю',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isRecurring ? Colors.orange[800] : Colors.grey[600],
+                      ),
+                    ),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
+
+                  const SizedBox(height: 16),
+                  Text(
+                    'Репетитор получит уведомление и сможет подтвердить или отклонить.',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, null),
+                child: const Text('Отмена'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, {
+                  'confirmed': true,
+                  'isRecurring': isRecurring,
+                }),
+                child: const Text('Отправить'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Отмена'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('Отправить запрос'),
-            ),
-          ],
         ),
       );
 
-      if (confirmed != true) return;
+      if (result == null || result['confirmed'] != true) return;
 
-      // Выполняем бронирование (отправка запроса)
-      await _scheduleService.bookSlot(slot.id, _auth.getCurrentUid());
+      final isRecurringBooking = result['isRecurring'] as bool;
 
-      if (mounted) {
-        // Показываем уведомление об отправке запроса
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('⏳ Запрос отправлен!\nОжидайте подтверждения репетитора'),
-            backgroundColor: Colors.orange,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 4),
-          ),
+      // Выполняем бронирование
+      if (isRecurringBooking) {
+        // Постоянное расписание
+        final bookingResult = await _scheduleService.bookRecurringSlots(
+          initialSlot: slot,
+          studentId: _auth.getCurrentUid(),
         );
 
-        // Обновляем список слотов
-        _refreshSlots();
+        final totalBooked = bookingResult['totalBooked'] as int;
+        final errors = bookingResult['errors'] as List<String>;
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                errors.isEmpty
+                    ? '✅ Постоянное расписание создано!\nЗабронировано $totalBooked занятий'
+                    : '⚠️ Забронировано $totalBooked занятий\nНекоторые слоты недоступны',
+              ),
+              backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+          _refreshSlots();
+        }
+      } else {
+        // Одноразовое бронирование
+        await _scheduleService.bookSlot(slot.id, _auth.getCurrentUid());
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('⏳ Запрос отправлен!\nОжидайте подтверждения репетитора'),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 4),
+            ),
+          );
+          _refreshSlots();
+        }
       }
     } catch (e) {
       if (mounted) {
