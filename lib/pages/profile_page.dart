@@ -6,9 +6,10 @@ import 'package:p7/pages/setting_page.dart';
 import 'package:p7/pages/tutor_profile_setup_page.dart';
 import 'package:p7/service/database_provider.dart';
 import 'package:p7/service/tutor_profile_service.dart';
+import 'package:p7/service/pocketbase_service.dart';
+import 'package:p7/service/auth.dart';
 import 'package:provider/provider.dart';
-
-import 'package:p7/components/avatar_picker.dart';
+import 'package:image_picker/image_picker.dart';
 
 class ProfilePage extends StatefulWidget {
   final String uid;
@@ -39,6 +40,62 @@ class _ProfilePageState extends State<ProfilePage> {
   void dispose() {
     _bioCtrl.dispose();
     super.dispose();
+  }
+
+  /// Выбрать фото из галереи и загрузить в PocketBase
+  Future<void> _pickAndUploadAvatar() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (image == null) return;
+
+      // Показываем индикатор загрузки
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // Загружаем в PocketBase
+      final userId = Auth().getCurrentUid();
+      await PocketBaseService().uploadAvatar(
+        userId: userId,
+        filePath: image.path,
+      );
+
+      // Закрываем индикатор
+      if (!mounted) return;
+      Navigator.pop(context);
+
+      // Перезагружаем профиль
+      await _loadUser();
+
+      // Показываем успешное сообщение
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Фото профиля обновлено!')),
+      );
+    } catch (e) {
+      // Закрываем индикатор если есть
+      if (mounted && Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
+
+      // Показываем ошибку
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ошибка загрузки фото: $e')),
+      );
+    }
   }
 
   Future<void> _loadUser() async {
@@ -119,6 +176,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   expandedHeight: 280,
                   pinned: true,
                   backgroundColor: colorScheme.primary,
+                  stretch: true, // ✨ Включаем эффект растяжения
                   actions: [
                     IconButton(
                       icon: const Icon(Icons.settings, color: Colors.white),
@@ -132,71 +190,137 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   ],
                   flexibleSpace: FlexibleSpaceBar(
-                    background: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            colorScheme.primary,
-                            colorScheme.primary.withValues(alpha: 0.7),
-                          ],
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                    stretchModes: const [
+                      StretchMode.zoomBackground, // Увеличивает фон при растяжении
+                    ],
+                    background: GestureDetector(
+                      onTap: _pickAndUploadAvatar, // При нажатии на фото - открываем галерею
+                      child: Stack(
+                        fit: StackFit.expand,
                         children: [
-                          const SizedBox(height: 60),
-                          // Аватар
-                          const AvatarPicker(),
-                          const SizedBox(height: 16),
-                          // Имя
-                          Text(
-                            _user!.name,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          // Badge роли
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isTutor
-                                  ? Colors.amber.withValues(alpha: 0.9)
-                                  : Colors.blue.withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  isTutor ? Icons.school : Icons.person,
-                                  color: Colors.white,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _user!.role,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 14,
+                        // Фото на весь фон (всегда)
+                        (_user?.avatarUrl?.isNotEmpty ?? false)
+                            ? Image.network(
+                                _user!.avatarUrl!,
+                                fit: BoxFit.cover, // Заполняет всю область
+                                alignment: Alignment.center,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
+                                        colors: [
+                                          colorScheme.primary,
+                                          colorScheme.primary.withValues(alpha: 0.7),
+                                        ],
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.person,
+                                      size: 100,
+                                      color: Colors.white54,
+                                    ),
+                                  );
+                                },
+                              )
+                            : Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [
+                                      colorScheme.primary,
+                                      colorScheme.primary.withValues(alpha: 0.7),
+                                    ],
                                   ),
                                 ),
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 100,
+                                  color: Colors.white54,
+                                ),
+                              ),
+
+                        // Градиент затемнения снизу для читаемости текста
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withValues(alpha: 0.7),
                               ],
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+
+                        // Контент поверх
+                        Positioned(
+                          bottom: 24,
+                          left: 0,
+                          right: 0,
+                          child: Column(
+                            children: [
+                              // Имя
+                              Text(
+                                _user!.name,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  shadows: [
+                                    Shadow(
+                                      offset: Offset(0, 1),
+                                      blurRadius: 3,
+                                      color: Colors.black45,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+
+                              // Badge роли
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isTutor
+                                      ? Colors.amber.withValues(alpha: 0.9)
+                                      : Colors.blue.withValues(alpha: 0.9),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      isTutor ? Icons.school : Icons.person,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      _user!.role,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
+              ),
 
                 // Контент
                 SliverToBoxAdapter(

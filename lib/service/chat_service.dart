@@ -361,7 +361,11 @@ class ChatService extends ChangeNotifier {
       print('[ChatService] 📤 Отправка сообщения от: $currentUserId → $receiverID');
 
       // ✅ ШАГ 1: Получаем или создаём чат
+      // createIfNotExists по умолчанию true, поэтому chatId не должен быть null
       final chatId = await _getChatIdByUsers(currentUserId, receiverID);
+      if (chatId == null) {
+        throw Exception('Не удалось создать чат между $currentUserId и $receiverID');
+      }
 
       // Создаем объект сообщения с текущим временем
       final messageTimestamp = DateTime.now();
@@ -425,6 +429,9 @@ class ChatService extends ChangeNotifier {
 
       // ✅ ШАГ 1: Получаем или создаём чат
       final chatId = await _getChatIdByUsers(currentUserId, receiverId);
+      if (chatId == null) {
+        throw Exception('Не удалось создать чат между $currentUserId и $receiverId');
+      }
 
       final messageTimestamp = DateTime.now();
 
@@ -511,6 +518,9 @@ class ChatService extends ChangeNotifier {
 
       // ✅ ШАГ 1: Получаем или создаём чат
       final chatId = await _getChatIdByUsers(currentUserId, receiverId);
+      if (chatId == null) {
+        throw Exception('Не удалось создать чат между $currentUserId и $receiverId');
+      }
 
       final messageTimestamp = DateTime.now();
 
@@ -636,8 +646,16 @@ class ChatService extends ChangeNotifier {
     try {
       print('[ChatService] 🔄 Инициализация stream для: $userId → $otherUserId');
 
-      // ✅ Получаем chatId
-      final chatId = await _getChatIdByUsers(userId, otherUserId);
+      // ✅ Получаем chatId (НЕ создаём чат, если его нет!)
+      // createIfNotExists: false → возвращает null если чат не существует
+      final chatId = await _getChatIdByUsers(userId, otherUserId, createIfNotExists: false);
+
+      // Если чат не существует - отправляем пустой список и выходим
+      if (chatId == null) {
+        print('[ChatService] ⚠️ Чат не существует, отправляем пустой список сообщений');
+        broadcastController.add([]);
+        return;
+      }
 
       print('[ChatService] 📌 ChatId получен: $chatId');
 
@@ -765,8 +783,14 @@ class ChatService extends ChangeNotifier {
   /// ВАЖНО: Вызывать при dispose() виджета чата!
   Future<void> unsubscribeFromMessages(String userId, String otherUserId) async {
     try {
-      // ✅ Получаем chatId
-      final chatId = await _getChatIdByUsers(userId, otherUserId);
+      // ✅ Получаем chatId (НЕ создаём чат если его нет!)
+      final chatId = await _getChatIdByUsers(userId, otherUserId, createIfNotExists: false);
+
+      // Если чат не существует - нечего отписывать
+      if (chatId == null) {
+        print('[ChatService] Чат не существует, нечего отписывать');
+        return;
+      }
 
       // Отписываемся от PocketBase
       final unsubscribe = _subscriptions.remove(chatId);
@@ -796,8 +820,14 @@ class ChatService extends ChangeNotifier {
   /// ⚠️ РЕКОМЕНДАЦИЯ: Используйте getMessagesStream() для realtime обновлений!
   Future<List<Message>> getMessages(String userId, String otherUserId) async {
     try {
-      // ✅ Получаем chatId
-      final chatId = await _getChatIdByUsers(userId, otherUserId);
+      // ✅ Получаем chatId (НЕ создаём чат если его нет!)
+      final chatId = await _getChatIdByUsers(userId, otherUserId, createIfNotExists: false);
+
+      // Если чат не существует - возвращаем пустой список
+      if (chatId == null) {
+        print('[ChatService] Чат не существует, возвращаем пустой список');
+        return [];
+      }
 
       // Запрос сообщений по chatId
       final result = await _pb.collection('messages').getList(
@@ -820,8 +850,14 @@ class ChatService extends ChangeNotifier {
   Future<Map<String, dynamic>?> getLastMessage(
       String userID1, String userID2) async {
     try {
-      // ✅ Получаем chatId
-      final chatId = await _getChatIdByUsers(userID1, userID2);
+      // ✅ Получаем chatId (НЕ создаём чат если его нет!)
+      final chatId = await _getChatIdByUsers(userID1, userID2, createIfNotExists: false);
+
+      // Если чат не существует - нет последнего сообщения
+      if (chatId == null) {
+        print('[ChatService] Чат не существует, нет последнего сообщения');
+        return null;
+      }
 
       // Запрашиваем последнее сообщение
       final result = await _pb.collection('messages').getList(
@@ -852,8 +888,14 @@ class ChatService extends ChangeNotifier {
   /// ✅ Фильтр: 'chatId="..." && senderId="..." && isRead=false'
   Future<int> getUnreadCount(String userID1, String userID2) async {
     try {
-      // ✅ Получаем chatId
-      final chatId = await _getChatIdByUsers(userID1, userID2);
+      // ✅ Получаем chatId (НЕ создаём чат если его нет!)
+      final chatId = await _getChatIdByUsers(userID1, userID2, createIfNotExists: false);
+
+      // Если чат не существует - нет непрочитанных
+      if (chatId == null) {
+        print('[ChatService] Чат не существует, нет непрочитанных');
+        return 0;
+      }
 
       // Подсчет непрочитанных через фильтр
       final result = await _pb.collection('messages').getList(
@@ -875,8 +917,14 @@ class ChatService extends ChangeNotifier {
   /// ✅ Используем chatId вместо chatRoomId
   Future<void> markMessagesAsRead(String userID1, String userID2) async {
     try {
-      // ✅ Получаем chatId
-      final chatId = await _getChatIdByUsers(userID1, userID2);
+      // ✅ Получаем chatId (НЕ создаём чат если его нет)
+      final chatId = await _getChatIdByUsers(userID1, userID2, createIfNotExists: false);
+
+      // Если чат не существует - нечего помечать прочитанным
+      if (chatId == null) {
+        print('[ChatService] Чат не существует, нечего помечать прочитанным');
+        return;
+      }
 
       // Получаем все непрочитанные сообщения от собеседника
       final result = await _pb.collection('messages').getList(
@@ -1116,7 +1164,22 @@ class ChatService extends ChangeNotifier {
   ///
   /// ВОЗВРАЩАЕТ:
   /// String - ID записи в коллекции chats (используется как chatId в messages)
-  Future<String> _getChatIdByUsers(String user1Id, String user2Id) async {
+  /// Получить или создать ID чата между двумя пользователями
+  ///
+  /// ПАРАМЕТРЫ:
+  /// - user1Id: ID первого пользователя
+  /// - user2Id: ID второго пользователя
+  /// - createIfNotExists: если true - создаёт чат, если не найден (default: true)
+  ///                       если false - возвращает null, если чат не найден
+  ///
+  /// ВОЗВРАЩАЕТ:
+  /// - String: ID чата, если найден или создан
+  /// - null: если чат не найден и createIfNotExists = false
+  ///
+  /// ИСПОЛЬЗОВАНИЕ:
+  /// - sendMessage() вызывает с createIfNotExists: true (создаёт чат при отправке)
+  /// - getMessagesStream() вызывает с createIfNotExists: false (не создаёт пустой чат)
+  Future<String?> _getChatIdByUsers(String user1Id, String user2Id, {bool createIfNotExists = true}) async {
     try {
       // Сортируем ID для консистентности (user1 всегда меньше user2)
       List<String> sortedIds = [user1Id, user2Id];
@@ -1140,22 +1203,29 @@ class ChatService extends ChangeNotifier {
         print('[ChatService] ✅ Чат найден: $chatId');
         return chatId;
       } else {
-        // Чат не существует - создаём новый
-        print('[ChatService] ✨ Создание нового чата...');
+        // Чат не существует
+        if (createIfNotExists) {
+          // Создаём новый чат
+          print('[ChatService] ✨ Создание нового чата...');
 
-        final newChat = await _pb.collection('chats').create(body: {
-          'user1Id': sortedUser1, // Меньший ID
-          'user2Id': sortedUser2, // Больший ID
-          'lastMessage': '', // Пустое сообщение при создании
-          'lastMessageType': 'text',
-          'lastSenderId': user1Id, // Текущий пользователь
-          'lastTimestamp': DateTime.now().toIso8601String(),
-          'unreadCountUser1': 0,
-          'unreadCountUser2': 0,
-        });
+          final newChat = await _pb.collection('chats').create(body: {
+            'user1Id': sortedUser1, // Меньший ID
+            'user2Id': sortedUser2, // Больший ID
+            'lastMessage': '', // Пустое сообщение при создании
+            'lastMessageType': 'text',
+            'lastSenderId': user1Id, // Текущий пользователь
+            'lastTimestamp': DateTime.now().toIso8601String(),
+            'unreadCountUser1': 0,
+            'unreadCountUser2': 0,
+          });
 
-        print('[ChatService] ✅ Новый чат создан: ${newChat.id}');
-        return newChat.id;
+          print('[ChatService] ✅ Новый чат создан: ${newChat.id}');
+          return newChat.id;
+        } else {
+          // Не создаём чат, возвращаем null
+          print('[ChatService] ⚠️ Чат не найден и createIfNotExists = false, возвращаем null');
+          return null;
+        }
       }
     } catch (e) {
       print('[ChatService] ❌ Ошибка получения/создания chatId: $e');
@@ -1399,8 +1469,14 @@ class ChatService extends ChangeNotifier {
   /// 3. Помечаем сообщения как прочитанные (через существующий markMessagesAsRead)
   Future<void> resetUnreadCountInMetadata(String userId, String otherUserId) async {
     try {
-      // ✅ Получаем chatId
-      final chatId = await _getChatIdByUsers(userId, otherUserId);
+      // ✅ Получаем chatId (НЕ создаём чат если его нет)
+      final chatId = await _getChatIdByUsers(userId, otherUserId, createIfNotExists: false);
+
+      // Если чат не существует - нечего обнулять
+      if (chatId == null) {
+        print('[ChatService] Чат не существует, нечего обнулять');
+        return;
+      }
 
       // Получаем запись чата
       final record = await _pb.collection('chats').getOne(chatId);

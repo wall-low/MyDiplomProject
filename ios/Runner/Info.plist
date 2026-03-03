@@ -32,6 +32,10 @@
 	<string>Мы используем ваше местоположение, чтобы показывать погоду в вашем городе</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Нужен доступ к микрофону для записи голосовых сообщений</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Нужен доступ к камере для отправки фотографий в чатах</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Нужен доступ к галерее для отправки фотографий в чатах</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
