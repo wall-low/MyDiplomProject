@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../components/user_avatar.dart';
 import '../models/schedule_slot.dart';
 import '../service/auth.dart';
@@ -22,12 +23,19 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
   final Auth _auth = Auth();
   final Databases _db = Databases();
   DateTime _selectedDate = DateTime.now();
+  DateTime _focusedDay = DateTime.now(); // Для календаря ученика
   bool _isTutor = false;
   bool _isLoading = true;
   late AnimationController _refreshController;
 
+  // Формат календаря (для ученика)
+  CalendarFormat _calendarFormat = CalendarFormat.month;
+
   // Отслеживание перевернутых карточек
   final Set<String> _flippedCards = {};
+
+  // Все занятия ученика (для календаря)
+  List<ScheduleSlot> _allStudentSlots = [];
 
   @override
   void initState() {
@@ -50,9 +58,16 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
   Future<void> _loadUserRole() async {
     try {
       final user = await _db.getUserFromPocketBase(_auth.getCurrentUid());
+      final isTutor = user?.role == 'Репетитор';
+
+      // Для ученика загружаем все занятия сразу (для календаря)
+      if (!isTutor) {
+        _allStudentSlots = await _scheduleService.getStudentSlots(_auth.getCurrentUid());
+      }
+
       if (mounted) {
         setState(() {
-          _isTutor = user?.role == 'Репетитор';
+          _isTutor = isTutor;
           _isLoading = false;
         });
       }
@@ -68,24 +83,100 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
   /// Обновить расписание вручную
   ///
   /// Запускает анимацию вращения кнопки и обновляет список слотов через setState()
-  void _refreshSchedule() {
+  Future<void> _refreshSchedule() async {
     // Запускаем анимацию вращения
     _refreshController.forward(from: 0.0);
 
-    // Обновляем список слотов
-    setState(() {
-      debugPrint('[SchedulePage] 🔄 Ручное обновление расписания');
-    });
+    debugPrint('[SchedulePage] 🔄 Ручное обновление расписания');
 
-    // Показываем уведомление
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('✅ Расписание обновлено'),
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 1),
-      ),
-    );
+    // Для ученика перезагружаем все занятия
+    if (!_isTutor) {
+      try {
+        _allStudentSlots = await _scheduleService.getStudentSlots(_auth.getCurrentUid());
+      } catch (e) {
+        debugPrint('[SchedulePage] ❌ Ошибка обновления занятий: $e');
+      }
+    }
+
+    // Обновляем UI
+    if (mounted) {
+      setState(() {});
+
+      // Показываем уведомление
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('✅ Расписание обновлено'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  /// Получить занятия на конкретную дату (для календаря ученика)
+  List<ScheduleSlot> _getEventsForDay(DateTime day) {
+    return _allStudentSlots.where((slot) {
+      return isSameDay(slot.date, day);
+    }).toList();
+  }
+
+  /// Проверить, можно ли отменить занятие (до занятия > 24 часа)
+  bool _canCancelSlot(ScheduleSlot slot) {
+    try {
+      final now = DateTime.now();
+      final slotDateTime = DateTime(
+        slot.date.year,
+        slot.date.month,
+        slot.date.day,
+        int.parse(slot.startTime.split(':')[0]),
+        int.parse(slot.startTime.split(':')[1]),
+      );
+
+      final difference = slotDateTime.difference(now);
+      return difference.inHours >= 24;
+    } catch (e) {
+      debugPrint('[SchedulePage] ❌ Ошибка проверки времени отмены: $e');
+      return false;
+    }
+  }
+
+  /// Получить цвет для карточки слота (с учетом роли пользователя)
+  Color _getSlotColor(ScheduleSlot slot, ColorScheme colorScheme) {
+    if (_isTutor) {
+      // Репетитор: красный = забронировано, зеленый = свободно, серый = прошло
+      if (slot.isBooked) return Colors.red;
+      if (slot.isPast) return Colors.grey;
+      return Colors.green;
+    } else {
+      // Ученик: синий = будущее занятие, серый = прошедшее
+      if (slot.isPast) return Colors.grey;
+      return colorScheme.primary;
+    }
+  }
+
+  /// Получить текст статуса слота
+  String _getSlotStatusText(ScheduleSlot slot) {
+    if (_isTutor) {
+      if (slot.isBooked) return 'Забронировано';
+      if (slot.isPast) return 'Прошло';
+      return 'Свободно';
+    } else {
+      if (slot.isPast) return 'Завершено';
+      return 'Предстоит';
+    }
+  }
+
+  /// Получить иконку статуса слота
+  IconData _getSlotStatusIcon(ScheduleSlot slot) {
+    if (_isTutor) {
+      if (slot.isBooked) return Icons.event_busy;
+      if (slot.isPast) return Icons.check_circle;
+      return Icons.event_available;
+    } else {
+      if (slot.isPast) return Icons.check_circle;
+      return Icons.event_note;
+    }
   }
 
   @override
@@ -115,6 +206,25 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
+          // Кнопка переключения вида календаря (только для учеников)
+          if (!_isTutor)
+            IconButton(
+              icon: Icon(
+                _calendarFormat == CalendarFormat.month
+                    ? Icons.calendar_view_week
+                    : Icons.calendar_view_month,
+              ),
+              tooltip: _calendarFormat == CalendarFormat.month
+                  ? 'Неделя'
+                  : 'Месяц',
+              onPressed: () {
+                setState(() {
+                  _calendarFormat = _calendarFormat == CalendarFormat.month
+                      ? CalendarFormat.week
+                      : CalendarFormat.month;
+                });
+              },
+            ),
           // Кнопка обновления (для всех пользователей)
           RotationTransition(
             turns: _refreshController,
@@ -145,25 +255,26 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
             ),
         ],
       ),
-      body: Column(
-        children: [
-          Divider(
-            height: 1,
-            thickness: 0.5,
-            color: colorScheme.primaryContainer,
-          ),
-          if (_isTutor) _buildDateSelector(colorScheme),
-          if (_isTutor)
-            Divider(
-              height: 1,
-              thickness: 0.5,
-              color: colorScheme.primaryContainer,
-            ),
-          Expanded(
-            child: _buildScheduleList(colorScheme),
-          ),
-        ],
-      ),
+      body: _isTutor
+          ? Column(
+              children: [
+                Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: colorScheme.primaryContainer,
+                ),
+                _buildDateSelector(colorScheme),
+                Divider(
+                  height: 1,
+                  thickness: 0.5,
+                  color: colorScheme.primaryContainer,
+                ),
+                Expanded(
+                  child: _buildScheduleList(colorScheme),
+                ),
+              ],
+            )
+          : _buildStudentView(colorScheme),
       floatingActionButton: _isTutor
           ? FloatingActionButton.extended(
               onPressed: () => _showAddSlotDialog(context),
@@ -233,18 +344,167 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
     );
   }
 
+  /// Представление для ученика с сворачивающимся календарем
+  Widget _buildStudentView(ColorScheme colorScheme) {
+    final slotsForSelectedDate = _getEventsForDay(_selectedDate);
+
+    return Column(
+      children: [
+        // Календарь (сворачивается автоматически при скролле)
+        _buildCalendar(colorScheme),
+        // Список занятий
+        Expanded(
+          child: slotsForSelectedDate.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.event_busy,
+                        size: 80,
+                        color: colorScheme.secondary.withValues(alpha: 0.5),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Нет занятий на эту дату',
+                        style: TextStyle(
+                          color: colorScheme.secondary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Выберите другую дату в календаре',
+                        style: TextStyle(
+                          color: colorScheme.secondary.withValues(alpha: 0.7),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: slotsForSelectedDate.length,
+                  itemBuilder: (context, index) {
+                    final slot = slotsForSelectedDate[index];
+                    return _buildSlotCard(slot, colorScheme);
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+
+  /// Календарь для ученика с маркерами дат
+  Widget _buildCalendar(ColorScheme colorScheme) {
+    return Material(
+        color: colorScheme.surface,
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: colorScheme.primaryContainer.withValues(alpha: 0.5),
+                width: 1,
+              ),
+            ),
+          ),
+          child: TableCalendar<ScheduleSlot>(
+            firstDay: DateTime.now().subtract(const Duration(days: 365)),
+            lastDay: DateTime.now().add(const Duration(days: 365)),
+            focusedDay: _focusedDay,
+            selectedDayPredicate: (day) => isSameDay(_selectedDate, day),
+            locale: 'ru',
+            startingDayOfWeek: StartingDayOfWeek.monday,
+            calendarFormat: _calendarFormat,
+            availableCalendarFormats: const {
+              CalendarFormat.month: 'Месяц',
+              CalendarFormat.week: 'Неделя',
+            },
+            eventLoader: _getEventsForDay,
+            onDaySelected: (selectedDay, focusedDay) {
+              setState(() {
+                _selectedDate = selectedDay;
+                _focusedDay = focusedDay;
+              });
+            },
+            onPageChanged: (focusedDay) {
+              _focusedDay = focusedDay;
+            },
+            onFormatChanged: (format) {
+              setState(() {
+                _calendarFormat = format;
+              });
+            },
+            calendarStyle: CalendarStyle(
+          // Сегодняшняя дата
+          todayDecoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.3),
+            shape: BoxShape.circle,
+          ),
+          todayTextStyle: TextStyle(
+            color: colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
+          // Выбранная дата
+          selectedDecoration: BoxDecoration(
+            color: colorScheme.primary,
+            shape: BoxShape.circle,
+          ),
+          selectedTextStyle: TextStyle(
+            color: colorScheme.onPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+          // Маркеры событий (точки под датой)
+          markerDecoration: BoxDecoration(
+            color: colorScheme.primary,
+            shape: BoxShape.circle,
+          ),
+          markersMaxCount: 1,
+          // Обычные даты
+          defaultTextStyle: TextStyle(color: colorScheme.onSurface),
+          weekendTextStyle: TextStyle(color: colorScheme.error),
+          outsideTextStyle: TextStyle(color: colorScheme.secondary.withValues(alpha: 0.5)),
+        ),
+        headerStyle: HeaderStyle(
+          formatButtonVisible: false,
+          titleCentered: true,
+          titleTextStyle: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
+          leftChevronIcon: Icon(Icons.chevron_left, color: colorScheme.primary),
+          rightChevronIcon: Icon(Icons.chevron_right, color: colorScheme.primary),
+          // Небольшой декоративный элемент внизу header'а для подсказки
+          headerMargin: const EdgeInsets.only(bottom: 4),
+        ),
+        daysOfWeekStyle: DaysOfWeekStyle(
+          weekdayStyle: TextStyle(
+            color: colorScheme.secondary,
+            fontWeight: FontWeight.w600,
+          ),
+          weekendStyle: TextStyle(
+            color: colorScheme.error,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+          ),
+        ),
+    );
+  }
+
   Widget _buildScheduleList(ColorScheme colorScheme) {
-    // Разная логика для репетиторов и учеников:
-    // - Репетиторы: показываем слоты на выбранную дату (getTutorScheduleByDate)
-    // - Ученики: показываем ВСЕ забронированные занятия (getStudentSlots)
+    // Этот метод используется только для репетиторов
+    // Для учеников используется _buildStudentView с CustomScrollView
     return FutureBuilder<List<ScheduleSlot>>(
-      key: ValueKey('${_isTutor}_${_selectedDate.toString()}'), // Пересоздаем при смене даты
-      future: _isTutor
-          ? _scheduleService.getTutorScheduleByDate(
-              _auth.getCurrentUid(),
-              _selectedDate,
-            )
-          : _scheduleService.getStudentSlots(_auth.getCurrentUid()),
+      key: ValueKey('tutor_${_selectedDate.toString()}'),
+      future: _scheduleService.getTutorScheduleByDate(
+        _auth.getCurrentUid(),
+        _selectedDate,
+      ),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           return Center(
@@ -286,9 +546,7 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  _isTutor
-                      ? 'Нет записей на эту дату'
-                      : 'У вас пока нет занятий',
+                  'Нет записей на эту дату',
                   style: TextStyle(
                     color: colorScheme.secondary,
                     fontSize: 18,
@@ -297,9 +555,7 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  _isTutor
-                      ? 'Добавьте новый слот'
-                      : 'Найдите репетитора и забронируйте занятие',
+                  'Добавьте новый слот',
                   style: TextStyle(
                     color: colorScheme.secondary.withValues(alpha: 0.7),
                     fontSize: 14,
@@ -370,102 +626,172 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
 
   /// Передняя сторона карточки (время + статус)
   Widget _buildFrontCard(ScheduleSlot slot, ColorScheme colorScheme) {
+    final slotColor = _getSlotColor(slot, colorScheme);
+
     return Card(
       key: const ValueKey(false),
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
+      elevation: 0,
+      color: colorScheme.surfaceContainerHighest,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: slotColor.withValues(alpha: 0.2),
+          width: 1,
+        ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 4,
-              height: 50,
-              decoration: BoxDecoration(
-                color: slot.isBooked
-                    ? Colors.red
-                    : (slot.isPast ? Colors.grey : Colors.green),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.access_time,
-                        size: 20,
-                        color: colorScheme.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${slot.startTime} - ${slot.endTime}',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.onSurface,
-                        ),
-                      ),
-                    ],
+      child: SizedBox(
+        height: 170,
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              // Цветная полоска слева
+              Container(
+                width: 6,
+                decoration: BoxDecoration(
+                  color: slotColor,
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(12),
+                    bottomLeft: Radius.circular(12),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: slot.isBooked
-                              ? Colors.red.withValues(alpha: 0.1)
-                              : (slot.isPast
-                                  ? Colors.grey.withValues(alpha: 0.1)
-                                  : Colors.green.withValues(alpha: 0.1)),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          slot.isBooked
-                              ? 'Забронировано'
-                              : (slot.isPast ? 'Прошло' : 'Свободно'),
-                          style: TextStyle(
-                            color: slot.isBooked
-                                ? Colors.red
-                                : (slot.isPast ? Colors.grey : Colors.green),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      if (slot.isBooked && slot.studentId != null)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 8),
-                          child: Icon(
-                            Icons.touch_app,
-                            size: 16,
-                            color: colorScheme.secondary,
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            if (!slot.isBooked && !slot.isPast)
-              IconButton(
-                icon: Icon(
-                  Icons.delete_outline,
-                  color: colorScheme.error,
                 ),
-                onPressed: () => _deleteSlot(slot.id),
               ),
-          ],
+              // Основной контент
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Время
+                      Row(
+                        children: [
+                          Text(
+                            slot.startTime,
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                              color: colorScheme.onSurface,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            child: Text(
+                              '—',
+                              style: TextStyle(
+                                fontSize: 24,
+                                color: colorScheme.onSurfaceVariant,
+                                fontWeight: FontWeight.w300,
+                              ),
+                            ),
+                          ),
+                          Text(
+                            slot.endTime,
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.w700,
+                              color: colorScheme.onSurface,
+                              letterSpacing: -0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      // Статус
+                      Row(
+                        children: [
+                          Container(
+                            height: 8,
+                            width: 8,
+                            decoration: BoxDecoration(
+                              color: slotColor,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _getSlotStatusText(slot).toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: colorScheme.onSurfaceVariant,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          if (slot.isBooked && slot.studentId != null) ...[
+                            const SizedBox(width: 12),
+                            Container(
+                              height: 20,
+                              width: 1,
+                              color: colorScheme.outlineVariant,
+                            ),
+                            const SizedBox(width: 12),
+                            Icon(
+                              Icons.person_outline,
+                              size: 14,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Кнопка действия справа
+              if (_isTutor && !slot.isBooked && !slot.isPast)
+                _buildActionButton(
+                  icon: Icons.close,
+                  color: colorScheme.error,
+                  onPressed: () => _deleteSlot(slot.id),
+                  tooltip: 'Удалить',
+                )
+              else if (!_isTutor && slot.isBooked && !slot.isPast)
+                _buildActionButton(
+                  icon: Icons.close,
+                  color: _canCancelSlot(slot)
+                      ? colorScheme.error
+                      : colorScheme.onSurfaceVariant.withValues(alpha: 0.3),
+                  onPressed: _canCancelSlot(slot)
+                      ? () => _cancelBooking(slot)
+                      : null,
+                  tooltip: _canCancelSlot(slot)
+                      ? 'Отменить'
+                      : 'Нельзя отменить',
+                )
+              else
+                const SizedBox(width: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Кнопка действия (удалить/отменить)
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onPressed,
+    required String tooltip,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onPressed,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            child: Icon(
+              icon,
+              color: color,
+              size: 22,
+            ),
+          ),
         ),
       ),
     );
@@ -486,158 +812,106 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: FutureBuilder(
-          future: _db.getUserFromPocketBase(otherUserId),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return SizedBox(
-                height: 82,
-                child: Center(
+      child: SizedBox(
+        height: 170, // Та же высота, что и передняя карточка
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: FutureBuilder(
+            future: _db.getUserFromPocketBase(otherUserId),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return Center(
                   child: CircularProgressIndicator(
                     color: colorScheme.primary,
                   ),
-                ),
-              );
-            }
+                );
+              }
 
-            final otherUser = snapshot.data!;
+              final otherUser = snapshot.data!;
 
-            return Column(
-              children: [
-                Row(
-                  children: [
-                    // Аватар
-                    UserAvatar(
-                      avatarUrl: otherUser.avatarUrl,
-                      size: 56,
-                    ),
-                    const SizedBox(width: 16),
-                    // Информация о пользователе
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            roleLabel,
-                            style: TextStyle(
-                              color: colorScheme.secondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            otherUser.name,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            otherUser.city,
-                            style: TextStyle(
-                              color: colorScheme.secondary,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
+              return Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      // Аватар
+                      UserAvatar(
+                        avatarUrl: otherUser.avatarUrl,
+                        size: 56,
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Кнопка "Написать"
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatPage(
-                            receiverName: otherUser.name,
-                            receiverID: otherUserId,
-                          ),
+                      const SizedBox(width: 16),
+                      // Информация о пользователе
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              roleLabel,
+                              style: TextStyle(
+                                color: colorScheme.secondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              otherUser.name,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                                color: colorScheme.onSurface,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              otherUser.city,
+                              style: TextStyle(
+                                color: colorScheme.secondary,
+                                fontSize: 13,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
                         ),
-                      );
-                    },
-                    icon: const Icon(Icons.chat_bubble_outline),
-                    label: const Text('Написать'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: colorScheme.primary,
-                      foregroundColor: colorScheme.onPrimary,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  // Кнопка "Написать"
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatPage(
+                              receiverName: otherUser.name,
+                              receiverID: otherUserId,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                      label: const Text('Написать'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            );
-          },
+                ],
+              );
+            },
+          ),
         ),
       ),
-    );
-  }
-
-  /// Виджет с информацией об ученике
-  Widget _buildStudentInfo(String studentId, ColorScheme colorScheme) {
-    return FutureBuilder(
-      future: _db.getUserFromPocketBase(studentId),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return Row(
-            children: [
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: colorScheme.primary,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Загрузка...',
-                style: TextStyle(
-                  color: colorScheme.secondary,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          );
-        }
-
-        final student = snapshot.data!;
-
-        return Row(
-          children: [
-            // Аватар ученика (используем готовый компонент UserAvatar)
-            UserAvatar(
-              avatarUrl: student.avatarUrl,
-              size: 32,
-            ),
-            const SizedBox(width: 8),
-            // Имя ученика
-            Expanded(
-              child: Text(
-                'Ученик: ${student.name}',
-                style: TextStyle(
-                  color: colorScheme.onSurface,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -818,6 +1092,60 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Ошибка удаления слота'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Отменить бронирование занятия (для ученика)
+  Future<void> _cancelBooking(ScheduleSlot slot) async {
+    // Показываем диалог подтверждения
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Отмена занятия'),
+        content: Text(
+          'Вы уверены, что хотите отменить занятие ${slot.startTime} - ${slot.endTime}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Нет'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Да, отменить'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _scheduleService.cancelBooking(slot.id);
+
+      // Обновляем список занятий ученика
+      _allStudentSlots = await _scheduleService.getStudentSlots(_auth.getCurrentUid());
+
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('✅ Занятие отменено'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Ошибка: ${e.toString()}'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

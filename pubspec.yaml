@@ -53,6 +53,7 @@ dependencies:
   # cloudinary_flutter: ^0.9.0
   # cloudinary_public: ^0.23.1
   intl: ^0.19.0
+  table_calendar: ^3.1.2
   permission_handler: ^11.3.1
   flutter_sound: ^9.16.3
   flutter_local_notifications: ^18.0.1
