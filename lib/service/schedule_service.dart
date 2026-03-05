@@ -242,16 +242,52 @@ class ScheduleService extends ChangeNotifier {
     }
   }
 
+  /// Обновить произвольные поля слота
+  ///
+  /// Универсальный метод для обновления любых полей слота
+  /// Используется для специфических обновлений (isPaid, isBooked, и т.д.)
+  ///
+  /// Пример:
+  /// ```dart
+  /// await scheduleService.updateSlotFields(slotId, {'isPaid': true});
+  /// ```
+  Future<void> updateSlotFields(String slotId, Map<String, dynamic> updates) async {
+    try {
+      if (updates.isEmpty) {
+        debugPrint('[ScheduleService] Нет полей для обновления');
+        return;
+      }
+
+      await _pb.collection('slots').update(slotId, body: updates);
+
+      debugPrint('[ScheduleService] Слот обновлен: $slotId, поля: ${updates.keys.join(", ")}');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[ScheduleService] Ошибка обновления полей слота: $e');
+      rethrow;
+    }
+  }
+
   /// Получить слот по ID
   ///
   /// Проверяет существование слота перед бронированием
   /// Возвращает null, если слот не найден
   Future<ScheduleSlot?> getSlotById(String slotId) async {
     try {
+      debugPrint('[ScheduleService] 🔍 Запрос слота: $slotId');
+      debugPrint('[ScheduleService] 👤 Текущий пользователь: ${_pb.authStore.model?.id}');
+
       final record = await _pb.collection('slots').getOne(slotId);
+
+      debugPrint('[ScheduleService] ✅ Слот получен: ${record.id}');
+      debugPrint('[ScheduleService] 📋 Данные: tutorId=${record.data['tutorId']}, studentId=${record.data['studentId']}');
+
       return ScheduleSlot.fromRecord(record);
-    } catch (e) {
-      debugPrint('[ScheduleService] Ошибка получения слота $slotId: $e');
+    } catch (e, stackTrace) {
+      debugPrint('[ScheduleService] ❌ Ошибка получения слота $slotId');
+      debugPrint('[ScheduleService] 🔥 Тип ошибки: ${e.runtimeType}');
+      debugPrint('[ScheduleService] 📝 Сообщение: $e');
+      debugPrint('[ScheduleService] 📚 StackTrace: ${stackTrace.toString().substring(0, 500)}');
       return null;
     }
   }

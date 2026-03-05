@@ -29,6 +29,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
+**🎯 ОБЩИЙ ПРОГРЕСС: 90%** (было 80-85%)
+
+**✅ ЗАВЕРШЕНО:**
+- Миграция Firebase → PocketBase (100%)
+- Система авторизации (100%)
+- Чаты с файлами (текст, изображения, аудио) (100%)
+- Система расписания + недельные шаблоны (100%)
+- Расширенные профили репетиторов (100%)
+- Поиск и фильтрация репетиторов (100%)
+- Файловое хранилище (100% - PocketBase Storage)
+
+**⏳ ОСТАЛОСЬ ДЛЯ ДИПЛОМА:**
+- Система отзывов и рейтингов (0%)
+- Система оплаты (mock) (0%)
+- Deployment на VPS (0%)
+
+**📅 ВРЕМЯ ДО ЗАЩИТЫ:** ~6 месяцев
+
+---
+
 ### ✅ Уже реализовано
 - ✅ **Авторизация через PocketBase** (email/password) - МИГРИРОВАНО
 - ✅ **Роли пользователей** (Репетитор/Ученик) - терминология обновлена
@@ -43,8 +63,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   - Двух-табличная архитектура (`messages` + `chats` metadata)
   - Auto-refresh списка чатов (pull-to-refresh + auto-reload)
   - Непрочитанные сообщения с счётчиками
-- 🔄 **Изображения и аудио в чатах** - используют Cloudinary (ПЛАНИРУЕТСЯ МИГРАЦИЯ на PocketBase Storage)
-- ✅ **Поиск репетиторов** по городу
+  - ✅ **Изображения и аудио в чатах** - ПОЛНОСТЬЮ МИГРИРОВАНО на PocketBase Storage
+- ✅ **Поиск репетиторов** - ПОЛНОСТЬЮ РЕАЛИЗОВАНО:
+  - Фильтры: предметы, цена, опыт, город, формат занятий (онлайн/оффлайн)
+  - Интеграция с tutor_profiles коллекцией
+- ✅ **Расширенные профили репетиторов** - ПОЛНОСТЬЮ РЕАЛИЗОВАНО:
+  - Модель TutorProfile (lib/models/tutor_profile.dart)
+  - Сервис TutorProfileService (lib/service/tutor_profile_service.dart)
+  - Страница заполнения TutorProfileSetupPage
+  - Страница просмотра TutorProfilePage с градиентом и аватаром
+  - Поля: subjects, priceMin/Max, experience, education, lessonFormat, rating, totalPaidLessons
 - ✅ **Система расписания** - ПОЛНОСТЬЮ ОБНОВЛЕНА:
   - Добавление/удаление слотов вручную
   - Бронирование слотов учениками
@@ -58,20 +86,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - ✅ **Светлая/тёмная тема** с сохранением предпочтений
 
 ### 🚧 Нужно добавить для диплома
-- **Профиль репетитора** (расширенный):
-  - ✅ UI страницы готов (tutor_profile_page.dart)
-  - ⏳ Предметы преподавания (список с возможностью множественного выбора)
-  - ⏳ Стоимость занятия (диапазон или фиксированная цена)
-  - ⏳ Опыт работы (лет)
-  - ⏳ Образование (учебное заведение, специальность)
-  - ⏳ Рейтинг и отзывы
-
-- **Поиск и фильтрация**:
-  - Поиск по предмету (основной фильтр)
-  - Фильтр по цене (мин-макс)
-  - Фильтр по рейтингу
-  - Фильтр онлайн/оффлайн занятия
-  - Сортировка результатов
 
 - **Система отзывов и рейтингов** (детальная):
   - Отзыв только после завершённого занятия
@@ -84,7 +98,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Система оплаты**:
   - Имитация оплаты для диплома (кнопка "Оплатить", без реального платежа)
-  - Запись об оплате в Firestore (для связи с отзывами)
+  - Запись об оплате в PocketBase (для связи с отзывами)
   - История оплаченных занятий
 
 - **Дополнительные фичи**:
@@ -205,6 +219,25 @@ flutter analyze
   - `cancelBooking(slotId)` - cancel booking
   - Stores date normalized (time set to 00:00:00) for consistent querying
 
+- **weekly_template_service.dart**: ✨ **NEW** - Manages weekly schedule templates
+  - `getWeeklyTemplates(tutorId)` - get all templates for tutor
+  - `createTemplate()`, `updateTemplate()`, `deleteTemplate()` - CRUD operations
+  - `generateSlotsFromTemplates(tutorId)` - auto-generate slots 28 days forward
+  - Preserves booked slots when regenerating
+
+#### Tutor Profile Management (lib/service/)
+- **tutor_profile_service.dart**: ✨ **NEW** - Manages extended tutor profiles (extends ChangeNotifier)
+  - `createTutorProfile()` - create profile with subjects, prices, experience, education
+  - `getTutorProfileByUserId(userId)` - get profile by user ID
+  - `getTutorProfileById(profileId)` - get profile by record ID
+  - `updateTutorProfile()` - update profile fields
+  - `deleteTutorProfile()` - delete profile
+  - `checkIfTutorProfileExists(userId)` - check if profile exists
+  - `updateRating()` - update rating after new review (TODO: integrate with review system)
+  - `incrementPaidLessons()` - increment paid lessons counter
+  - `searchTutors()` - advanced search with filters (subjects, price, rating, format)
+  - Filter syntax: `subjects ?~ "Математика"` (JSON array contains check)
+
 ### Data Models (lib/models/)
 
 #### Current Models
@@ -232,18 +265,29 @@ flutter analyze
   - Getter: isPast (checks if slot has passed)
   - Works with PocketBase slots collection
 
+- **tutor_profile.dart**: ✨ **NEW** - Extended tutor information
+  - Fields: id, userId, subjects (List<String>), priceMin, priceMax, experience (years), education, lessonFormat (List<String>), rating, totalPaidLessons, lastPaidLessonDate, isNewbie
+  - Helper methods:
+    - `getPriceDisplay()` - formatted price string ("500-1000 ₽/час")
+    - `getExperienceDisplay()` - formatted experience ("3 года")
+    - `getLessonFormatDisplay()` - formatted lesson format ("Онлайн и Оффлайн")
+    - `getRatingDisplay()` - formatted rating or newbie badge
+  - Includes `fromRecord()` for PocketBase conversion
+  - Includes `toMap()` for updates
+  - Works with PocketBase tutor_profiles collection
+
+- **weekly_template.dart**: ✨ **NEW** - Weekly schedule template for tutors
+  - Fields: id, tutorId, dayOfWeek (1-7), startTime, endTime, isActive
+  - Allows tutors to set recurring weekly availability
+  - Auto-generates slots 28 days forward
+  - Works with PocketBase weekly_templates collection
+
 #### Planned Models (to be added)
 - **Review**: Student review for tutor
   - Fields: id, tutorId, studentId, rating (1-5), comment, timestamp, isVerified (paid lesson), lessonId, weight (based on total paid lessons)
 
-- **Subject**: Teaching subject
-  - Fields: id, name, category (e.g., "Математика", "Физика")
-
 - **Payment**: Payment transaction record
   - Fields: id, studentId, tutorId, slotId, amount, timestamp, status
-
-- **TutorProfile**: Extended tutor information
-  - Fields: subjects (List<String>), priceMin, priceMax, experience (years), education, rating, totalPaidLessons, lastPaidLessonDate, isNewbie
 
 ### UI Structure (lib/pages/)
 
@@ -275,7 +319,7 @@ flutter analyze
   - Implements scroll position caching per chat
   - Auto-marks messages as read when viewed
   - Audio recording with upload progress
-  - Image picker with Cloudinary upload
+  - Image picker with PocketBase Storage upload
 
 - **profile_page.dart**: User profile view - ✨ **REDESIGNED**
   - Gradient SliverAppBar header with avatar
@@ -285,9 +329,10 @@ flutter analyze
   - Settings button in AppBar
   - Username removed (not displayed)
 
-- **find_tutor_page.dart**: Search/filter tutors
-  - Current: filter by city, search by name
-  - TODO: filter by subject, price, rating, online/offline
+- **find_tutor_page.dart**: Search/filter tutors - ✨ **UPDATED**
+  - Full filter support: subjects (multi-select), price (min-max), experience, lesson format (online/offline), city, search by name
+  - Integrates with TutorProfileService.searchTutors()
+  - Shows TutorProfilePage on "Подробнее" button click
 
 - **schedule_page.dart**: Schedule management - ✨ **DUAL-MODE**
   - **Tutors** ("М О Е   Р А С П И С А Н И Е"):
@@ -309,8 +354,32 @@ flutter analyze
 
 - **blocked_user_page.dart**: Manage blocked users list
 
+- **tutor_profile_page.dart**: ✨ **NEW** - Detailed tutor profile
+  - Gradient SliverAppBar with avatar
+  - Rating card with newbie badge support
+  - Info cards: subjects, price, experience, education, lesson format
+  - Bio section
+  - Action buttons: "Написать" (opens chat), "Расписание" (shows tutor schedule)
+
+- **tutor_profile_setup_page.dart**: ✨ **NEW** - Tutor profile creation/editing
+  - Multi-select subjects (Математика, Физика, etc.)
+  - Price range input (min/max)
+  - Experience input (years)
+  - Education text field
+  - Lesson format checkboxes (online/offline)
+
+- **weekly_template_setup_page.dart**: ✨ **NEW** - Weekly schedule template management
+  - Day-by-day schedule setup (Monday-Sunday)
+  - Time slot creation for each day
+  - Auto-generation of slots 28 days forward
+  - Preserves booked slots when regenerating
+
+- **booking_requests_page.dart**: ✨ **NEW** - Booking requests for tutors
+  - View pending booking requests from students
+  - Approve or reject bookings
+  - Supports recurring bookings (grouped display)
+
 #### Pages to Add
-- **tutor_detail_page.dart**: Detailed tutor profile with subjects, price, experience, education, reviews
 - **reviews_page.dart**: List of all reviews for a tutor
 - **payment_history_page.dart**: History of paid lessons
 
@@ -461,8 +530,29 @@ dependencies:
   - endTime (text) - HH:mm format
   - isBooked (bool, default: false)
   - isPaid (bool, default: false)
+  - bookingStatus (select: "free" | "pending" | "confirmed")
   - studentId (relation → users, optional)
+  - generatedFromTemplate (bool, default: false)
+  - templateId (relation → weekly_templates, optional)
+  - isRecurring (bool, default: false)
+  - recurringGroupId (text, optional)
   - created, updated (auto)
+
+**weekly_templates** (Base Collection) ✨ **NEW**
+- Purpose: Weekly schedule template for auto-generating slots
+- Fields:
+  - id (auto)
+  - tutorId (relation → users)
+  - dayOfWeek (number, 1-7: 1=Monday, 7=Sunday)
+  - startTime (text) - HH:mm format
+  - endTime (text) - HH:mm format
+  - isActive (bool, default: true)
+  - created, updated (auto)
+- Process:
+  1. Tutor sets up weekly templates via WeeklyTemplateSetupPage
+  2. On "Apply", system generates slots 28 days forward
+  3. Old free slots are deleted, booked slots are preserved
+  4. New slots created with generatedFromTemplate=true
 
 **reports** (Base Collection)
 - Fields:
@@ -472,9 +562,7 @@ dependencies:
   - messageOwnerId (relation → users)
   - created (auto)
 
-#### Collections to Add
-
-**tutor_profiles** (Base Collection)
+**tutor_profiles** (Base Collection) ✨ **NEW**
 - Fields:
   - id (auto)
   - userId (relation → users, unique)
@@ -489,6 +577,8 @@ dependencies:
   - lastPaidLessonDate (date, optional)
   - isNewbie (bool, default: true)
   - created, updated (auto)
+
+#### Collections to Add
 
 **reviews** (Base Collection)
 - Fields:
@@ -597,8 +687,8 @@ This ensures the same chatroom for any pair of users regardless of who initiates
 ### Message Types
 Messages support three types (stored in 'type' field):
 - 'text': Plain text messages
-- 'image': Cloudinary URLs stored in 'message' field
-- 'audio': Cloudinary audio URLs stored in 'message' field
+- 'image': Images uploaded to PocketBase Storage via `sendMessageWithImage()` (file field in messages collection)
+- 'audio': Audio files uploaded to PocketBase Storage via `sendMessageWithAudio()` (file field in messages collection)
 
 ### Rating System Logic (for implementation)
 
@@ -658,14 +748,15 @@ Handled via permission_handler package.
 
 ### Known Issues
 
-#### ✅ ИСПРАВЛЕНО в предыдущей сессии:
+#### ✅ ИСПРАВЛЕНО в предыдущих сессиях:
 - ✅ Registration error - `role` field wasn't passed during user creation (FIXED: added `'role': 'Ученик'` as default)
 - ✅ Inefficient chat list loading - loading 500+ messages (FIXED: implemented two-table pattern with `chats` metadata)
 - ✅ No auto-refresh on HomePage - FutureBuilder didn't update (FIXED: ValueKey pattern with three refresh mechanisms)
 - ✅ Terminology inconsistency - "Преподаватель" vs "Репетитор" (FIXED: globally renamed to "Репетитор")
+- ✅ Cloudinary dependency - FIXED: Полностью мигрировано на PocketBase Storage (аватары, изображения, аудио)
+- ✅ TutorProfile collection - FIXED: Создана коллекция, реализованы CRUD операции, интегрирован поиск
 
-#### 🔄 Текущие задачи:
-- 🔄 **Cloudinary dependency**: Изображения и аудио в чатах используют внешний сервис Cloudinary → **ПЛАНИРУЕТСЯ миграция на PocketBase Storage**
+#### 🔄 Опциональные улучшения:
 - 🔄 **Realtime chat updates**: ChatPage использует polling вместо realtime subscriptions → можно улучшить позже
 
 #### ⚠️ Старые баги (требуют проверки):
@@ -674,7 +765,7 @@ Handled via permission_handler package.
 
 ## Migration Plan: Firebase → PocketBase
 
-**Status: 80-85% ЗАВЕРШЕНО** (Steps 0-5 completed)
+**Status: 90% ЗАВЕРШЕНО** ✨ (Steps 0-7 completed)
 
 ### Migration Steps:
 - ✅ **Step 0**: PocketBase setup (Docker + collections)
@@ -683,40 +774,42 @@ Handled via permission_handler package.
 - ✅ **Step 3**: Chat system (two-table pattern + auto-refresh)
 - ✅ **Step 4**: Schedule + Weekly Templates
 - ✅ **Step 5**: Basic search (city, name)
-- 🔄 **Step 6**: Cleanup (Cloudinary → PocketBase Storage migration)
+- ✅ **Step 6**: Cloudinary → PocketBase Storage migration (avatars, images, audio)
+- ✅ **Step 7**: Tutor profiles (tutor_profiles collection + CRUD + filters)
 
-**Progress: 80-85% COMPLETED**
+**Progress: 90% COMPLETED** 🎉
 
 **Осталось для диплома:**
-- ⏳ Cloudinary → PocketBase Storage (images/audio in chats)
-- ⏳ tutor_profiles collection (subjects, price, experience, education)
-- ⏳ reviews collection + rating system
-- ⏳ payments collection (mock payment)
+- ⏳ reviews collection + rating system (weighted calculation, 6-month window)
+- ⏳ payments collection (mock payment flow)
 - ⏳ Deploy to Russian VPS (Timeweb/Selectel)
 
-## Development Priorities for Diploma (AFTER Migration)
+## Development Priorities for Diploma
 
-### Phase 1: Extended Tutor Profile
+### Phase 1: Extended Tutor Profile ✅ **COMPLETED**
 1. ✅ **DONE**: Создана детальная страница профиля (tutor_profile_page.dart)
-2. ⏳ Add subjects, price, experience, education fields to tutor_profiles collection
-3. ⏳ Update TutorProfilePage to show real data from tutor_profiles
-4. ⏳ Update find_tutor_page.dart with subject/price filters
-5. ✅ **DONE**: Система недельного шаблона расписания (WeeklyTemplateSetupPage)
+2. ✅ **DONE**: Создана коллекция tutor_profiles в PocketBase
+3. ✅ **DONE**: Реализована модель TutorProfile с полной сериализацией
+4. ✅ **DONE**: Создан сервис TutorProfileService (CRUD + поиск)
+5. ✅ **DONE**: Создана страница заполнения профиля (tutor_profile_setup_page.dart)
+6. ✅ **DONE**: Интеграция с find_tutor_page.dart (фильтры по предметам, цене, опыту, формату)
+7. ✅ **DONE**: Система недельного шаблона расписания (WeeklyTemplateSetupPage)
 
-### Phase 2: Reviews and Ratings
+### Phase 2: Reviews and Ratings (ТЕКУЩИЙ ПРИОРИТЕТ)
 1. Create reviews model and collection
 2. Implement payment simulation flow
 3. Add review creation after paid lesson
 4. Calculate and display weighted ratings
 5. Show "Newbie" badge for new tutors
 
-### Phase 3: Enhanced Search
-1. Multi-filter support (subject + price + rating)
-2. Sort options (rating, price, experience)
-3. Favorites functionality
-4. Search result improvements
+### Phase 3: Payment System
+1. Create payments model and collection
+2. Implement mock payment dialog after lesson
+3. Update slot.isPaid = true on payment
+4. Integrate with review system (payment → review flow)
+5. Payment history page
 
-### Phase 4: Additional Features
+### Phase 4: Deployment & Polish
 1. Payment history page
 2. Push notifications (можно использовать другой сервис вместо FCM)
 3. Google Sign-In (опционально)

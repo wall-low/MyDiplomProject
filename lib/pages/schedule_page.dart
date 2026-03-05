@@ -4,10 +4,12 @@ import 'package:intl/intl.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../components/user_avatar.dart';
+import '../components/payment_dialog.dart';
 import '../models/schedule_slot.dart';
 import '../service/auth.dart';
 import '../service/databases.dart';
 import '../service/schedule_service.dart';
+import '../service/tutor_profile_service.dart';
 import 'weekly_template_setup_page.dart';
 import 'chat_page.dart';
 
@@ -761,6 +763,13 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
                       ? 'Отменить'
                       : 'Нельзя отменить',
                 )
+              else if (!_isTutor && slot.isBooked && slot.isPast && !slot.isPaid)
+                _buildActionButton(
+                  icon: Icons.payment,
+                  color: Colors.green,
+                  onPressed: () => _showPaymentDialog(slot),
+                  tooltip: 'Оплатить',
+                )
               else
                 const SizedBox(width: 16),
             ],
@@ -1142,6 +1151,73 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         );
       }
     } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Ошибка: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Показать диалог оплаты занятия
+  ///
+  /// Вызывается для учеников после прошедшего неоплаченного занятия
+  Future<void> _showPaymentDialog(ScheduleSlot slot) async {
+    try {
+      // Получаем информацию о репетиторе
+      final tutorUser = await _db.getUserFromPocketBase(slot.tutorId);
+      if (tutorUser == null) {
+        throw Exception('Не удалось загрузить данные репетитора');
+      }
+
+      // Пытаемся получить профиль репетитора для рекомендуемой цены
+      double? suggestedAmount;
+      try {
+        final tutorProfileService = TutorProfileService();
+        final tutorProfile = await tutorProfileService.getTutorProfileByUserId(slot.tutorId);
+
+        // Берём среднюю цену между min и max (если указаны)
+        if (tutorProfile != null) {
+          if (tutorProfile.priceMin != null && tutorProfile.priceMax != null) {
+            suggestedAmount = (tutorProfile.priceMin! + tutorProfile.priceMax!) / 2;
+          } else if (tutorProfile.priceMin != null) {
+            suggestedAmount = tutorProfile.priceMin;
+          } else if (tutorProfile.priceMax != null) {
+            suggestedAmount = tutorProfile.priceMax;
+          }
+        }
+      } catch (e) {
+        debugPrint('[SchedulePage] ⚠️ Не удалось загрузить профиль репетитора: $e');
+        // Продолжаем без рекомендуемой цены
+      }
+
+      if (!mounted) return;
+
+      // Показываем диалог оплаты
+      final result = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => PaymentDialog(
+          slot: slot,
+          tutorId: slot.tutorId,
+          tutorName: tutorUser.name,
+          suggestedAmount: suggestedAmount,
+        ),
+      );
+
+      // ВСЕГДА обновляем список после закрытия диалога
+      // (даже если оплата не прошла - чтобы удалённые слоты исчезли из списка)
+      if (mounted) {
+        // Обновляем список занятий ученика
+        _allStudentSlots = await _scheduleService.getStudentSlots(_auth.getCurrentUid());
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('[SchedulePage] ❌ Ошибка открытия диалога оплаты: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
