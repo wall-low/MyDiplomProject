@@ -17,6 +17,7 @@ class TutorProfile {
   final int totalPaidLessons; // Всего оплаченных занятий
   final DateTime? lastPaidLessonDate; // Дата последнего оплаченного занятия
   final bool isNewbie; // Показывать бейдж "🆕 Новичок"
+  final String? payoutCardLast4; // Последние 4 цифры карты для получения выплат
 
   TutorProfile({
     required this.id,
@@ -31,6 +32,7 @@ class TutorProfile {
     this.totalPaidLessons = 0,
     this.lastPaidLessonDate,
     this.isNewbie = true,
+    this.payoutCardLast4,
   });
 
   /// Создание TutorProfile из RecordModel (PocketBase)
@@ -128,6 +130,7 @@ class TutorProfile {
       totalPaidLessons: parseInt('totalPaidLessons') ?? 0,
       lastPaidLessonDate: parsedLastPaidDate,
       isNewbie: data['isNewbie'] as bool? ?? true,
+      payoutCardLast4: data['payoutCardLast4'] as String?,
     );
   }
 
@@ -155,6 +158,7 @@ class TutorProfile {
       if (lastPaidLessonDate != null)
         'lastPaidLessonDate': lastPaidLessonDate!.toIso8601String(),
       'isNewbie': isNewbie,
+      if (payoutCardLast4 != null) 'payoutCardLast4': payoutCardLast4,
     };
   }
 
@@ -174,6 +178,7 @@ class TutorProfile {
     int? totalPaidLessons,
     DateTime? lastPaidLessonDate,
     bool? isNewbie,
+    String? payoutCardLast4,
   }) {
     return TutorProfile(
       id: id ?? this.id,
@@ -188,6 +193,7 @@ class TutorProfile {
       totalPaidLessons: totalPaidLessons ?? this.totalPaidLessons,
       lastPaidLessonDate: lastPaidLessonDate ?? this.lastPaidLessonDate,
       isNewbie: isNewbie ?? this.isNewbie,
+      payoutCardLast4: payoutCardLast4 ?? this.payoutCardLast4,
     );
   }
 

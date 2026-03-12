@@ -2,8 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:p7/components/load_animation.dart';
 import 'package:p7/components/my_button.dart';
+import 'package:p7/models/tutor_profile.dart';
 import 'package:p7/service/tutor_profile_service.dart';
 import 'package:p7/service/auth.dart';
+import 'package:p7/service/card_storage_service.dart';
+
+/// Форматирует ввод номера карты: XXXX XXXX XXXX XXXX
+class _CardNumberFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    final limited = digits.length > 16 ? digits.substring(0, 16) : digits;
+    final buffer = StringBuffer();
+    for (int i = 0; i < limited.length; i++) {
+      if (i > 0 && i % 4 == 0) buffer.write(' ');
+      buffer.write(limited[i]);
+    }
+    final formatted = buffer.toString();
+    return TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+}
 
 /// Страница заполнения расширенного профиля репетитора
 ///
@@ -31,6 +53,7 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
   final TextEditingController _priceMaxController = TextEditingController();
   final TextEditingController _experienceController = TextEditingController();
   final TextEditingController _educationController = TextEditingController();
+  final TextEditingController _payoutCardController = TextEditingController();
 
   // Список всех доступных предметов
   final List<String> _availableSubjects = [
@@ -57,6 +80,45 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
   bool _isOffline = false;
 
   bool _isLoading = false;
+  String? _existingProfileId; // ID записи в tutor_profiles (для обновления)
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.isEditing) {
+      _loadExistingProfile();
+    }
+  }
+
+  Future<void> _loadExistingProfile() async {
+    final userId = _auth.getCurrentUid();
+    if (userId.isEmpty) return;
+
+    final profile = await _tutorProfileService.getTutorProfileByUserId(userId);
+    if (profile == null || !mounted) return;
+
+    setState(() {
+      _existingProfileId = profile.id;
+      _selectedSubjects = List<String>.from(profile.subjects);
+      _isOnline = profile.lessonFormat.contains('online');
+      _isOffline = profile.lessonFormat.contains('offline');
+      if (profile.priceMin != null) {
+        _priceMinController.text = profile.priceMin!.toInt().toString();
+      }
+      if (profile.priceMax != null) {
+        _priceMaxController.text = profile.priceMax!.toInt().toString();
+      }
+      if (profile.experience != null) {
+        _experienceController.text = profile.experience.toString();
+      }
+      if (profile.education != null) {
+        _educationController.text = profile.education!;
+      }
+      if (profile.payoutCardLast4 != null) {
+        _payoutCardController.text = '•••• •••• •••• ${profile.payoutCardLast4}';
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -64,6 +126,7 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
     _priceMaxController.dispose();
     _experienceController.dispose();
     _educationController.dispose();
+    _payoutCardController.dispose();
     super.dispose();
   }
 
@@ -155,39 +218,66 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
       print('  - experience: $experience');
       print('  - lessonFormats: $lessonFormats');
 
-      // Создаём профиль
-      final profile = await _tutorProfileService.createTutorProfile(
-        userId: userId,
-        subjects: _selectedSubjects,
-        priceMin: priceMin,
-        priceMax: priceMax,
-        experience: experience,
-        education: _educationController.text.trim().isNotEmpty
-            ? _educationController.text.trim()
-            : null,
-        lessonFormat: lessonFormats,
-      );
+      // Извлекаем последние 4 цифры карты для выплат
+      // (если поле изменилось — содержит 16 цифр; если загружено из профиля — пропускаем)
+      String? payoutCardLast4;
+      final rawCard = _payoutCardController.text.replaceAll(RegExp(r'\D'), '');
+      if (rawCard.length == 16) {
+        payoutCardLast4 = rawCard.substring(12);
+      }
 
-      print('[TutorProfileSetup] ✅ Профиль создан: ${profile?.id}');
+      final education = _educationController.text.trim().isNotEmpty
+          ? _educationController.text.trim()
+          : null;
+
+      TutorProfile? profile;
+
+      if (widget.isEditing && _existingProfileId != null) {
+        // Обновляем существующий профиль
+        final updates = <String, dynamic>{
+          'subjects': _selectedSubjects,
+          if (priceMin != null) 'priceMin': priceMin,
+          if (priceMax != null) 'priceMax': priceMax,
+          if (experience != null) 'experience': experience,
+          if (education != null) 'education': education,
+          'lessonFormat': lessonFormats,
+          if (payoutCardLast4 != null) 'payoutCardLast4': payoutCardLast4,
+        };
+        profile = await _tutorProfileService.updateTutorProfile(
+            _existingProfileId!, updates);
+      } else {
+        // Создаём новый профиль
+        profile = await _tutorProfileService.createTutorProfile(
+          userId: userId,
+          subjects: _selectedSubjects,
+          priceMin: priceMin,
+          priceMax: priceMax,
+          experience: experience,
+          education: education,
+          lessonFormat: lessonFormats,
+          payoutCardLast4: payoutCardLast4,
+        );
+      }
 
       if (mounted) {
         hideLoad(context);
         setState(() => _isLoading = false);
 
         if (profile != null) {
-          _showSnackBar('Профиль репетитора успешно создан!');
+          _showSnackBar(widget.isEditing
+              ? 'Профиль успешно обновлён!'
+              : 'Профиль репетитора успешно создан!');
           await Future.delayed(const Duration(milliseconds: 500));
 
-          // Возвращаемся назад
           if (mounted) {
-            Navigator.pop(context, true); // true = профиль создан
+            Navigator.pop(context, true);
           }
         } else {
-          _showSnackBar('Ошибка создания профиля', isError: true);
+          _showSnackBar('Ошибка сохранения профиля', isError: true);
         }
       }
     } catch (e, stackTrace) {
-      print('[TutorProfileSetup] ❌ ОШИБКА создания профиля:');
+      print('[TutorProfileSetup] ❌ ОШИБКА сохранения профиля:');
       print('  Error: $e');
       print('  StackTrace: $stackTrace');
 
@@ -380,6 +470,17 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
                 _buildSectionTitle('Формат занятий *'),
                 const SizedBox(height: 12),
                 _buildLessonFormatSelector(),
+                const SizedBox(height: 24),
+
+                // Карта для выплат
+                _buildSectionTitle('Карта для получения оплаты'),
+                const SizedBox(height: 4),
+                Text(
+                  'Введите номер карты, на которую будете получать выплаты от учеников. Хранятся только последние 4 цифры.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 12),
+                _buildPayoutCardField(),
                 const SizedBox(height: 32),
 
                 // Кнопка сохранения
@@ -439,6 +540,67 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  Widget _buildPayoutCardField() {
+    final digits =
+        _payoutCardController.text.replaceAll(RegExp(r'\D'), '');
+    final network = SavedCard.detectNetwork(digits);
+    final isComplete = digits.length == 16;
+
+    return TextField(
+      controller: _payoutCardController,
+      keyboardType: TextInputType.number,
+      inputFormatters: [_CardNumberFormatter()],
+      onChanged: (_) => setState(() {}),
+      decoration: InputDecoration(
+        hintText: 'XXXX XXXX XXXX XXXX',
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide:
+              BorderSide(color: Theme.of(context).colorScheme.tertiary),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(
+              color: Theme.of(context).colorScheme.primary, width: 2),
+        ),
+        suffixIcon: digits.isEmpty
+            ? null
+            : Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (network == 'visa')
+                      const Text('VISA',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A1F71),
+                              fontSize: 13))
+                    else if (network == 'mastercard')
+                      const Text('MC',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFEB001B),
+                              fontSize: 13))
+                    else if (network == 'mir')
+                      const Text('МИР',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF009900),
+                              fontSize: 13)),
+                    if (isComplete) ...[
+                      const SizedBox(width: 6),
+                      const Icon(Icons.check_circle,
+                          color: Colors.green, size: 18),
+                    ],
+                  ],
+                ),
+              ),
       ),
     );
   }

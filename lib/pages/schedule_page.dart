@@ -144,6 +144,19 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
   }
 
   /// Получить цвет для карточки слота (с учетом роли пользователя)
+  /// Проверка: занятие прошло >2 часа назад и не оплачено (для ученика)
+  bool _isUnpaidOverdue(ScheduleSlot slot) {
+    if (_isTutor) return false;
+    if (!slot.isBooked) return false;
+    if (slot.isPaid) return false;
+    final slotEnd = DateTime(
+      slot.date.year, slot.date.month, slot.date.day,
+      int.parse(slot.endTime.split(':')[0]),
+      int.parse(slot.endTime.split(':')[1]),
+    );
+    return DateTime.now().difference(slotEnd).inHours >= 2;
+  }
+
   Color _getSlotColor(ScheduleSlot slot, ColorScheme colorScheme) {
     if (_isTutor) {
       // Репетитор: красный = забронировано, зеленый = свободно, серый = прошло
@@ -151,7 +164,8 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
       if (slot.isPast) return Colors.grey;
       return Colors.green;
     } else {
-      // Ученик: синий = будущее занятие, серый = прошедшее
+      // Ученик: красный = не оплачено >2ч, синий = будущее, серый = прошедшее/оплачено
+      if (_isUnpaidOverdue(slot)) return Colors.red;
       if (slot.isPast) return Colors.grey;
       return colorScheme.primary;
     }
@@ -164,6 +178,7 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
       if (slot.isPast) return 'Прошло';
       return 'Свободно';
     } else {
+      if (_isUnpaidOverdue(slot)) return 'Не оплачено';
       if (slot.isPast) return 'Завершено';
       return 'Предстоит';
     }
@@ -629,36 +644,37 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
   /// Передняя сторона карточки (время + статус)
   Widget _buildFrontCard(ScheduleSlot slot, ColorScheme colorScheme) {
     final slotColor = _getSlotColor(slot, colorScheme);
+    final unpaidOverdue = _isUnpaidOverdue(slot);
 
     return Card(
       key: const ValueKey(false),
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
-      color: colorScheme.surfaceContainerHighest,
+      color: unpaidOverdue
+          ? Colors.red.withValues(alpha: 0.07)
+          : colorScheme.surfaceContainerHighest,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: slotColor.withValues(alpha: 0.2),
-          width: 1,
+          color: slotColor.withValues(alpha: unpaidOverdue ? 0.5 : 0.2),
+          width: unpaidOverdue ? 1.5 : 1,
         ),
       ),
-      child: SizedBox(
-        height: 170,
-        child: IntrinsicHeight(
-          child: Row(
-            children: [
-              // Цветная полоска слева
-              Container(
-                width: 6,
-                decoration: BoxDecoration(
-                  color: slotColor,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(12),
-                    bottomLeft: Radius.circular(12),
-                  ),
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            // Цветная полоска слева
+            Container(
+              width: 6,
+              decoration: BoxDecoration(
+                color: slotColor,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  bottomLeft: Radius.circular(12),
                 ),
               ),
-              // Основной контент
+            ),
+            // Основной контент
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -738,6 +754,33 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
                           ],
                         ],
                       ),
+                      // Предупреждение для ученика: не оплачено >2ч
+                      if (unpaidOverdue) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.warning_amber_rounded, size: 14, color: Colors.red),
+                              const SizedBox(width: 6),
+                              const Expanded(
+                                child: Text(
+                                  'Вы не оплатили занятие — оплатите его',
+                                  style: TextStyle(
+                                    color: Colors.red,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -775,7 +818,6 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
             ],
           ),
         ),
-      ),
     );
   }
 

@@ -31,6 +31,7 @@ class TutorProfileService extends ChangeNotifier {
     int? experience,
     String? education,
     List<String> lessonFormat = const [],
+    String? payoutCardLast4,
   }) async {
     try {
       // Проверяем, не существует ли уже профиль
@@ -53,6 +54,8 @@ class TutorProfileService extends ChangeNotifier {
         'rating': 0.0,
         'totalPaidLessons': 0,
         'isNewbie': true,
+        if (payoutCardLast4 != null && payoutCardLast4.isNotEmpty)
+          'payoutCardLast4': payoutCardLast4,
       };
 
       debugPrint('[TutorProfileService] 📝 Создание профиля: $body');
