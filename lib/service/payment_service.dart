@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/payment.dart';
 import 'pocketbase_service.dart';
+import 'tutor_profile_service.dart';
 
 /// Сервис для работы с платежами (имитация для диплома)
 ///
@@ -60,6 +61,20 @@ class PaymentService extends ChangeNotifier {
           );
 
       debugPrint('[PaymentService] ✅ Платёж успешно "оплачен" (mock)');
+
+      // Обновляем счётчик оплаченных занятий и убираем бейдж "Новичок"
+      // Делается только для оплаты через приложение (не external)
+      try {
+        final tutorProfileService = TutorProfileService();
+        final profile = await tutorProfileService.getTutorProfileByUserId(tutorId);
+        if (profile != null) {
+          await tutorProfileService.incrementPaidLessons(profile.id);
+          debugPrint('[PaymentService] ✅ totalPaidLessons увеличен для репетитора: $tutorId');
+        }
+      } catch (e) {
+        debugPrint('[PaymentService] ⚠️ Не удалось обновить счётчик занятий: $e');
+        // Не критично — платёж уже создан
+      }
 
       // Уведомляем слушателей
       notifyListeners();

@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../components/user_avatar.dart';
 import '../components/payment_dialog.dart';
+import '../components/review_dialog.dart';
 import '../models/schedule_slot.dart';
 import '../service/auth.dart';
 import '../service/databases.dart';
@@ -1240,7 +1241,8 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
       if (!mounted) return;
 
       // Показываем диалог оплаты
-      final result = await showDialog<bool>(
+      // Возвращает: 'app' (оплата через приложение), 'external' (сторонняя), null (отмена)
+      final result = await showDialog<String>(
         context: context,
         barrierDismissible: false,
         builder: (context) => PaymentDialog(
@@ -1251,10 +1253,26 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         ),
       );
 
+      // Показываем диалог отзыва:
+      // - оплата через приложение → isVerified: true → звёзды + текст → влияет на рейтинг
+      // - сторонняя оплата     → isVerified: false → только текст → НЕ влияет на рейтинг
+      if (result != null && mounted) {
+        final isVerified = result == 'app';
+        await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => ReviewDialog(
+            slot: slot,
+            tutorId: slot.tutorId,
+            studentId: _auth.getCurrentUid(),
+            tutorName: tutorUser.name,
+            isVerified: isVerified,
+          ),
+        );
+      }
+
       // ВСЕГДА обновляем список после закрытия диалога
-      // (даже если оплата не прошла - чтобы удалённые слоты исчезли из списка)
       if (mounted) {
-        // Обновляем список занятий ученика
         _allStudentSlots = await _scheduleService.getStudentSlots(_auth.getCurrentUid());
         setState(() {});
       }

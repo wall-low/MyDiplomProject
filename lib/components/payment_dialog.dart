@@ -214,7 +214,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
     }
 
     if (mounted) {
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop('app'); // оплата через приложение → верифицированный отзыв
       _showSuccess('Оплата прошла успешно! 🎉');
     }
   }
@@ -222,7 +222,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
   Future<void> _processExternalPayment() async {
     await _scheduleService.updateSlotFields(widget.slot.id, {'isPaid': true});
     if (mounted) {
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop('external'); // сторонняя оплата → только текстовый отзыв
       _showSuccess('Занятие помечено как оплаченное ✅');
     }
   }

@@ -206,22 +206,25 @@ class TutorProfileService extends ChangeNotifier {
   /// - totalLessons: новое количество оплаченных занятий
   ///
   /// TODO: Эта логика будет доработана при создании системы отзывов
+  /// Обновляет рейтинг, totalPaidLessons и isNewbie.
   Future<bool> updateRating({
     required String profileId,
     required double newRating,
-    required int totalLessons,
+    required int totalPaidLessons,
+    required bool isNewbie,
   }) async {
     try {
       await _pb.collection('tutor_profiles').update(
         profileId,
         body: {
           'rating': newRating,
-          'totalPaidLessons': totalLessons,
-          'isNewbie': totalLessons == 0, // Автоматически убираем бейдж
+          'totalPaidLessons': totalPaidLessons,
+          'isNewbie': isNewbie,
         },
       );
 
-      debugPrint('[TutorProfileService] ✅ Рейтинг обновлён: $newRating ($totalLessons занятий)');
+      debugPrint(
+          '[TutorProfileService] ✅ Рейтинг: $newRating, занятий: $totalPaidLessons, новичок: $isNewbie');
 
       notifyListeners();
       return true;

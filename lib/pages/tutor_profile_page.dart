@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:p7/models/review.dart';
 import 'package:p7/models/tutor_profile.dart';
 import 'package:p7/models/user.dart';
 import 'package:p7/pages/chat_page.dart';
 import 'package:p7/pages/tutor_schedule_view_page.dart';
+import 'package:p7/service/review_service.dart';
+import 'package:p7/service/tutor_profile_service.dart';
 
 /// Страница детального профиля репетитора
 ///
@@ -12,7 +15,7 @@ import 'package:p7/pages/tutor_schedule_view_page.dart';
 /// - Формат занятий (онлайн/оффлайн)
 /// - Биография
 /// - Кнопки "Написать" и "Расписание"
-class TutorProfilePage extends StatelessWidget {
+class TutorProfilePage extends StatefulWidget {
   final TutorProfile tutorProfile;
   final UserProfile userProfile;
 
@@ -21,6 +24,54 @@ class TutorProfilePage extends StatelessWidget {
     required this.tutorProfile,
     required this.userProfile,
   });
+
+  @override
+  State<TutorProfilePage> createState() => _TutorProfilePageState();
+}
+
+class _TutorProfilePageState extends State<TutorProfilePage> {
+  final _reviewService = ReviewService();
+  final _tutorProfileService = TutorProfileService();
+
+  List<Review> _reviews = [];
+  bool _reviewsLoading = true;
+
+  // Актуальный профиль — может обновиться после пересчёта рейтинга
+  late TutorProfile _currentProfile;
+
+  UserProfile get userProfile => widget.userProfile;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentProfile = widget.tutorProfile;
+    _loadReviewsAndRefreshRating();
+  }
+
+  Future<void> _loadReviewsAndRefreshRating() async {
+    // Загружаем отзывы и пересчитываем рейтинг параллельно
+    final results = await Future.wait([
+      _reviewService.getTutorReviews(widget.userProfile.uid),
+      // Пересчёт рейтинга: отзывы старше 6 месяцев выпадают → рейтинг снижается
+      _reviewService.refreshTutorRating(widget.userProfile.uid),
+    ]);
+
+    if (!mounted) return;
+
+    // Получаем актуальный профиль с пересчитанным рейтингом
+    final updatedProfile = await _tutorProfileService
+        .getTutorProfileByUserId(widget.userProfile.uid);
+
+    if (mounted) {
+      setState(() {
+        _reviews = results[0] as List<Review>;
+        if (updatedProfile != null) {
+          _currentProfile = updatedProfile;
+        }
+        _reviewsLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +101,11 @@ class TutorProfilePage extends StatelessWidget {
 
                 // О себе
                 if (userProfile.bio.isNotEmpty) _buildBioCard(context),
+
+                const SizedBox(height: 16),
+
+                // Отзывы
+                _buildReviewsCard(context),
 
                 const SizedBox(height: 100), // Отступ для кнопок
               ],
@@ -144,7 +200,7 @@ class TutorProfilePage extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, 2),
             ),
@@ -159,9 +215,9 @@ class TutorProfilePage extends StatelessWidget {
                 const Icon(Icons.star, color: Colors.orange, size: 28),
                 const SizedBox(width: 8),
                 Text(
-                  tutorProfile.isReallyNewbie
+                  _currentProfile.isReallyNewbie
                       ? 'Новичок'
-                      : tutorProfile.rating.toStringAsFixed(1),
+                      : _currentProfile.rating.toStringAsFixed(1),
                   style: const TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
@@ -174,9 +230,9 @@ class TutorProfilePage extends StatelessWidget {
 
             // Количество оплаченных занятий
             Text(
-              tutorProfile.isReallyNewbie
+              _currentProfile.isReallyNewbie
                   ? 'Новичок на платформе'
-                  : '(${tutorProfile.totalPaidLessons} ${_getPluralLessons(tutorProfile.totalPaidLessons)})',
+                  : '(${_currentProfile.totalPaidLessons} ${_getPluralLessons(_currentProfile.totalPaidLessons)})',
               style: TextStyle(
                 fontSize: 13,
                 color: Colors.grey[600],
@@ -198,7 +254,7 @@ class TutorProfilePage extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -219,11 +275,11 @@ class TutorProfilePage extends StatelessWidget {
           const SizedBox(height: 16),
 
           // Предметы (синие чипы)
-          if (tutorProfile.subjects.isNotEmpty) ...[
+          if (_currentProfile.subjects.isNotEmpty) ...[
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: tutorProfile.subjects.map((subject) {
+              children: _currentProfile.subjects.map((subject) {
                 return Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -250,36 +306,36 @@ class TutorProfilePage extends StatelessWidget {
           // Цена
           _buildInfoRow(
             Icons.payments_outlined,
-            tutorProfile.getPriceDisplay(),
+            _currentProfile.getPriceDisplay(),
           ),
 
           const SizedBox(height: 12),
 
           // Опыт
-          if (tutorProfile.experience != null)
+          if (_currentProfile.experience != null)
             _buildInfoRow(
               Icons.school_outlined,
-              '${tutorProfile.experience} ${_getPluralYears(tutorProfile.experience!)} опыта',
+              '${_currentProfile.experience} ${_getPluralYears(_currentProfile.experience!)} опыта',
             ),
 
           const SizedBox(height: 12),
 
           // Образование
-          if (tutorProfile.education != null &&
-              tutorProfile.education!.isNotEmpty)
+          if (_currentProfile.education != null &&
+              _currentProfile.education!.isNotEmpty)
             _buildInfoRow(
               Icons.workspace_premium_outlined,
-              tutorProfile.education!,
+              _currentProfile.education!,
             ),
 
           const SizedBox(height: 16),
 
           // Формат занятий (зеленые чипы)
-          if (tutorProfile.lessonFormat.isNotEmpty) ...[
+          if (_currentProfile.lessonFormat.isNotEmpty) ...[
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: tutorProfile.lessonFormat.map((format) {
+              children: _currentProfile.lessonFormat.map((format) {
                 return Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 16,
@@ -335,7 +391,7 @@ class TutorProfilePage extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -369,6 +425,172 @@ class TutorProfilePage extends StatelessWidget {
     );
   }
 
+  /// Карточка отзывов
+  Widget _buildReviewsCard(BuildContext context) {
+    final verifiedReviews =
+        _reviews.where((r) => r.isVerified && r.rating != null).toList();
+    final unverifiedReviews =
+        _reviews.where((r) => !r.isVerified).toList();
+    final totalCount = _reviews.length;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Отзывы',
+                style:
+                    TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const Spacer(),
+              if (totalCount > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$totalCount',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          if (_reviewsLoading)
+            const Center(
+                child: Padding(
+              padding: EdgeInsets.all(16),
+              child: CircularProgressIndicator(),
+            ))
+          else if (_reviews.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'Пока нет отзывов',
+                style: TextStyle(color: Colors.grey[500], fontSize: 14),
+              ),
+            )
+          else ...[
+            // Верифицированные (со звёздами)
+            ...verifiedReviews.take(5).map((r) => _buildReviewItem(r)),
+
+            // Неверифицированные
+            if (unverifiedReviews.isNotEmpty) ...[
+              if (verifiedReviews.isNotEmpty)
+                Divider(color: Colors.grey[200], height: 24),
+              Text(
+                'Неверифицированные отзывы',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[500],
+                    fontStyle: FontStyle.italic),
+              ),
+              const SizedBox(height: 8),
+              ...unverifiedReviews
+                  .take(3)
+                  .map((r) => _buildReviewItem(r)),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReviewItem(Review review) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Звёзды (только для верифицированных)
+              if (review.isVerified && review.rating != null) ...[
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(5, (i) {
+                    return Icon(
+                      i < review.rating!
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                      color: i < review.rating!
+                          ? Colors.amber
+                          : Colors.grey[300],
+                      size: 16,
+                    );
+                  }),
+                ),
+                const SizedBox(width: 8),
+              ],
+              // Бейдж верификации
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: review.isVerified
+                      ? Colors.green.withValues(alpha: 0.1)
+                      : Colors.grey.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  review.isVerified ? '✓ Верифицирован' : 'Без верификации',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: review.isVerified
+                        ? Colors.green[700]
+                        : Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                review.getCreatedDisplay(),
+                style: TextStyle(fontSize: 11, color: Colors.grey[400]),
+              ),
+            ],
+          ),
+          if (review.comment != null && review.comment!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              review.comment!,
+              style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  height: 1.4),
+            ),
+          ],
+          Divider(color: Colors.grey[100], height: 16),
+        ],
+      ),
+    );
+  }
+
   /// Две кнопки внизу: "Написать" и "Расписание" (как на макете)
   Widget _buildBottomButtons(BuildContext context) {
     return Container(
@@ -377,7 +599,7 @@ class TutorProfilePage extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
