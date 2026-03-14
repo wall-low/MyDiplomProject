@@ -3,10 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:p7/themes/theme_provider.dart';
 import 'package:p7/service/auth.dart';
 import 'package:p7/service/auth_gate.dart';
+import 'package:p7/service/pocketbase_service.dart';
 import 'package:provider/provider.dart';
-
-// УДАЛЕНО: import 'package:firebase_auth/firebase_auth.dart';
-// Мигрировали на PocketBase
 
 import 'blocked_user_page.dart';
 
@@ -39,6 +37,82 @@ class SettingPage extends StatelessWidget {
               value: themeProv.isDarkMode,
               onChanged: (_) => themeProv.toggleTheme(),
             ),
+          ),
+
+          const Divider(),
+
+          // Переключатель сервера
+          ListenableBuilder(
+            listenable: PocketBaseService(),
+            builder: (context, _) {
+              final pbService = PocketBaseService();
+              final isVps = pbService.serverMode == ServerMode.vps;
+              return Column(
+                children: [
+                  ListTile(
+                    leading: Icon(
+                      isVps ? Icons.cloud : Icons.computer,
+                      color: isVps ? Colors.blue : Colors.green,
+                    ),
+                    title: Text(
+                      "Сервер",
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontSize: 20,
+                      ),
+                    ),
+                    subtitle: Text(
+                      isVps ? "VPS: ${pbService.vpsUrl}" : "Локальный: ${pbService.localUrl}",
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                        fontSize: 12,
+                      ),
+                    ),
+                    trailing: CupertinoSwitch(
+                      value: isVps,
+                      activeColor: Colors.blue,
+                      onChanged: (value) async {
+                        final mode = value ? ServerMode.vps : ServerMode.local;
+                        await pbService.switchServer(mode);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                value
+                                    ? 'Переключено на VPS сервер'
+                                    : 'Переключено на локальный сервер',
+                              ),
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  // Кнопка редактирования URL
+                  Padding(
+                    padding: const EdgeInsets.only(left: 56, right: 16, bottom: 8),
+                    child: Row(
+                      children: [
+                        _ServerUrlButton(
+                          label: "Локальный",
+                          url: pbService.localUrl,
+                          mode: ServerMode.local,
+                          isActive: !isVps,
+                        ),
+                        const SizedBox(width: 8),
+                        _ServerUrlButton(
+                          label: "VPS",
+                          url: pbService.vpsUrl,
+                          mode: ServerMode.vps,
+                          isActive: isVps,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
 
           const Divider(),
@@ -138,6 +212,47 @@ class SettingPage extends StatelessWidget {
     }
   }
 
+  static void showEditUrlDialog(BuildContext context, ServerMode mode, String currentUrl) {
+    final controller = TextEditingController(text: currentUrl);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(mode == ServerMode.local ? "Локальный URL" : "VPS URL"),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: "http://IP:8090",
+            labelText: "URL сервера",
+          ),
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+        ),
+        actions: [
+          TextButton(
+            child: const Text("Отмена"),
+            onPressed: () => Navigator.of(ctx).pop(),
+          ),
+          ElevatedButton(
+            child: const Text("Сохранить"),
+            onPressed: () async {
+              final url = controller.text.trim();
+              if (url.isNotEmpty) {
+                await PocketBaseService().updateUrl(mode, url);
+                if (ctx.mounted) Navigator.of(ctx).pop();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('URL обновлён: $url')),
+                  );
+                }
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showChangePasswordDialog(BuildContext context) {
     final _currentPwCtrl = TextEditingController();
     final _newPwCtrl = TextEditingController();
@@ -224,6 +339,41 @@ class SettingPage extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ServerUrlButton extends StatelessWidget {
+  final String label;
+  final String url;
+  final ServerMode mode;
+  final bool isActive;
+
+  const _ServerUrlButton({
+    required this.label,
+    required this.url,
+    required this.mode,
+    required this.isActive,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: OutlinedButton.icon(
+        icon: const Icon(Icons.edit, size: 14),
+        label: Text(label, style: const TextStyle(fontSize: 12)),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          side: BorderSide(
+            color: isActive
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.outline,
+          ),
+        ),
+        onPressed: () {
+          SettingPage.showEditUrlDialog(context, mode, url);
+        },
       ),
     );
   }

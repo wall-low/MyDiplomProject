@@ -1,24 +1,49 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class PocketBaseService {
+enum ServerMode { local, vps }
+
+class PocketBaseService extends ChangeNotifier {
   static final PocketBaseService _instance = PocketBaseService._internal();
-  late final PocketBase _pb;
+  late PocketBase _pb;
   bool _initialized = false;
+  ServerMode _serverMode = ServerMode.local;
+
+  // Дефолтные URL (можно менять через настройки в приложении)
+  static const String _defaultLocalUrl = 'http://192.168.31.125:8090';
+  static const String _defaultVpsUrl = 'http://YOUR_VPS_IP:8090';
+
+  String _localUrl = _defaultLocalUrl;
+  String _vpsUrl = _defaultVpsUrl;
 
   factory PocketBaseService() {
     return _instance;
   }
 
-  PocketBaseService._internal() {
-  }
+  PocketBaseService._internal();
+
+  ServerMode get serverMode => _serverMode;
+  String get localUrl => _localUrl;
+  String get vpsUrl => _vpsUrl;
+  String get currentUrl => _serverMode == ServerMode.local ? _localUrl : _vpsUrl;
 
   Future<void> init() async {
     if (_initialized) return;
 
-    String baseUrl = _getBaseUrl();
+    // Загружаем сохранённые настройки
+    final prefs = await SharedPreferences.getInstance();
+    final savedMode = prefs.getString('server_mode');
+    if (savedMode == 'vps') {
+      _serverMode = ServerMode.vps;
+    }
+    _localUrl = prefs.getString('local_url') ?? _defaultLocalUrl;
+    _vpsUrl = prefs.getString('vps_url') ?? _defaultVpsUrl;
+
+    String baseUrl = currentUrl;
 
     final dir = await getApplicationDocumentsDirectory();
     final authFile = File('${dir.path}/pb_auth.json');
@@ -50,6 +75,48 @@ class PocketBaseService {
     print('[PocketBase] Auth token loaded: ${_pb.authStore.isValid}');
   }
 
+  /// Переключить сервер (локальный ↔ VPS)
+  Future<void> switchServer(ServerMode mode) async {
+    if (_serverMode == mode) return;
+
+    _serverMode = mode;
+
+    // Сохраняем выбор
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('server_mode', mode == ServerMode.vps ? 'vps' : 'local');
+
+    // Пересоздаём PocketBase клиент с новым URL, сохраняя auth store
+    final oldStore = _pb.authStore;
+    _pb = PocketBase(currentUrl, authStore: oldStore);
+
+    print('[PocketBase] Switched to: $currentUrl');
+    notifyListeners();
+  }
+
+  /// Обновить URL сервера
+  Future<void> updateUrl(ServerMode mode, String url) async {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    if (mode == ServerMode.local) {
+      _localUrl = trimmed;
+      await prefs.setString('local_url', trimmed);
+    } else {
+      _vpsUrl = trimmed;
+      await prefs.setString('vps_url', trimmed);
+    }
+
+    // Если изменили URL активного сервера — пересоздаём клиент
+    if (_serverMode == mode) {
+      final oldStore = _pb.authStore;
+      _pb = PocketBase(currentUrl, authStore: oldStore);
+      print('[PocketBase] URL updated, reconnected to: $currentUrl');
+    }
+
+    notifyListeners();
+  }
+
   PocketBase get client => _pb;
 
   RecordModel? get currentUser => _pb.authStore.model;
@@ -57,25 +124,6 @@ class PocketBaseService {
   bool get isAuthenticated => _pb.authStore.isValid;
 
   String get token => _pb.authStore.token;
-
-  String _getBaseUrl() {
-    const bool USE_REAL_DEVICE = true;
-
-    if (USE_REAL_DEVICE) {
-      return 'http://192.168.31.125:8090';
-
-    } else {
-      if (Platform.isAndroid) {
-        return 'http://10.0.2.2:8090';
-      } else if (Platform.isIOS) {
-        return 'http://localhost:8090';
-      } else if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
-        return 'http://localhost:8090';
-      } else {
-        return 'http://localhost:8090';
-      }
-    }
-  }
 
   void clearAuth() {
     _pb.authStore.clear();

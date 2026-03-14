@@ -1,5 +1,6 @@
 import 'package:pocketbase/pocketbase.dart';
 import 'cache_service.dart';
+import 'notification_service.dart';
 import 'pocketbase_service.dart';
 
 class Auth {
@@ -115,6 +116,7 @@ class Auth {
   }
 
   Future<void> logout() async {
+    await NotificationService().reset();
     _pb.authStore.clear();
     await CacheService().clearAll();
     print('[Auth] Пользователь вышел из системы, кэш очищен');

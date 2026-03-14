@@ -6,6 +6,7 @@ import 'package:p7/models/user.dart';
 import 'package:p7/service/cache_service.dart';
 import 'package:p7/service/databases.dart';
 import 'package:p7/service/login_or_register.dart';
+import 'package:p7/service/notification_service.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -63,6 +64,8 @@ class AuthGate extends StatelessWidget {
 
           if (profileSnapshot.hasData && profileSnapshot.data != null) {
             print('[AuthGate] Профиль найден: ${profileSnapshot.data?.name}');
+            // Запускаем уведомления
+            NotificationService().startPolling(userId);
             return const MainNavigation();
           }
 
