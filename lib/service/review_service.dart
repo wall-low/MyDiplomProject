@@ -119,6 +119,19 @@ class ReviewService extends ChangeNotifier {
     }
   }
 
+  /// Посчитать ОБЩЕЕ кол-во оплаченных занятий у репетитора
+  Future<int> _countTotalPaidLessons(String tutorId) async {
+    try {
+      final result = await _pb.collection('payments').getList(
+        filter: 'tutorId="$tutorId" && status="completed"',
+        perPage: 1, // нам нужен только totalItems
+      );
+      return result.totalItems;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   /// Посчитать кол-во оплаченных занятий между студентом и репетитором
   Future<int> _countPaidLessonsBetween(
       String studentId, String tutorId) async {
@@ -165,23 +178,23 @@ class ReviewService extends ChangeNotifier {
       // Взвешенный рейтинг за 6 мес.
       final newRating = weightSum > 0 ? weightedSum / weightSum : 0.0;
 
-      // totalPaidLessons = сумма весов = кол-во активных оплаченных занятий в окне
+      // totalPaidLessons = реальное кол-во оплаченных занятий из payments
       // isNewbie = нет ни одного верифицированного отзыва в 6-мес. окне
-      final activeLessons = weightSum.toInt();
-      final isNewbie = activeLessons == 0;
+      final paidLessonsCount = await _countTotalPaidLessons(tutorId);
+      final isNewbie = reviews.isEmpty;
 
       final profile = await _tutorProfileService.getTutorProfileByUserId(tutorId);
       if (profile != null) {
         await _tutorProfileService.updateRating(
           profileId: profile.id,
           newRating: double.parse(newRating.toStringAsFixed(1)),
-          totalPaidLessons: activeLessons,
+          totalPaidLessons: paidLessonsCount,
           isNewbie: isNewbie,
         );
       }
 
       debugPrint(
-          '[ReviewService] ✅ Рейтинг: $newRating, активных занятий: $activeLessons');
+          '[ReviewService] ✅ Рейтинг: $newRating, оплаченных занятий: $paidLessonsCount');
     } catch (e) {
       debugPrint('[ReviewService] ❌ Ошибка пересчёта рейтинга: $e');
     }

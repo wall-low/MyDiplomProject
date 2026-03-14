@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:p7/service/auth.dart';
 import 'package:p7/service/databases.dart';
 import 'package:p7/service/tutor_profile_service.dart';
+import 'package:p7/service/review_service.dart';
 import 'package:p7/models/user.dart';
 import 'package:p7/models/tutor_profile.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -33,6 +34,7 @@ class _FindTutorPageState extends State<FindTutorPage> {
   final _db = Databases();
   final _auth = Auth();
   final _tutorProfileService = TutorProfileService();
+  final _reviewService = ReviewService();
   final _pb = PocketBaseService().client;
 
   // Контроллеры для полей
@@ -233,6 +235,27 @@ class _FindTutorPageState extends State<FindTutorPage> {
       }
 
       print('[FindTutor] ✅ После фильтрации: ${tutors.length} репетиторов');
+
+      // Пересчитываем рейтинги всех найденных репетиторов в фоне
+      // и перечитываем актуальные профили
+      if (tutors.isNotEmpty) {
+        // Пересчёт рейтингов параллельно
+        await Future.wait(
+          tutors.map((t) => _reviewService.refreshTutorRating(t.userProfile.uid)),
+        );
+
+        // Перечитываем обновлённые профили
+        for (int i = 0; i < tutors.length; i++) {
+          final updated = await _tutorProfileService
+              .getTutorProfileByUserId(tutors[i].userProfile.uid);
+          if (updated != null) {
+            tutors[i] = TutorWithUserData(
+              tutorProfile: updated,
+              userProfile: tutors[i].userProfile,
+            );
+          }
+        }
+      }
 
       return tutors;
     } catch (e, stackTrace) {
@@ -809,8 +832,8 @@ class _FindTutorPageState extends State<FindTutorPage> {
               width: double.infinity,
               height: 48,
               child: OutlinedButton(
-                onPressed: () {
-                  Navigator.push(
+                onPressed: () async {
+                  await Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => TutorProfilePage(
@@ -819,6 +842,8 @@ class _FindTutorPageState extends State<FindTutorPage> {
                       ),
                     ),
                   );
+                  // Обновляем список после возврата (рейтинг мог пересчитаться)
+                  _applyFilters();
                 },
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(
