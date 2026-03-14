@@ -1,23 +1,15 @@
 import 'package:pocketbase/pocketbase.dart';
 
-/// Модель чата (метаданные чата)
-///
-/// ОБНОВЛЕНО (НОВАЯ АРХИТЕКТУРА):
-/// ❌ УДАЛЕНО: поле chatRoomId (строка "uid1_uid2")
-/// ✅ Теперь используется только id (PK из chats)
-///
-/// Хранит информацию о последнем сообщении и счётчики непрочитанных
-/// для быстрого отображения списка чатов на главной странице
 class Chat {
-  final String id; // ← PK из chats (используется как chatId в messages)
+  final String id;
   final String user1Id;
   final String user2Id;
-  final String? lastMessage; // Текст последнего сообщения или null для фото/аудио
-  final String lastMessageType; // "text" | "image" | "audio"
+  final String? lastMessage;
+  final String lastMessageType;
   final String lastSenderId;
   final DateTime lastTimestamp;
-  final int unreadCountUser1; // Непрочитанные для user1
-  final int unreadCountUser2; // Непрочитанные для user2
+  final int unreadCountUser1;
+  final int unreadCountUser2;
 
   Chat({
     required this.id,
@@ -31,10 +23,9 @@ class Chat {
     this.unreadCountUser2 = 0,
   });
 
-  /// Создание Chat из RecordModel (PocketBase)
   factory Chat.fromRecord(RecordModel record) {
     return Chat(
-      id: record.id, // ← Это chatId!
+      id: record.id,
       user1Id: record.data['user1Id'] ?? '',
       user2Id: record.data['user2Id'] ?? '',
       lastMessage: record.data['lastMessage'],
@@ -46,7 +37,6 @@ class Chat {
     );
   }
 
-  /// Преобразование в Map для отправки в PocketBase
   Map<String, dynamic> toMap() {
     return {
       'user1Id': user1Id,
@@ -60,19 +50,16 @@ class Chat {
     };
   }
 
-  /// Получить количество непрочитанных для конкретного пользователя
   int getUnreadCount(String userId) {
     if (userId == user1Id) return unreadCountUser1;
     if (userId == user2Id) return unreadCountUser2;
     return 0;
   }
 
-  /// Получить ID собеседника для текущего пользователя
   String getOtherUserId(String currentUserId) {
     return currentUserId == user1Id ? user2Id : user1Id;
   }
 
-  /// Получить превью последнего сообщения для отображения в списке
   String getLastMessagePreview() {
     switch (lastMessageType) {
       case 'text':
@@ -86,7 +73,6 @@ class Chat {
     }
   }
 
-  /// Копирование с изменением полей
   Chat copyWith({
     String? id,
     String? user1Id,

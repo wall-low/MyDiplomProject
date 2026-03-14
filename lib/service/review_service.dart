@@ -3,20 +3,10 @@ import '../models/review.dart';
 import 'pocketbase_service.dart';
 import 'tutor_profile_service.dart';
 
-/// Сервис для работы с отзывами
-///
-/// Логика рейтинга:
-/// - Только верифицированные отзывы (isVerified=true) влияют на рейтинг
-/// - Учитываются только отзывы за последние 6 месяцев
-/// - Взвешенный рейтинг: sum(rating * weight) / sum(weight)
-/// - weight = кол-во оплаченных занятий с этим учеником
 class ReviewService extends ChangeNotifier {
   final _pb = PocketBaseService().client;
   final _tutorProfileService = TutorProfileService();
 
-  /// Создать отзыв после занятия
-  ///
-  /// Если ученик уже оставлял отзыв за этот слот — обновляет существующий
   Future<Review?> createReview({
     required String tutorId,
     required String studentId,
@@ -26,15 +16,12 @@ class ReviewService extends ChangeNotifier {
     required bool isVerified,
   }) async {
     try {
-      // Считаем вес = кол-во оплаченных занятий между студентом и репетитором
       final weight = await _countPaidLessonsBetween(studentId, tutorId);
 
-      // Проверяем, есть ли уже отзыв за этот слот от этого студента
       final existing = await _findExistingReview(studentId, lessonId);
 
       Review? review;
       if (existing != null) {
-        // Обновляем существующий
         final record = await _pb.collection('reviews').update(
           existing.id,
           body: {
@@ -47,7 +34,6 @@ class ReviewService extends ChangeNotifier {
         review = Review.fromRecord(record);
         debugPrint('[ReviewService] ✅ Отзыв обновлён: ${record.id}');
       } else {
-        // Создаём новый
         final record = await _pb.collection('reviews').create(
           body: {
             'tutorId': tutorId,
@@ -63,7 +49,6 @@ class ReviewService extends ChangeNotifier {
         debugPrint('[ReviewService] ✅ Отзыв создан: ${record.id}');
       }
 
-      // Пересчитываем рейтинг репетитора
       await _recalculateTutorRating(tutorId);
 
       notifyListeners();
@@ -74,7 +59,6 @@ class ReviewService extends ChangeNotifier {
     }
   }
 
-  /// Получить все отзывы для репетитора (для профиля)
   Future<List<Review>> getTutorReviews(String tutorId) async {
     try {
       final result = await _pb.collection('reviews').getList(
@@ -89,22 +73,14 @@ class ReviewService extends ChangeNotifier {
     }
   }
 
-  /// Пересчитать рейтинг репетитора — публичный метод.
-  ///
-  /// Вызывать при каждом просмотре профиля репетитора.
-  /// Так рейтинг автоматически снижается, когда отзывы выходят за 6-месячное окно.
-  /// Репетиторы вынуждены постоянно получать новые оплаченные занятия
-  /// через приложение чтобы поддерживать высокий рейтинг.
   Future<void> refreshTutorRating(String tutorId) =>
       _recalculateTutorRating(tutorId);
 
-  /// Проверить, оставил ли студент отзыв за этот слот
   Future<bool> hasReviewForLesson(String studentId, String lessonId) async {
     final review = await _findExistingReview(studentId, lessonId);
     return review != null;
   }
 
-  /// Найти существующий отзыв студента за конкретный слот
   Future<Review?> _findExistingReview(
       String studentId, String lessonId) async {
     try {
@@ -119,12 +95,11 @@ class ReviewService extends ChangeNotifier {
     }
   }
 
-  /// Посчитать ОБЩЕЕ кол-во оплаченных занятий у репетитора
   Future<int> _countTotalPaidLessons(String tutorId) async {
     try {
       final result = await _pb.collection('payments').getList(
         filter: 'tutorId="$tutorId" && status="completed"',
-        perPage: 1, // нам нужен только totalItems
+        perPage: 1,
       );
       return result.totalItems;
     } catch (_) {
@@ -132,7 +107,6 @@ class ReviewService extends ChangeNotifier {
     }
   }
 
-  /// Посчитать кол-во оплаченных занятий между студентом и репетитором
   Future<int> _countPaidLessonsBetween(
       String studentId, String tutorId) async {
     try {
@@ -147,12 +121,6 @@ class ReviewService extends ChangeNotifier {
     }
   }
 
-  /// Пересчитать взвешенный рейтинг репетитора за последние 6 месяцев.
-  ///
-  /// totalPaidLessons = сумма весов верифицированных отзывов в окне 6 мес.
-  /// (proxy для "активных оплаченных занятий" — не зависит от прав на payments)
-  ///
-  /// isNewbie = true только если в 6-мес. окне нет ни одного верифицированного отзыва
   Future<void> _recalculateTutorRating(String tutorId) async {
     try {
       final cutoff = DateTime.now()
@@ -175,11 +143,8 @@ class ReviewService extends ChangeNotifier {
         }
       }
 
-      // Взвешенный рейтинг за 6 мес.
       final newRating = weightSum > 0 ? weightedSum / weightSum : 0.0;
 
-      // totalPaidLessons = реальное кол-во оплаченных занятий из payments
-      // isNewbie = нет ни одного верифицированного отзыва в 6-мес. окне
       final paidLessonsCount = await _countTotalPaidLessons(tutorId);
       final isNewbie = reviews.isEmpty;
 

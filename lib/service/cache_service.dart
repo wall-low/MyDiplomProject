@@ -3,15 +3,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../models/chat.dart';
 
-/// Простой кэш-сервис для офлайн-доступа
-///
-/// Сохраняет данные в SharedPreferences:
-/// - Профиль текущего пользователя
-/// - Список чатов (последние сообщения)
-/// - Профили собеседников (для отображения имён в чатах)
-///
-/// Данные обновляются при каждом успешном запросе к серверу.
-/// При отсутствии интернета — показываются сохранённые данные.
 class CacheService {
   static final CacheService _instance = CacheService._internal();
   factory CacheService() => _instance;
@@ -19,9 +10,7 @@ class CacheService {
 
   static const _keyUserProfile = 'cache_user_profile';
   static const _keyChats = 'cache_chats';
-  static const _keyUserProfiles = 'cache_user_profiles'; // профили собеседников
-
-  // --- Профиль текущего пользователя ---
+  static const _keyUserProfiles = 'cache_user_profiles';
 
   Future<void> saveUserProfile(UserProfile profile) async {
     final prefs = await SharedPreferences.getInstance();
@@ -61,8 +50,6 @@ class CacheService {
       return null;
     }
   }
-
-  // --- Профили собеседников (для чат-листа) ---
 
   Future<void> saveOtherUserProfile(UserProfile profile) async {
     final prefs = await SharedPreferences.getInstance();
@@ -111,8 +98,6 @@ class CacheService {
     }
   }
 
-  // --- Список чатов ---
-
   Future<void> saveChats(List<Chat> chats) async {
     final prefs = await SharedPreferences.getInstance();
     final jsonList = chats.map((c) => {
@@ -151,8 +136,6 @@ class CacheService {
       return [];
     }
   }
-
-  // --- Очистка кэша (при выходе) ---
 
   Future<void> clearAll() async {
     final prefs = await SharedPreferences.getInstance();

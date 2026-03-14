@@ -1,27 +1,20 @@
 import 'package:pocketbase/pocketbase.dart';
 
-/// Модель слота расписания репетитора
-///
-/// Мигрировано с Firestore на PocketBase
-/// Добавлен метод fromRecord() для преобразования RecordModel
-/// Добавлены поля для работы с недельным шаблоном
-/// Добавлено поле bookingStatus для системы подтверждения бронирований
-/// Добавлены поля для постоянного расписания (recurring bookings)
 class ScheduleSlot {
   final String id;
   final String tutorId;
   final DateTime date;
-  final String startTime; // Формат: "09:00"
-  final String endTime; // Формат: "10:00"
+  final String startTime;
+  final String endTime;
   final bool isBooked;
-  final bool isPaid; // NEW: Оплачено ли занятие
-  final String? studentId; // ID ученика, если слот забронирован
-  final DateTime createdAt; // ИЗМЕНЕНО: Timestamp → DateTime
-  final bool generatedFromTemplate; // NEW: Создан ли автоматически из шаблона
-  final String? templateId; // NEW: ID шаблона, из которого создан
-  final String bookingStatus; // NEW: Статус бронирования (free, pending, confirmed)
-  final bool isRecurring; // NEW: Часть постоянного расписания
-  final String? recurringGroupId; // NEW: ID группы повторяющихся занятий
+  final bool isPaid;
+  final String? studentId;
+  final DateTime createdAt;
+  final bool generatedFromTemplate;
+  final String? templateId;
+  final String bookingStatus;
+  final bool isRecurring;
+  final String? recurringGroupId;
 
   ScheduleSlot({
     required this.id,
@@ -35,24 +28,14 @@ class ScheduleSlot {
     required this.createdAt,
     this.generatedFromTemplate = false,
     this.templateId,
-    this.bookingStatus = 'free', // По умолчанию свободен
-    this.isRecurring = false, // По умолчанию не повторяющееся
+    this.bookingStatus = 'free',
+    this.isRecurring = false,
     this.recurringGroupId,
   });
 
-  /// Создание ScheduleSlot из RecordModel (PocketBase)
-  ///
-  /// НОВЫЙ МЕТОД для работы с PocketBase
-  ///
-  /// RecordModel содержит:
-  /// - record.id - ID слота
-  /// - record.data - Map с данными слота
-  /// - record.created - дата создания (ISO 8601 строка)
-  /// - record.updated - дата обновления (ISO 8601 строка)
   factory ScheduleSlot.fromRecord(RecordModel record) {
     final data = record.data;
 
-    // Парсинг date из ISO 8601 строки
     DateTime parsedDate;
     try {
       final dateStr = data['date'] as String?;
@@ -66,7 +49,6 @@ class ScheduleSlot {
       parsedDate = DateTime.now();
     }
 
-    // Парсинг createdAt из record.created
     DateTime parsedCreatedAt;
     try {
       parsedCreatedAt = DateTime.parse(record.created);
@@ -93,18 +75,12 @@ class ScheduleSlot {
     );
   }
 
-  /// Создание ScheduleSlot из Map (для совместимости)
-  ///
-  /// ОБНОВЛЕНО для работы с DateTime вместо Timestamp
   factory ScheduleSlot.fromMap(Map<String, dynamic> map, String id) {
-    // Парсинг date
     DateTime parsedDate;
     try {
       if (map['date'] is String) {
-        // ISO 8601 строка из PocketBase
         parsedDate = DateTime.parse(map['date']);
       } else {
-        // Fallback
         parsedDate = DateTime.now();
       }
     } catch (e) {
@@ -112,7 +88,6 @@ class ScheduleSlot {
       parsedDate = DateTime.now();
     }
 
-    // Парсинг createdAt
     DateTime parsedCreatedAt;
     try {
       if (map['createdAt'] is String) {
@@ -143,27 +118,10 @@ class ScheduleSlot {
     );
   }
 
-  /// Преобразование ScheduleSlot в Map для отправки в PocketBase
-  ///
-  /// ИЗМЕНЕНИЯ:
-  /// - date: Timestamp.fromDate() → date.toIso8601String()
-  /// - createdAt: Timestamp → DateTime.toIso8601String()
-  ///
-  /// PocketBase автоматически парсит ISO 8601 строки в date тип
   Map<String, dynamic> toMap() {
     return {
       'tutorId': tutorId,
 
-      // ИЗМЕНЕНИЕ: Преобразование DateTime в ISO 8601 строку
-      //
-      // БЫЛО (Firestore):
-      // 'date': Timestamp.fromDate(date)
-      //
-      // СТАЛО (PocketBase):
-      // 'date': date.toIso8601String()
-      //
-      // Пример: DateTime(2024, 1, 15) → "2024-01-15T00:00:00.000"
-      // PocketBase автоматически распознает и сохраняет как date тип
       'date': date.toIso8601String(),
 
       'startTime': startTime,
@@ -172,24 +130,18 @@ class ScheduleSlot {
       'isPaid': isPaid,
       if (studentId != null) 'studentId': studentId,
 
-      // Новые поля для работы с шаблоном
       'generatedFromTemplate': generatedFromTemplate,
       if (templateId != null) 'templateId': templateId,
 
-      // Статус бронирования
       'bookingStatus': bookingStatus,
 
-      // Постоянное расписание
       'isRecurring': isRecurring,
       if (recurringGroupId != null) 'recurringGroupId': recurringGroupId,
 
-      // createdAt обычно не нужен в toMap() - PocketBase создает автоматически
-      // Но оставим для совместимости
       'createdAt': createdAt.toIso8601String(),
     };
   }
 
-  // Копирование с изменениями
   ScheduleSlot copyWith({
     String? id,
     String? tutorId,
@@ -199,7 +151,7 @@ class ScheduleSlot {
     bool? isBooked,
     bool? isPaid,
     String? studentId,
-    DateTime? createdAt, // ИЗМЕНЕНО: Timestamp → DateTime
+    DateTime? createdAt,
     bool? generatedFromTemplate,
     String? templateId,
     String? bookingStatus,
@@ -224,7 +176,6 @@ class ScheduleSlot {
     );
   }
 
-  // Проверка, прошел ли слот
   bool get isPast {
     final now = DateTime.now();
     final slotDateTime = DateTime(
@@ -237,12 +188,10 @@ class ScheduleSlot {
     return slotDateTime.isBefore(now);
   }
 
-  // Проверка статусов бронирования
   bool get isFree => bookingStatus == 'free';
   bool get isPending => bookingStatus == 'pending';
   bool get isConfirmed => bookingStatus == 'confirmed';
 
-  // Получить emoji для статуса
   String get statusEmoji {
     switch (bookingStatus) {
       case 'free':
@@ -256,7 +205,6 @@ class ScheduleSlot {
     }
   }
 
-  // Получить текст статуса
   String get statusText {
     switch (bookingStatus) {
       case 'free':

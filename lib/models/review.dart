@@ -1,23 +1,14 @@
 import 'package:pocketbase/pocketbase.dart';
 
-/// Модель отзыва ученика о репетиторе
-///
-/// isVerified = true → отзыв оставлен после оплаченного занятия
-///   - содержит рейтинг (1-5) и влияет на рейтинг репетитора
-/// isVerified = false → текстовый отзыв без оплаты
-///   - не влияет на рейтинг, помечается как "неверифицированный"
-///
-/// weight = количество оплаченных занятий между этим учеником и репетитором
-///   - чем больше занятий → тем весомее отзыв
 class Review {
   final String id;
-  final String tutorId; // Relation → users.id (кому отзыв)
-  final String studentId; // Relation → users.id (кто оставил)
-  final String? lessonId; // Relation → slots.id (за какое занятие)
-  final int? rating; // 1-5, null для неверифицированных
-  final String? comment; // Текст отзыва (необязательно)
-  final bool isVerified; // true = оплаченное занятие
-  final int weight; // Вес отзыва (кол-во оплач. занятий с этим учеником)
+  final String tutorId;
+  final String studentId;
+  final String? lessonId;
+  final int? rating;
+  final String? comment;
+  final bool isVerified;
+  final int weight;
   final DateTime created;
 
   Review({
@@ -83,13 +74,11 @@ class Review {
     };
   }
 
-  /// Попадает ли отзыв в 6-месячное окно для рейтинга
   bool get isWithinRatingWindow {
     final cutoff = DateTime.now().subtract(const Duration(days: 180));
     return created.isAfter(cutoff);
   }
 
-  /// Дата в читаемом формате
   String getCreatedDisplay() {
     const months = [
       'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',

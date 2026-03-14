@@ -3,13 +3,6 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
-/// PocketBase Service - Singleton для подключения к PocketBase
-///
-/// Использование:
-/// ```dart
-/// final pb = PocketBaseService().client;
-/// await pb.collection('users').getList();
-/// ```
 class PocketBaseService {
   static final PocketBaseService _instance = PocketBaseService._internal();
   late final PocketBase _pb;
@@ -20,34 +13,16 @@ class PocketBaseService {
   }
 
   PocketBaseService._internal() {
-    // Инициализация происходит асинхронно в init()
-    // Пока создаем PocketBase без AsyncAuthStore (будет заменен в init)
   }
 
-  /// НОВЫЙ МЕТОД: Асинхронная инициализация с AsyncAuthStore
-  ///
-  /// ПРОБЛЕМА (старый код):
-  /// PocketBase(baseUrl) создает in-memory AuthStore
-  /// Токен НЕ сохраняется после rebuild виджета или перезапуска
-  ///
-  /// РЕШЕНИЕ:
-  /// Использовать AsyncAuthStore для автоматического сохранения токена
-  ///
-  /// AsyncAuthStore сохраняет токен в файл на устройстве
-  /// При следующем запуске приложения токен загружается автоматически
-  ///
-  /// ВАЖНО: Этот метод должен быть вызван в main() перед runApp()!
   Future<void> init() async {
     if (_initialized) return;
 
-    // Определяем URL в зависимости от платформы
     String baseUrl = _getBaseUrl();
 
-    // Получаем путь к директории для сохранения токена
     final dir = await getApplicationDocumentsDirectory();
     final authFile = File('${dir.path}/pb_auth.json');
 
-    // Загружаем сохраненный токен (если есть)
     String initialToken = '';
     try {
       if (await authFile.exists()) {
@@ -57,20 +32,17 @@ class PocketBaseService {
       print('[PocketBase] Ошибка загрузки токена: $e');
     }
 
-    // Создаем AsyncAuthStore с правильным синтаксисом
     final store = AsyncAuthStore(
       save: (String data) async {
-        // Сохраняем токен в файл при каждом изменении
         try {
           await authFile.writeAsString(data);
         } catch (e) {
           print('[PocketBase] Ошибка сохранения токена: $e');
         }
       },
-      initial: initialToken, // initial принимает String, а не функцию!
+      initial: initialToken,
     );
 
-    // Создаем PocketBase клиент с AsyncAuthStore
     _pb = PocketBase(baseUrl, authStore: store);
 
     _initialized = true;
@@ -78,77 +50,38 @@ class PocketBaseService {
     print('[PocketBase] Auth token loaded: ${_pb.authStore.isValid}');
   }
 
-  /// Получить PocketBase клиент
   PocketBase get client => _pb;
 
-  /// Получить текущего авторизованного пользователя
   RecordModel? get currentUser => _pb.authStore.model;
 
-  /// Проверить авторизован ли пользователь
   bool get isAuthenticated => _pb.authStore.isValid;
 
-  /// Получить токен авторизации
   String get token => _pb.authStore.token;
 
-  /// Определить базовый URL в зависимости от платформы и окружения
   String _getBaseUrl() {
-    // ============================================================================
-    // ПРОДАКШЕН: Раскомментируй эту строку и укажи свой домен
-    // ============================================================================
-    // return 'https://your-domain.com';
-
-    // ============================================================================
-    // ЛОКАЛЬНАЯ РАЗРАБОТКА
-    // ============================================================================
-
-    // ВАЖНО: Для реального iPhone/Android устройства используй IP компьютера!
-    //
-    // Как узнать IP компьютера:
-    // macOS: ifconfig | grep "inet " | grep -v 127.0.0.1
-    // Windows: ipconfig
-    // Linux: ip addr show
-
-    const bool USE_REAL_DEVICE = true; // 👈 false = эмулятор, true = реальное устройство
+    const bool USE_REAL_DEVICE = true;
 
     if (USE_REAL_DEVICE) {
-      // ========================================================================
-      // ДЛЯ РЕАЛЬНОГО iPhone/Android УСТРОЙСТВА
-      // ========================================================================
-      // Устройство должно быть в той же WiFi сети что и компьютер!
-      return 'http://192.168.31.125:8090'; // 👈 ОБНОВЛЕНО: Реальный IP Mac
+      return 'http://192.168.31.125:8090';
 
     } else {
-      // ========================================================================
-      // ДЛЯ ЭМУЛЯТОРА/СИМУЛЯТОРА
-      // ========================================================================
       if (Platform.isAndroid) {
-        // Android emulator -> host machine
         return 'http://10.0.2.2:8090';
       } else if (Platform.isIOS) {
-        // iOS simulator -> host machine
         return 'http://localhost:8090';
       } else if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
-        // Desktop platforms
         return 'http://localhost:8090';
       } else {
-        // Web или другие платформы
         return 'http://localhost:8090';
       }
     }
   }
 
-  /// Очистить хранилище авторизации (logout)
   void clearAuth() {
     _pb.authStore.clear();
     print('[PocketBase] Auth cleared');
   }
 
-  /// Получить URL файла из PocketBase
-  ///
-  /// Пример:
-  /// ```dart
-  /// final avatarUrl = getFileUrl(userRecord, userRecord.data['avatar']);
-  /// ```
   String getFileUrl(RecordModel record, String filename, {String? thumb}) {
     if (filename.isEmpty) return '';
 
@@ -159,41 +92,14 @@ class PocketBaseService {
     ).toString();
   }
 
-  /// Получить URL аватара пользователя с thumbnail
   String getUserAvatarUrl(RecordModel user, {String thumb = '100x100'}) {
     final avatar = user.data['avatar'] as String?;
     if (avatar == null || avatar.isEmpty) {
-      return ''; // Вернем пустую строку, UI покажет fallback
+      return '';
     }
     return getFileUrl(user, avatar, thumb: thumb);
   }
 
-  /// Загрузить аватар пользователя
-  ///
-  /// ЗАМЕНА Cloudinary.uploadAvatar()
-  ///
-  /// БЫЛО (Cloudinary):
-  /// ```dart
-  /// final url = await CloudinaryService.uploadAvatar(filePath: path);
-  /// await firestore.collection('Users').doc(uid).update({'avatarUrl': url});
-  /// ```
-  ///
-  /// СТАЛО (PocketBase):
-  /// ```dart
-  /// final record = await uploadAvatar(userId: uid, filePath: path);
-  /// final url = getUserAvatarUrl(record);
-  /// ```
-  ///
-  /// ОТЛИЧИЯ:
-  /// - Cloudinary возвращает полный URL сразу
-  /// - PocketBase возвращает RecordModel, URL генерируем через getFileUrl()
-  /// - PocketBase сохраняет файл И обновляет запись одним запросом
-  ///
-  /// Параметры:
-  /// - userId: ID пользователя (record ID в коллекции users)
-  /// - filePath: Путь к файлу на устройстве
-  ///
-  /// Возвращает обновленный RecordModel с новым аватаром
   Future<RecordModel> uploadAvatar({
     required String userId,
     required String filePath,
@@ -203,7 +109,6 @@ class PocketBaseService {
       print('[PocketBase] 👤 User ID: $userId');
       print('[PocketBase] 📁 File path: $filePath');
 
-      // Проверяем существование файла
       final file = File(filePath);
       if (!await file.exists()) {
         throw Exception('Файл не найден: $filePath');
@@ -212,28 +117,16 @@ class PocketBaseService {
       final fileSize = await file.length();
       print('[PocketBase] 📦 File size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
 
-      // Создаём MultipartFile
       print('[PocketBase] 🔨 Creating MultipartFile...');
       final multipartFile = await http.MultipartFile.fromPath('avatar', filePath);
       print('[PocketBase] ✅ MultipartFile created: ${multipartFile.filename}');
 
-      // ИСПРАВЛЕНИЕ: Передаем файл в параметр files, а не в body!
-      //
-      // БЫЛО (НЕПРАВИЛЬНО):
-      // body: {'avatar': multipartFile} ❌ - PocketBase SDK не умеет конвертировать MultipartFile в JSON
-      //
-      // СТАЛО (ПРАВИЛЬНО):
-      // files: [multipartFile] ✅ - PocketBase SDK сам обработает файлы
-      //
-      // PocketBase SDK имеет два параметра:
-      // - body: Map<String, dynamic> - для обычных полей (текст, числа, etc)
-      // - files: List<http.MultipartFile> - для файлов
       print('[PocketBase] 🚀 Sending update request to PocketBase...');
       print('[PocketBase] 🌐 URL: ${_pb.baseUrl}/api/collections/users/records/$userId');
 
       final record = await _pb.collection('users').update(
         userId,
-        files: [multipartFile], // ✅ Передаем в параметр files!
+        files: [multipartFile],
       );
 
       print('[PocketBase] ✅ Avatar uploaded successfully!');
