@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:p7/pages/main_navigation.dart';
 import 'package:p7/pages/register_profile_page.dart';
 import 'package:p7/service/auth.dart';
+import 'package:p7/models/user.dart';
+import 'package:p7/service/cache_service.dart';
 import 'package:p7/service/databases.dart';
 import 'package:p7/service/login_or_register.dart';
 
@@ -17,6 +19,32 @@ import 'package:p7/service/login_or_register.dart';
 /// 3. Если НЕ авторизован → LoginOrRegister
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
+
+  /// Загрузка профиля: сервер → кэш (fallback при ошибке сети)
+  Future<UserProfile?> _loadProfileWithCache(String userId) async {
+    final cache = CacheService();
+
+    try {
+      // Пробуем загрузить с сервера
+      final profile = await Databases().getUserFromPocketBase(userId);
+      if (profile != null) {
+        // Сохраняем в кэш для офлайн-доступа
+        await cache.saveUserProfile(profile);
+        return profile;
+      }
+      // Сервер вернул null → пробуем кэш (может нет сети)
+      final cached = await cache.getCachedUserProfile();
+      if (cached != null) {
+        print('[AuthGate] Профиль из кэша (сервер вернул null)');
+        return cached;
+      }
+      return null;
+    } catch (e) {
+      // Сервер недоступен → берём из кэша
+      print('[AuthGate] Сервер недоступен, берём профиль из кэша: $e');
+      return await cache.getCachedUserProfile();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,9 +106,9 @@ class AuthGate extends StatelessWidget {
       //
       // Метод getUserFromPocketBase мы мигрируем в следующей задаче (Task 3)
       return FutureBuilder(
-        future: Databases().getUserFromPocketBase(userId),
+        future: _loadProfileWithCache(userId),
         builder: (context, profileSnapshot) {
-          // Пока загружается профиль из PocketBase
+          // Пока загружается профиль
           if (profileSnapshot.connectionState == ConnectionState.waiting) {
             print('[AuthGate] Загрузка профиля...');
             return Center(
@@ -90,27 +118,17 @@ class AuthGate extends StatelessWidget {
             );
           }
 
-          // ИЗМЕНЕНИЕ 4: Обработка ошибок и пустого профиля
-          //
-          // Если профиль не найден или произошла ошибка:
-          // → Отправляем на RegisterProfilePage (2-й шаг регистрации)
-          //
-          // Это происходит когда:
-          // 1. Пользователь только что зарегистрировался (auth.dart создал запись)
-          // 2. Но еще не заполнил доп. поля (name, birthDate, city, role, bio)
-          if (profileSnapshot.hasError ||
-              !profileSnapshot.hasData ||
-              profileSnapshot.data == null) {
-            // Профиль не заполнен → 2-й шаг регистрации
-            print('[AuthGate] Профиль не найден или ошибка: ${profileSnapshot.error}');
-            return RegisterProfilePage(
-              email: userEmail,
-            );
+          if (profileSnapshot.hasData && profileSnapshot.data != null) {
+            // Профиль найден (с сервера или из кэша)
+            print('[AuthGate] Профиль найден: ${profileSnapshot.data?.name}');
+            return const MainNavigation();
           }
 
-          // Профиль полностью заполнен → переходим на главную навигацию
-          print('[AuthGate] Профиль найден: ${profileSnapshot.data?.name}');
-          return const MainNavigation();
+          // Профиль не найден и нет кэша → 2-й шаг регистрации
+          print('[AuthGate] Профиль не найден: ${profileSnapshot.error}');
+          return RegisterProfilePage(
+            email: userEmail,
+          );
         },
       );
     }

@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http; // ✅ Для MultipartFile
 import 'package:p7/models/messenge.dart';
 import 'package:p7/models/chat.dart';
 import 'package:p7/service/auth.dart';
+import 'package:p7/service/cache_service.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'pocketbase_service.dart';
 
@@ -1427,13 +1428,22 @@ class ChatService extends ChangeNotifier {
       final chats =
           result.items.map((record) => Chat.fromRecord(record)).toList();
 
+      // Кэшируем чаты для офлайн-доступа
+      CacheService().saveChats(chats);
+
       if (_chatsStreamController != null && !_chatsStreamController!.isClosed) {
         _chatsStreamController!.add(chats);
       }
     } catch (e) {
-      print('[ChatService] Ошибка загрузки начального списка чатов: $e');
+      print('[ChatService] Ошибка загрузки чатов, пробуем кэш: $e');
+      // При ошибке сети — показываем кэш
+      final cached = await CacheService().getCachedChats();
       if (_chatsStreamController != null && !_chatsStreamController!.isClosed) {
-        _chatsStreamController!.addError(e);
+        if (cached.isNotEmpty) {
+          _chatsStreamController!.add(cached);
+        } else {
+          _chatsStreamController!.addError(e);
+        }
       }
     }
   }

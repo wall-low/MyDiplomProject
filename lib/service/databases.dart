@@ -1,6 +1,7 @@
 import 'package:pocketbase/pocketbase.dart';
 import 'package:p7/models/user.dart';
 import 'package:p7/service/auth.dart';
+import 'package:p7/service/cache_service.dart';
 import 'pocketbase_service.dart';
 
 class Databases {
@@ -157,15 +158,25 @@ class Databases {
       }
 
       // Возвращаем UserProfile с полным URL аватара
-      return user.copyWith(avatarUrl: fullAvatarUrl);
+      final result = user.copyWith(avatarUrl: fullAvatarUrl);
+
+      // Кэшируем профиль для офлайн-доступа
+      CacheService().saveOtherUserProfile(result);
+
+      return result;
     } on ClientException catch (e) {
-      // 404 - пользователь не найден (профиль не заполнен)
-      // 403 - нет прав доступа
       print('[Databases] Ошибка получения профиля: ${e.statusCode} - ${e.response}');
-      return null;
+      if (e.statusCode == 404 || e.statusCode == 403) {
+        // 404/403 — профиль реально не найден, кэш не поможет
+        return null;
+      }
+      // Другие ошибки (0 = нет сети, 500+) — пробуем кэш
+      print('[Databases] Пробуем кэш...');
+      return await CacheService().getCachedOtherUserProfile(uid);
     } catch (e) {
-      print('[Databases] Неизвестная ошибка получения профиля: $e');
-      return null;
+      // Ошибка сети (SocketException и т.д.) → пробуем кэш
+      print('[Databases] Ошибка сети, пробуем кэш: $e');
+      return await CacheService().getCachedOtherUserProfile(uid);
     }
   }
 

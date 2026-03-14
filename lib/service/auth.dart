@@ -1,4 +1,5 @@
 import 'package:pocketbase/pocketbase.dart';
+import 'cache_service.dart';
 import 'pocketbase_service.dart';
 
 class Auth {
@@ -209,6 +210,7 @@ class Auth {
   /// 3. Удаляет токен из SharedPreferences (персистентное хранилище)
   Future<void> logout() async {
     _pb.authStore.clear();
-    print('[Auth] Пользователь вышел из системы');
+    await CacheService().clearAll();
+    print('[Auth] Пользователь вышел из системы, кэш очищен');
   }
 }
