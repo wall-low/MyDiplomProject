@@ -4,6 +4,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:p7/config/server_config.dart';
 
 enum ServerMode { local, vps }
 
@@ -13,9 +14,9 @@ class PocketBaseService extends ChangeNotifier {
   bool _initialized = false;
   ServerMode _serverMode = ServerMode.local;
 
-  // Дефолтные URL (можно менять через настройки в приложении)
-  static const String _defaultLocalUrl = 'http://192.168.31.125:8090';
-  static const String _defaultVpsUrl = 'http://YOUR_VPS_IP:8090';
+  // Дефолтные URL берутся из server_config.dart (файл в .gitignore)
+  static const String _defaultLocalUrl = ServerConfig.localUrl;
+  static const String _defaultVpsUrl = ServerConfig.vpsUrl;
 
   String _localUrl = _defaultLocalUrl;
   String _vpsUrl = _defaultVpsUrl;

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:p7/components/load_animation.dart';
 import 'package:p7/components/my_button.dart';
 import 'package:p7/components/my_text_field.dart';
+import 'package:p7/service/auth.dart';
 import 'package:p7/service/databases.dart';
 import 'package:p7/pages/main_navigation.dart';
 
@@ -19,6 +20,7 @@ class RegisterProfilePage extends StatefulWidget {
 }
 
 class _RegisterProfilePageState extends State<RegisterProfilePage> {
+  final _auth = Auth();
   final _db = Databases();
   final _formKey = GlobalKey<FormState>();
 
@@ -34,6 +36,40 @@ class _RegisterProfilePageState extends State<RegisterProfilePage> {
   ];
 
   bool _isLoading = false;
+  bool _isGoingBack = false;
+
+  Future<void> _goBackAndDeleteUser() async {
+    if (_isGoingBack) return;
+    _isGoingBack = true;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Вернуться назад?'),
+        content: const Text('Созданный аккаунт будет удалён. Вы сможете зарегистрироваться заново.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Остаться'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              'Удалить и вернуться',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      await _auth.deleteCurrentUser();
+      if (mounted) Navigator.pop(context);
+    } else {
+      _isGoingBack = false;
+    }
+  }
 
   @override
   void dispose() {
@@ -202,8 +238,21 @@ class _RegisterProfilePageState extends State<RegisterProfilePage> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _goBackAndDeleteUser();
+      },
+      child: Scaffold(
       backgroundColor: scheme.surface,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: scheme.onSurface),
+          onPressed: _goBackAndDeleteUser,
+        ),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -479,6 +528,7 @@ class _RegisterProfilePageState extends State<RegisterProfilePage> {
           ),
         ),
       ),
+    ),
     );
   }
 }

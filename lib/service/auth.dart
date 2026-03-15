@@ -115,6 +115,20 @@ class Auth {
     }
   }
 
+  Future<void> deleteCurrentUser() async {
+    final currentUser = getCurrentUser();
+    if (currentUser == null) return;
+
+    try {
+      await _pb.collection('users').delete(currentUser.id);
+      _pb.authStore.clear();
+      print('[Auth] Пользователь ${currentUser.id} удалён');
+    } catch (e) {
+      print('[Auth] Ошибка удаления пользователя: $e');
+      _pb.authStore.clear();
+    }
+  }
+
   Future<void> logout() async {
     await NotificationService().reset();
     _pb.authStore.clear();

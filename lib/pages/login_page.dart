@@ -3,6 +3,7 @@ import 'package:pocketbase/pocketbase.dart';
 import 'package:p7/components/my_button.dart';
 import 'package:p7/components/my_text_field.dart';
 import 'package:p7/service/auth.dart';
+import 'package:p7/service/pocketbase_service.dart';
 import 'package:p7/pages/main_navigation.dart';
 import '../components/load_animation.dart';
 
@@ -415,6 +416,48 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                       ),
                     ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Переключатель сервера
+                  ListenableBuilder(
+                    listenable: PocketBaseService(),
+                    builder: (context, _) {
+                      final pb = PocketBaseService();
+                      final isVps = pb.serverMode == ServerMode.vps;
+                      return GestureDetector(
+                        onTap: () async {
+                          final mode = isVps ? ServerMode.local : ServerMode.vps;
+                          await pb.switchServer(mode);
+                          if (context.mounted) {
+                            _showSnackBar(
+                              mode == ServerMode.vps
+                                  ? 'VPS: ${pb.vpsUrl}'
+                                  : 'Локальный: ${pb.localUrl}',
+                            );
+                          }
+                        },
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              isVps ? Icons.cloud : Icons.computer,
+                              size: 14,
+                              color: scheme.secondary.withValues(alpha: 0.5),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              isVps ? 'VPS' : 'Локальный',
+                              style: TextStyle(
+                                color: scheme.secondary.withValues(alpha: 0.5),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 30),

@@ -5,8 +5,6 @@ import 'package:p7/components/my_text_field.dart';
 import 'package:p7/service/auth.dart';
 import 'register_profile_page.dart';
 
-// УДАЛЕНО: import 'package:firebase_auth/firebase_auth.dart';
-// Мигрировали на PocketBase, используем ClientException вместо FirebaseAuthException
 
 class RegisterPage extends StatefulWidget {
   final void Function()? onTap;
@@ -119,7 +117,7 @@ class _RegisterPageState extends State<RegisterPage> {
       if (mounted) {
         setState(() => _isLoading = false);
 
-        Navigator.pushReplacement(
+        Navigator.push(
           context,
           MaterialPageRoute(
             builder: (context) => RegisterProfilePage(

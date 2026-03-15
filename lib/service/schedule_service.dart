@@ -689,6 +689,7 @@ class ScheduleService extends ChangeNotifier {
               'endTime': template.endTime,
               'isBooked': false,
               'isPaid': false,
+              'bookingStatus': 'free',
               'generatedFromTemplate': true,
               'templateId': template.id,
             });
