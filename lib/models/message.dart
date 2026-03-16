@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 /// Модель сообщения в чате
@@ -92,7 +93,7 @@ class Message {
         parsedTimestamp = DateTime.now();
       }
     } catch (e) {
-      print('[Message] Ошибка парсинга timestamp: $e');
+      debugPrint('[Message] Ошибка парсинга timestamp: $e');
       parsedTimestamp = DateTime.now();
     }
 
@@ -138,7 +139,7 @@ class Message {
         parsedTimestamp = DateTime.parse(record.created);
       }
     } catch (e) {
-      print('[Message] Ошибка парсинга timestamp: $e');
+      debugPrint('[Message] Ошибка парсинга timestamp: $e');
       parsedTimestamp = DateTime.now();
     }
 
@@ -148,7 +149,7 @@ class Message {
       try {
         parsedDuration = Duration(seconds: data['duration'] as int);
       } catch (e) {
-        print('[Message] Ошибка парсинга duration: $e');
+        debugPrint('[Message] Ошибка парсинга duration: $e');
       }
     }
 
@@ -161,19 +162,19 @@ class Message {
         fileUrl = pb.getFileUrl(record, fileName).toString();
         // Логируем только для аудио/изображений (для отладки)
         if (data['type'] == 'audio' || data['type'] == 'image') {
-          print('[Message] 📁 Файл ${data['type']}:');
-          print('  - fileName: $fileName');
-          print('  - fileUrl: $fileUrl');
-          print('  - recordId: ${record.id}');
+          debugPrint('[Message] 📁 Файл ${data['type']}:');
+          debugPrint('  - fileName: $fileName');
+          debugPrint('  - fileUrl: $fileUrl');
+          debugPrint('  - recordId: ${record.id}');
         }
       } catch (e) {
-        print('[Message] ❌ Ошибка построения URL файла: $e');
+        debugPrint('[Message] ❌ Ошибка построения URL файла: $e');
       }
     } else {
       if (data['type'] == 'audio' || data['type'] == 'image') {
-        print('[Message] ⚠️ Нет файла для ${data['type']}!');
-        print('  - fileName: $fileName');
-        print('  - pb: ${pb != null ? "OK" : "NULL"}');
+        debugPrint('[Message] ⚠️ Нет файла для ${data['type']}!');
+        debugPrint('  - fileName: $fileName');
+        debugPrint('  - pb: ${pb != null ? "OK" : "NULL"}');
       }
     }
 

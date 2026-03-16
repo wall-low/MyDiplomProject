@@ -29,6 +29,7 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
   DateTime _focusedDay = DateTime.now(); // Для календаря ученика
   bool _isTutor = false;
   bool _isLoading = true;
+  String? _loadError;
   late AnimationController _refreshController;
 
   // Формат календаря (для ученика)
@@ -78,6 +79,7 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _loadError = 'Не удалось загрузить расписание';
         });
       }
     }
@@ -185,18 +187,6 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
     }
   }
 
-  /// Получить иконку статуса слота
-  IconData _getSlotStatusIcon(ScheduleSlot slot) {
-    if (_isTutor) {
-      if (slot.isBooked) return Icons.event_busy;
-      if (slot.isPast) return Icons.check_circle;
-      return Icons.event_available;
-    } else {
-      if (slot.isPast) return Icons.check_circle;
-      return Icons.event_note;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -206,6 +196,37 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         backgroundColor: colorScheme.surface,
         body: Center(
           child: CircularProgressIndicator(color: colorScheme.primary),
+        ),
+      );
+    }
+
+    if (_loadError != null) {
+      return Scaffold(
+        backgroundColor: colorScheme.surface,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: colorScheme.error),
+              const SizedBox(height: 16),
+              Text(
+                _loadError!,
+                style: TextStyle(color: colorScheme.onSurface, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () {
+                  setState(() {
+                    _isLoading = true;
+                    _loadError = null;
+                  });
+                  _loadUserRole();
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('Повторить'),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -1086,8 +1107,8 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
       final start = '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}';
       final end = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
 
-      print('[SchedulePage] 📝 Создание слота: ${_selectedDate.toString().split(' ')[0]} $start-$end');
-      print('[SchedulePage] 👤 TutorID: ${_auth.getCurrentUid()}');
+      debugPrint('[SchedulePage] 📝 Создание слота: ${_selectedDate.toString().split(' ')[0]} $start-$end');
+      debugPrint('[SchedulePage] 👤 TutorID: ${_auth.getCurrentUid()}');
 
       await _scheduleService.addSlot(
         tutorId: _auth.getCurrentUid(),
@@ -1096,7 +1117,7 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         endTime: end,
       );
 
-      print('[SchedulePage] ✅ Слот создан успешно');
+      debugPrint('[SchedulePage] ✅ Слот создан успешно');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1110,8 +1131,8 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         setState(() {});
       }
     } catch (e, stackTrace) {
-      print('[SchedulePage] ❌ Ошибка добавления слота: $e');
-      print('[SchedulePage] 📋 StackTrace: $stackTrace');
+      debugPrint('[SchedulePage] ❌ Ошибка добавления слота: $e');
+      debugPrint('[SchedulePage] 📋 StackTrace: $stackTrace');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

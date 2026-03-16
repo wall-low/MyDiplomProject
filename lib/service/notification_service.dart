@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:p7/service/pocketbase_service.dart';
 import 'package:pocketbase/pocketbase.dart';
@@ -51,7 +51,7 @@ class NotificationService {
         ?.requestNotificationsPermission();
 
     _initialized = true;
-    print('[Notifications] Initialized');
+    debugPrint('[Notifications] Initialized');
   }
 
   /// Запустить polling для текущего пользователя
@@ -65,14 +65,14 @@ class NotificationService {
       (_) => _checkForUpdates(),
     );
 
-    print('[Notifications] Polling started for user: $userId');
+    debugPrint('[Notifications] Polling started for user: $userId');
   }
 
   /// Остановить polling
   void stopPolling() {
     _pollingTimer?.cancel();
     _pollingTimer = null;
-    print('[Notifications] Polling stopped');
+    debugPrint('[Notifications] Polling stopped');
   }
 
   /// Проверить наличие новых сообщений и бронирований
@@ -88,7 +88,7 @@ class NotificationService {
         _checkNewBookings(pb),
       ]);
     } catch (e) {
-      print('[Notifications] Polling error: $e');
+      debugPrint('[Notifications] Polling error: $e');
     }
   }
 
@@ -160,7 +160,7 @@ class NotificationService {
         }
       }
     } catch (e) {
-      print('[Notifications] Check messages error: $e');
+      debugPrint('[Notifications] Check messages error: $e');
     }
   }
 
@@ -200,7 +200,7 @@ class NotificationService {
         );
       }
     } catch (e) {
-      print('[Notifications] Check bookings error: $e');
+      debugPrint('[Notifications] Check bookings error: $e');
     }
   }
 

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:p7/models/messenge.dart';
+import 'package:p7/models/message.dart';
 import 'package:p7/models/chat.dart';
 import 'package:p7/service/auth.dart';
 import 'package:p7/service/cache_service.dart';
@@ -41,7 +41,7 @@ class ChatService extends ChangeNotifier {
     _blockedUsersCacheTime.clear();
     _cachedChats = null;
     _chatsCacheTime = null;
-    print('[ChatService] Кеш очищен');
+    debugPrint('[ChatService] Кеш очищен');
     notifyListeners();
   }
 
@@ -81,7 +81,7 @@ class ChatService extends ChangeNotifier {
   Future<List<Map<String, dynamic>>> getUserList({bool forceRefresh = false}) async {
     try {
       if (!forceRefresh && _isCacheValid(_userListCacheTime)) {
-        print('[ChatService] Используется кеш для getUserList()');
+        debugPrint('[ChatService] Используется кеш для getUserList()');
         return _cachedUserList!;
       }
 
@@ -104,11 +104,11 @@ class ChatService extends ChangeNotifier {
 
       _cachedUserList = userList;
       _userListCacheTime = DateTime.now();
-      print('[ChatService] Кеш обновлён для getUserList() (${userList.length} пользователей)');
+      debugPrint('[ChatService] Кеш обновлён для getUserList() (${userList.length} пользователей)');
 
       return userList;
     } catch (e) {
-      print('[ChatService] Ошибка получения пользователей: $e');
+      debugPrint('[ChatService] Ошибка получения пользователей: $e');
       return [];
     }
   }
@@ -138,7 +138,7 @@ class ChatService extends ChangeNotifier {
               })
           .toList();
     } catch (e) {
-      print('[ChatService] Ошибка получения пользователей (без блокировок): $e');
+      debugPrint('[ChatService] Ошибка получения пользователей (без блокировок): $e');
       return [];
     }
   }
@@ -196,7 +196,7 @@ class ChatService extends ChangeNotifier {
             'unreadCount': unreadCount,
           });
         } catch (e) {
-          print('[ChatService] Ошибка получения данных пользователя $otherUserId: $e');
+          debugPrint('[ChatService] Ошибка получения данных пользователя $otherUserId: $e');
           continue;
         }
       }
@@ -209,7 +209,7 @@ class ChatService extends ChangeNotifier {
 
       return chatsList;
     } catch (e) {
-      print('[ChatService] Ошибка получения активных чатов: $e');
+      debugPrint('[ChatService] Ошибка получения активных чатов: $e');
       return [];
     }
   }
@@ -220,7 +220,7 @@ class ChatService extends ChangeNotifier {
       final currentUserId = Auth().getCurrentUid();
       final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
 
-      print('[ChatService] 📤 Отправка сообщения от: $currentUserId → $receiverID');
+      debugPrint('[ChatService] 📤 Отправка сообщения от: $currentUserId → $receiverID');
 
       final chatId = await _getChatIdByUsers(currentUserId, receiverID);
       if (chatId == null) {
@@ -245,7 +245,7 @@ class ChatService extends ChangeNotifier {
 
       final createdMessage = await _pb.collection('messages').create(body: messageData);
 
-      print('[ChatService] ✅ Сообщение отправлено: ${createdMessage.id}');
+      debugPrint('[ChatService] ✅ Сообщение отправлено: ${createdMessage.id}');
 
       await _updateChatMetadata(
         chatId: chatId,
@@ -257,7 +257,7 @@ class ChatService extends ChangeNotifier {
 
       _invalidateChatsCache();
     } catch (e) {
-      print('[ChatService] Ошибка отправки сообщения: $e');
+      debugPrint('[ChatService] Ошибка отправки сообщения: $e');
       rethrow;
     }
   }
@@ -270,8 +270,8 @@ class ChatService extends ChangeNotifier {
       final currentUserId = Auth().getCurrentUid();
       final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
 
-      print('[ChatService] 📤 Отправка изображения от: $currentUserId → $receiverId');
-      print('[ChatService] 📁 Путь к файлу: $filePath');
+      debugPrint('[ChatService] 📤 Отправка изображения от: $currentUserId → $receiverId');
+      debugPrint('[ChatService] 📁 Путь к файлу: $filePath');
 
       final chatId = await _getChatIdByUsers(currentUserId, receiverId);
       if (chatId == null) {
@@ -302,7 +302,7 @@ class ChatService extends ChangeNotifier {
         imageMimeType = 'image/webp';
       }
 
-      print('[ChatService] 🖼️ Detected image MIME type: $imageMimeType');
+      debugPrint('[ChatService] 🖼️ Detected image MIME type: $imageMimeType');
 
       final fileBytes = await File(filePath).readAsBytes();
       final fileName = filePath.split('/').last;
@@ -319,7 +319,7 @@ class ChatService extends ChangeNotifier {
         files: [file],
       );
 
-      print('[ChatService] ✅ Изображение отправлено: ${createdMessage.id}');
+      debugPrint('[ChatService] ✅ Изображение отправлено: ${createdMessage.id}');
 
       await _updateChatMetadata(
         chatId: chatId,
@@ -331,7 +331,7 @@ class ChatService extends ChangeNotifier {
 
       _invalidateChatsCache();
     } catch (e) {
-      print('[ChatService] ❌ Ошибка отправки изображения: $e');
+      debugPrint('[ChatService] ❌ Ошибка отправки изображения: $e');
       rethrow;
     }
   }
@@ -344,8 +344,8 @@ class ChatService extends ChangeNotifier {
       final currentUserId = Auth().getCurrentUid();
       final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
 
-      print('[ChatService] 📤 Отправка аудио от: $currentUserId → $receiverId');
-      print('[ChatService] 📁 Путь к файлу: $filePath');
+      debugPrint('[ChatService] 📤 Отправка аудио от: $currentUserId → $receiverId');
+      debugPrint('[ChatService] 📁 Путь к файлу: $filePath');
 
       final chatId = await _getChatIdByUsers(currentUserId, receiverId);
       if (chatId == null) {
@@ -390,28 +390,28 @@ class ChatService extends ChangeNotifier {
         contentType: http.MediaType.parse(mimeType),
       );
 
-      print('[ChatService] 🎵 Отправка аудио: $fileName (${mimeType})');
+      debugPrint('[ChatService] 🎵 Отправка аудио: $fileName (${mimeType})');
 
       final createdMessage = await _pb.collection('messages').create(
         body: body,
         files: [file],
       );
 
-      print('[ChatService] ✅ Аудио отправлено: ${createdMessage.id}');
-      print('[ChatService] 📋 Детали сообщения:');
-      print('  - file: ${createdMessage.data['file']}');
-      print('  - type: ${createdMessage.data['type']}');
-      print('  - message: "${createdMessage.data['message']}"');
+      debugPrint('[ChatService] ✅ Аудио отправлено: ${createdMessage.id}');
+      debugPrint('[ChatService] 📋 Детали сообщения:');
+      debugPrint('  - file: ${createdMessage.data['file']}');
+      debugPrint('  - type: ${createdMessage.data['type']}');
+      debugPrint('  - message: "${createdMessage.data['message']}"');
 
       if (createdMessage.data['file'] != null) {
         try {
           final testUrl = _pb.getFileUrl(createdMessage, createdMessage.data['file']).toString();
-          print('[ChatService] 🔗 Построенный URL: $testUrl');
+          debugPrint('[ChatService] 🔗 Построенный URL: $testUrl');
         } catch (e) {
-          print('[ChatService] ❌ Ошибка построения URL: $e');
+          debugPrint('[ChatService] ❌ Ошибка построения URL: $e');
         }
       } else {
-        print('[ChatService] ⚠️ Поле file пустое! Файл не загружен в PocketBase.');
+        debugPrint('[ChatService] ⚠️ Поле file пустое! Файл не загружен в PocketBase.');
       }
 
       await _updateChatMetadata(
@@ -424,7 +424,7 @@ class ChatService extends ChangeNotifier {
 
       _invalidateChatsCache();
     } catch (e) {
-      print('[ChatService] ❌ Ошибка отправки аудио: $e');
+      debugPrint('[ChatService] ❌ Ошибка отправки аудио: $e');
       rethrow;
     }
   }
@@ -443,20 +443,20 @@ class ChatService extends ChangeNotifier {
     StreamController<List<Message>> broadcastController,
   ) async {
     try {
-      print('[ChatService] 🔄 Инициализация stream для: $userId → $otherUserId');
+      debugPrint('[ChatService] 🔄 Инициализация stream для: $userId → $otherUserId');
 
       final chatId = await _getChatIdByUsers(userId, otherUserId, createIfNotExists: false);
 
       if (chatId == null) {
-        print('[ChatService] ⚠️ Чат не существует, отправляем пустой список сообщений');
+        debugPrint('[ChatService] ⚠️ Чат не существует, отправляем пустой список сообщений');
         broadcastController.add([]);
         return;
       }
 
-      print('[ChatService] 📌 ChatId получен: $chatId');
+      debugPrint('[ChatService] 📌 ChatId получен: $chatId');
 
       if (_messageStreamControllers.containsKey(chatId)) {
-        print('[ChatService] ♻️ Используется существующий stream');
+        debugPrint('[ChatService] ♻️ Используется существующий stream');
         final existingController = _messageStreamControllers[chatId]!;
 
         existingController.stream.listen(
@@ -469,7 +469,7 @@ class ChatService extends ChangeNotifier {
       final controller = StreamController<List<Message>>.broadcast();
       _messageStreamControllers[chatId] = controller;
 
-      print('[ChatService] ✨ Создан новый realtime stream для chatId: $chatId');
+      debugPrint('[ChatService] ✨ Создан новый realtime stream для chatId: $chatId');
 
       controller.stream.listen(
         (messages) => broadcastController.add(messages),
@@ -480,7 +480,7 @@ class ChatService extends ChangeNotifier {
 
       _subscribeToMessages(chatId, controller);
     } catch (e) {
-      print('[ChatService] ❌ Ошибка создания stream: $e');
+      debugPrint('[ChatService] ❌ Ошибка создания stream: $e');
       broadcastController.addError(e);
     }
   }
@@ -488,39 +488,39 @@ class ChatService extends ChangeNotifier {
   Future<void> _subscribeToMessages(
       String chatId, StreamController<List<Message>> controller) async {
     try {
-      print('[ChatService] 🔔 Подписка на realtime для chatId: $chatId');
+      debugPrint('[ChatService] 🔔 Подписка на realtime для chatId: $chatId');
 
       final unsubscribe = await _pb.collection('messages').subscribe(
         '*',
         (e) {
-          print('[ChatService] 🔥 Realtime событие получено!');
-          print('  - action: ${e.action}');
-          print('  - record.id: ${e.record?.id}');
-          print('  - record.data: ${e.record?.data}');
-          print('  - Ожидаемый chatId: $chatId');
+          debugPrint('[ChatService] 🔥 Realtime событие получено!');
+          debugPrint('  - action: ${e.action}');
+          debugPrint('  - record.id: ${e.record?.id}');
+          debugPrint('  - record.data: ${e.record?.data}');
+          debugPrint('  - Ожидаемый chatId: $chatId');
 
           if (e.record != null) {
             final recordChatId = e.record!.data['chatId'] as String?;
             final recordChatRoomId = e.record!.data['chatRoomId'] as String?;
 
-            print('  - record.chatId: $recordChatId');
-            print('  - record.chatRoomId: $recordChatRoomId');
+            debugPrint('  - record.chatId: $recordChatId');
+            debugPrint('  - record.chatRoomId: $recordChatRoomId');
 
             if (recordChatId == chatId || recordChatRoomId == chatId) {
-              print('[ChatService] ✅ Сообщение относится к текущему чату! Перезагружаем...');
+              debugPrint('[ChatService] ✅ Сообщение относится к текущему чату! Перезагружаем...');
               _loadInitialMessages(chatId, controller);
             } else {
-              print('[ChatService] ⚠️ Сообщение НЕ относится к текущему чату (пропускаем)');
+              debugPrint('[ChatService] ⚠️ Сообщение НЕ относится к текущему чату (пропускаем)');
             }
           }
         },
       );
 
-      print('[ChatService] ✅ Подписка создана успешно');
+      debugPrint('[ChatService] ✅ Подписка создана успешно');
 
       _subscriptions[chatId] = unsubscribe;
     } catch (e) {
-      print('[ChatService] ❌ Ошибка подписки на realtime: $e');
+      debugPrint('[ChatService] ❌ Ошибка подписки на realtime: $e');
       if (!controller.isClosed) {
         controller.addError(e);
       }
@@ -530,7 +530,7 @@ class ChatService extends ChangeNotifier {
   Future<void> _loadInitialMessages(
       String chatId, StreamController<List<Message>> controller) async {
     try {
-      print('[ChatService] 📥 Загрузка сообщений для chatId: $chatId');
+      debugPrint('[ChatService] 📥 Загрузка сообщений для chatId: $chatId');
 
       final result = await _pb.collection('messages').getList(
             filter: 'chatId="$chatId"',
@@ -538,7 +538,7 @@ class ChatService extends ChangeNotifier {
             perPage: 500,
           );
 
-      print('[ChatService] 📊 Найдено сообщений: ${result.items.length}');
+      debugPrint('[ChatService] 📊 Найдено сообщений: ${result.items.length}');
 
       final messages = result.items
           .map((record) => Message.fromRecord(record, pb: _pb))
@@ -546,12 +546,12 @@ class ChatService extends ChangeNotifier {
 
       if (!controller.isClosed) {
         controller.add(messages);
-        print('[ChatService] ✅ Сообщения отправлены в stream (${messages.length} шт)');
+        debugPrint('[ChatService] ✅ Сообщения отправлены в stream (${messages.length} шт)');
       } else {
-        print('[ChatService] ⚠️ Controller уже закрыт');
+        debugPrint('[ChatService] ⚠️ Controller уже закрыт');
       }
     } catch (e) {
-      print('[ChatService] ❌ Ошибка загрузки начальных сообщений: $e');
+      debugPrint('[ChatService] ❌ Ошибка загрузки начальных сообщений: $e');
       if (!controller.isClosed) {
         controller.addError(e);
       }
@@ -563,23 +563,23 @@ class ChatService extends ChangeNotifier {
       final chatId = await _getChatIdByUsers(userId, otherUserId, createIfNotExists: false);
 
       if (chatId == null) {
-        print('[ChatService] Чат не существует, нечего отписывать');
+        debugPrint('[ChatService] Чат не существует, нечего отписывать');
         return;
       }
 
       final unsubscribe = _subscriptions.remove(chatId);
       if (unsubscribe != null) {
         unsubscribe();
-        print('[ChatService] Отписка от realtime для: $chatId');
+        debugPrint('[ChatService] Отписка от realtime для: $chatId');
       }
 
       final controller = _messageStreamControllers.remove(chatId);
       if (controller != null) {
         controller.close();
-        print('[ChatService] Stream controller закрыт для: $chatId');
+        debugPrint('[ChatService] Stream controller закрыт для: $chatId');
       }
     } catch (e) {
-      print('[ChatService] Ошибка отписки: $e');
+      debugPrint('[ChatService] Ошибка отписки: $e');
     }
   }
 
@@ -588,7 +588,7 @@ class ChatService extends ChangeNotifier {
       final chatId = await _getChatIdByUsers(userId, otherUserId, createIfNotExists: false);
 
       if (chatId == null) {
-        print('[ChatService] Чат не существует, возвращаем пустой список');
+        debugPrint('[ChatService] Чат не существует, возвращаем пустой список');
         return [];
       }
 
@@ -602,7 +602,7 @@ class ChatService extends ChangeNotifier {
           .map((record) => Message.fromRecord(record, pb: _pb))
           .toList();
     } catch (e) {
-      print('[ChatService] Ошибка получения сообщений: $e');
+      debugPrint('[ChatService] Ошибка получения сообщений: $e');
       return [];
     }
   }
@@ -613,7 +613,7 @@ class ChatService extends ChangeNotifier {
       final chatId = await _getChatIdByUsers(userID1, userID2, createIfNotExists: false);
 
       if (chatId == null) {
-        print('[ChatService] Чат не существует, нет последнего сообщения');
+        debugPrint('[ChatService] Чат не существует, нет последнего сообщения');
         return null;
       }
 
@@ -633,7 +633,7 @@ class ChatService extends ChangeNotifier {
         'senderID': record.data['senderId'] ?? '',
       };
     } catch (e) {
-      print('[ChatService] Ошибка получения последнего сообщения: $e');
+      debugPrint('[ChatService] Ошибка получения последнего сообщения: $e');
       return null;
     }
   }
@@ -643,7 +643,7 @@ class ChatService extends ChangeNotifier {
       final chatId = await _getChatIdByUsers(userID1, userID2, createIfNotExists: false);
 
       if (chatId == null) {
-        print('[ChatService] Чат не существует, нет непрочитанных');
+        debugPrint('[ChatService] Чат не существует, нет непрочитанных');
         return 0;
       }
 
@@ -654,7 +654,7 @@ class ChatService extends ChangeNotifier {
 
       return result.totalItems;
     } catch (e) {
-      print('[ChatService] Ошибка получения непрочитанных: $e');
+      debugPrint('[ChatService] Ошибка получения непрочитанных: $e');
       return 0;
     }
   }
@@ -664,7 +664,7 @@ class ChatService extends ChangeNotifier {
       final chatId = await _getChatIdByUsers(userID1, userID2, createIfNotExists: false);
 
       if (chatId == null) {
-        print('[ChatService] Чат не существует, нечего помечать прочитанным');
+        debugPrint('[ChatService] Чат не существует, нечего помечать прочитанным');
         return;
       }
 
@@ -680,17 +680,17 @@ class ChatService extends ChangeNotifier {
         );
       }
 
-      print('[ChatService] Помечено прочитанными: ${result.items.length} сообщений');
+      debugPrint('[ChatService] Помечено прочитанными: ${result.items.length} сообщений');
 
       await _resetUnreadCount(chatId, userID1);
     } catch (e) {
-      print('[ChatService] Ошибка пометки сообщений прочитанными: $e');
+      debugPrint('[ChatService] Ошибка пометки сообщений прочитанными: $e');
     }
   }
 
   Future<void> _resetUnreadCount(String chatId, String userId) async {
     try {
-      print('[ChatService] 🔄 Обнуление счетчика для chatId: $chatId, userId: $userId');
+      debugPrint('[ChatService] 🔄 Обнуление счетчика для chatId: $chatId, userId: $userId');
 
       final record = await _pb.collection('chats').getOne(chatId);
 
@@ -700,20 +700,20 @@ class ChatService extends ChangeNotifier {
       final updateData = <String, dynamic>{};
       if (userId == user1Id) {
         updateData['unreadCountUser1'] = 0;
-        print('[ChatService] Обнуляем unreadCountUser1');
+        debugPrint('[ChatService] Обнуляем unreadCountUser1');
       } else if (userId == user2Id) {
         updateData['unreadCountUser2'] = 0;
-        print('[ChatService] Обнуляем unreadCountUser2');
+        debugPrint('[ChatService] Обнуляем unreadCountUser2');
       } else {
-        print('[ChatService] ⚠️ userId не совпадает ни с user1Id, ни с user2Id!');
+        debugPrint('[ChatService] ⚠️ userId не совпадает ни с user1Id, ни с user2Id!');
         return;
       }
 
       await _pb.collection('chats').update(chatId, body: updateData);
 
-      print('[ChatService] ✅ Счетчик непрочитанных обнулён');
+      debugPrint('[ChatService] ✅ Счетчик непрочитанных обнулён');
     } catch (e) {
-      print('[ChatService] ❌ Ошибка обнуления счетчика: $e');
+      debugPrint('[ChatService] ❌ Ошибка обнуления счетчика: $e');
     }
   }
 
@@ -729,9 +729,9 @@ class ChatService extends ChangeNotifier {
 
       await _pb.collection('reports').create(body: report);
 
-      print('[ChatService] Жалоба отправлена на пользователя: $userID');
+      debugPrint('[ChatService] Жалоба отправлена на пользователя: $userID');
     } catch (e) {
-      print('[ChatService] Ошибка отправки жалобы: $e');
+      debugPrint('[ChatService] Ошибка отправки жалобы: $e');
     }
   }
 
@@ -744,13 +744,13 @@ class ChatService extends ChangeNotifier {
         'blockedUserId': userID,
       });
 
-      print('[ChatService] Пользователь заблокирован: $userID');
+      debugPrint('[ChatService] Пользователь заблокирован: $userID');
 
       _invalidateBlockedCache(currentUserId);
 
       notifyListeners();
     } catch (e) {
-      print('[ChatService] Ошибка блокировки пользователя: $e');
+      debugPrint('[ChatService] Ошибка блокировки пользователя: $e');
     }
   }
 
@@ -766,16 +766,16 @@ class ChatService extends ChangeNotifier {
       if (result.items.isNotEmpty) {
         final recordId = result.items.first.id;
         await _pb.collection('blocked_users').delete(recordId);
-        print('[ChatService] Пользователь разблокирован: $blockedUserID');
+        debugPrint('[ChatService] Пользователь разблокирован: $blockedUserID');
 
         _invalidateBlockedCache(currentUserId);
       } else {
-        print('[ChatService] Запись блокировки не найдена');
+        debugPrint('[ChatService] Запись блокировки не найдена');
       }
 
       notifyListeners();
     } catch (e) {
-      print('[ChatService] Ошибка разблокировки пользователя: $e');
+      debugPrint('[ChatService] Ошибка разблокировки пользователя: $e');
     }
   }
 
@@ -785,7 +785,7 @@ class ChatService extends ChangeNotifier {
       if (!forceRefresh &&
           _cachedBlockedUsers.containsKey(userID) &&
           _isCacheValid(_blockedUsersCacheTime[userID])) {
-        print('[ChatService] Используется кеш для getBlockedUsers()');
+        debugPrint('[ChatService] Используется кеш для getBlockedUsers()');
         return _cachedBlockedUsers[userID]!;
       }
 
@@ -810,19 +810,19 @@ class ChatService extends ChangeNotifier {
             'avatarUrl': userRecord.data['avatar'] ?? '',
           });
         } catch (e) {
-          print(
+          debugPrint(
               '[ChatService] Ошибка получения данных пользователя $userId: $e');
         }
       }
 
       _cachedBlockedUsers[userID] = blockedUsers;
       _blockedUsersCacheTime[userID] = DateTime.now();
-      print(
+      debugPrint(
           '[ChatService] Кеш обновлён для getBlockedUsers() (${blockedUsers.length} заблокированных)');
 
       return blockedUsers;
     } catch (e) {
-      print('[ChatService] Ошибка получения заблокированных пользователей: $e');
+      debugPrint('[ChatService] Ошибка получения заблокированных пользователей: $e');
       return [];
     }
   }
@@ -834,7 +834,7 @@ class ChatService extends ChangeNotifier {
       final sortedUser1 = sortedIds[0];
       final sortedUser2 = sortedIds[1];
 
-      print('[ChatService] 🔍 Поиск чата между: $sortedUser1 и $sortedUser2');
+      debugPrint('[ChatService] 🔍 Поиск чата между: $sortedUser1 и $sortedUser2');
 
       final existing = await _pb.collection('chats').getList(
             filter:
@@ -844,11 +844,11 @@ class ChatService extends ChangeNotifier {
 
       if (existing.items.isNotEmpty) {
         final chatId = existing.items.first.id;
-        print('[ChatService] ✅ Чат найден: $chatId');
+        debugPrint('[ChatService] ✅ Чат найден: $chatId');
         return chatId;
       } else {
         if (createIfNotExists) {
-          print('[ChatService] ✨ Создание нового чата...');
+          debugPrint('[ChatService] ✨ Создание нового чата...');
 
           final newChat = await _pb.collection('chats').create(body: {
             'user1Id': sortedUser1,
@@ -861,15 +861,15 @@ class ChatService extends ChangeNotifier {
             'unreadCountUser2': 0,
           });
 
-          print('[ChatService] ✅ Новый чат создан: ${newChat.id}');
+          debugPrint('[ChatService] ✅ Новый чат создан: ${newChat.id}');
           return newChat.id;
         } else {
-          print('[ChatService] ⚠️ Чат не найден и createIfNotExists = false, возвращаем null');
+          debugPrint('[ChatService] ⚠️ Чат не найден и createIfNotExists = false, возвращаем null');
           return null;
         }
       }
     } catch (e) {
-      print('[ChatService] ❌ Ошибка получения/создания chatId: $e');
+      debugPrint('[ChatService] ❌ Ошибка получения/создания chatId: $e');
       rethrow;
     }
   }
@@ -882,7 +882,7 @@ class ChatService extends ChangeNotifier {
     required DateTime messageTimestamp,
   }) async {
     try {
-      print('[ChatService] 🔄 Обновление метаданных чата: $chatId');
+      debugPrint('[ChatService] 🔄 Обновление метаданных чата: $chatId');
 
       final record = await _pb.collection('chats').getOne(chatId);
 
@@ -912,16 +912,16 @@ class ChatService extends ChangeNotifier {
         },
       );
 
-      print('[ChatService] ✅ Метаданные чата обновлены');
+      debugPrint('[ChatService] ✅ Метаданные чата обновлены');
     } catch (e) {
-      print('[ChatService] ❌ Ошибка обновления метаданных чата: $e');
+      debugPrint('[ChatService] ❌ Ошибка обновления метаданных чата: $e');
     }
   }
 
   Future<List<Chat>> getUserChatsFromMetadata({bool forceRefresh = false}) async {
     try {
       if (!forceRefresh && _isCacheValid(_chatsCacheTime)) {
-        print('[ChatService] Используется кеш для getUserChatsFromMetadata()');
+        debugPrint('[ChatService] Используется кеш для getUserChatsFromMetadata()');
         return _cachedChats!;
       }
 
@@ -938,12 +938,12 @@ class ChatService extends ChangeNotifier {
 
       _cachedChats = chats;
       _chatsCacheTime = DateTime.now();
-      print(
+      debugPrint(
           '[ChatService] Кеш обновлён для getUserChatsFromMetadata() (${chats.length} чатов)');
 
       return chats;
     } catch (e) {
-      print('[ChatService] Ошибка получения чатов из метаданных: $e');
+      debugPrint('[ChatService] Ошибка получения чатов из метаданных: $e');
       return [];
     }
   }
@@ -952,13 +952,13 @@ class ChatService extends ChangeNotifier {
     final currentUserId = Auth().getCurrentUid();
 
     if (_chatsStreamController != null && !_chatsStreamController!.isClosed) {
-      print('[ChatService] Используется существующий stream для списка чатов');
+      debugPrint('[ChatService] Используется существующий stream для списка чатов');
       return _chatsStreamController!.stream;
     }
 
     _chatsStreamController = StreamController<List<Chat>>.broadcast();
 
-    print('[ChatService] Создан новый realtime stream для списка чатов');
+    debugPrint('[ChatService] Создан новый realtime stream для списка чатов');
 
     _loadInitialChats(currentUserId);
 
@@ -972,7 +972,7 @@ class ChatService extends ChangeNotifier {
       _chatsSubscription = await _pb.collection('chats').subscribe(
         '*',
         (e) {
-          print(
+          debugPrint(
               '[ChatService] Realtime событие для чатов: ${e.action} для записи ${e.record?.id}');
 
           if (e.record != null) {
@@ -987,9 +987,9 @@ class ChatService extends ChangeNotifier {
         filter: 'user1Id="$currentUserId" || user2Id="$currentUserId"',
       );
 
-      print('[ChatService] Подписка на realtime чатов создана');
+      debugPrint('[ChatService] Подписка на realtime чатов создана');
     } catch (e) {
-      print('[ChatService] Ошибка подписки на realtime чатов: $e');
+      debugPrint('[ChatService] Ошибка подписки на realtime чатов: $e');
       if (_chatsStreamController != null && !_chatsStreamController!.isClosed) {
         _chatsStreamController!.addError(e);
       }
@@ -1013,7 +1013,7 @@ class ChatService extends ChangeNotifier {
         _chatsStreamController!.add(chats);
       }
     } catch (e) {
-      print('[ChatService] Ошибка загрузки чатов, пробуем кэш: $e');
+      debugPrint('[ChatService] Ошибка загрузки чатов, пробуем кэш: $e');
       final cached = await CacheService().getCachedChats();
       if (_chatsStreamController != null && !_chatsStreamController!.isClosed) {
         if (cached.isNotEmpty) {
@@ -1028,11 +1028,11 @@ class ChatService extends ChangeNotifier {
   void unsubscribeFromChats() {
     _chatsSubscription?.call();
     _chatsSubscription = null;
-    print('[ChatService] Отписка от realtime чатов');
+    debugPrint('[ChatService] Отписка от realtime чатов');
 
     _chatsStreamController?.close();
     _chatsStreamController = null;
-    print('[ChatService] Stream controller для чатов закрыт');
+    debugPrint('[ChatService] Stream controller для чатов закрыт');
   }
 
   Future<void> resetUnreadCountInMetadata(String userId, String otherUserId) async {
@@ -1040,7 +1040,7 @@ class ChatService extends ChangeNotifier {
       final chatId = await _getChatIdByUsers(userId, otherUserId, createIfNotExists: false);
 
       if (chatId == null) {
-        print('[ChatService] Чат не существует, нечего обнулять');
+        debugPrint('[ChatService] Чат не существует, нечего обнулять');
         return;
       }
 
@@ -1058,12 +1058,12 @@ class ChatService extends ChangeNotifier {
 
       if (updateData.isNotEmpty) {
         await _pb.collection('chats').update(chatId, body: updateData);
-        print('[ChatService] Счётчик непрочитанных сброшен для: $userId');
+        debugPrint('[ChatService] Счётчик непрочитанных сброшен для: $userId');
 
         await markMessagesAsRead(userId, otherUserId);
       }
     } catch (e) {
-      print('[ChatService] Ошибка сброса счётчика непрочитанных: $e');
+      debugPrint('[ChatService] Ошибка сброса счётчика непрочитанных: $e');
     }
   }
 }

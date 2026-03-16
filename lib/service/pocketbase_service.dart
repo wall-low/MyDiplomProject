@@ -55,7 +55,7 @@ class PocketBaseService extends ChangeNotifier {
         initialToken = await authFile.readAsString();
       }
     } catch (e) {
-      print('[PocketBase] Ошибка загрузки токена: $e');
+      debugPrint('[PocketBase] Ошибка загрузки токена: $e');
     }
 
     final store = AsyncAuthStore(
@@ -63,7 +63,7 @@ class PocketBaseService extends ChangeNotifier {
         try {
           await authFile.writeAsString(data);
         } catch (e) {
-          print('[PocketBase] Ошибка сохранения токена: $e');
+          debugPrint('[PocketBase] Ошибка сохранения токена: $e');
         }
       },
       initial: initialToken,
@@ -72,8 +72,8 @@ class PocketBaseService extends ChangeNotifier {
     _pb = PocketBase(baseUrl, authStore: store);
 
     _initialized = true;
-    print('[PocketBase] Initialized with URL: $baseUrl');
-    print('[PocketBase] Auth token loaded: ${_pb.authStore.isValid}');
+    debugPrint('[PocketBase] Initialized with URL: $baseUrl');
+    debugPrint('[PocketBase] Auth token loaded: ${_pb.authStore.isValid}');
   }
 
   /// Переключить сервер (локальный ↔ VPS)
@@ -90,7 +90,7 @@ class PocketBaseService extends ChangeNotifier {
     final oldStore = _pb.authStore;
     _pb = PocketBase(currentUrl, authStore: oldStore);
 
-    print('[PocketBase] Switched to: $currentUrl');
+    debugPrint('[PocketBase] Switched to: $currentUrl');
     notifyListeners();
   }
 
@@ -112,7 +112,7 @@ class PocketBaseService extends ChangeNotifier {
     if (_serverMode == mode) {
       final oldStore = _pb.authStore;
       _pb = PocketBase(currentUrl, authStore: oldStore);
-      print('[PocketBase] URL updated, reconnected to: $currentUrl');
+      debugPrint('[PocketBase] URL updated, reconnected to: $currentUrl');
     }
 
     notifyListeners();
@@ -128,7 +128,7 @@ class PocketBaseService extends ChangeNotifier {
 
   void clearAuth() {
     _pb.authStore.clear();
-    print('[PocketBase] Auth cleared');
+    debugPrint('[PocketBase] Auth cleared');
   }
 
   String getFileUrl(RecordModel record, String filename, {String? thumb}) {
@@ -154,9 +154,9 @@ class PocketBaseService extends ChangeNotifier {
     required String filePath,
   }) async {
     try {
-      print('[PocketBase] 📤 uploadAvatar START');
-      print('[PocketBase] 👤 User ID: $userId');
-      print('[PocketBase] 📁 File path: $filePath');
+      debugPrint('[PocketBase] 📤 uploadAvatar START');
+      debugPrint('[PocketBase] 👤 User ID: $userId');
+      debugPrint('[PocketBase] 📁 File path: $filePath');
 
       final file = File(filePath);
       if (!await file.exists()) {
@@ -164,28 +164,28 @@ class PocketBaseService extends ChangeNotifier {
       }
 
       final fileSize = await file.length();
-      print('[PocketBase] 📦 File size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+      debugPrint('[PocketBase] 📦 File size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
 
-      print('[PocketBase] 🔨 Creating MultipartFile...');
+      debugPrint('[PocketBase] 🔨 Creating MultipartFile...');
       final multipartFile = await http.MultipartFile.fromPath('avatar', filePath);
-      print('[PocketBase] ✅ MultipartFile created: ${multipartFile.filename}');
+      debugPrint('[PocketBase] ✅ MultipartFile created: ${multipartFile.filename}');
 
-      print('[PocketBase] 🚀 Sending update request to PocketBase...');
-      print('[PocketBase] 🌐 URL: ${_pb.baseUrl}/api/collections/users/records/$userId');
+      debugPrint('[PocketBase] 🚀 Sending update request to PocketBase...');
+      debugPrint('[PocketBase] 🌐 URL: ${_pb.baseUrl}/api/collections/users/records/$userId');
 
       final record = await _pb.collection('users').update(
         userId,
         files: [multipartFile],
       );
 
-      print('[PocketBase] ✅ Avatar uploaded successfully!');
-      print('[PocketBase] 📄 Record ID: ${record.id}');
-      print('[PocketBase] 📄 Avatar filename: ${record.data['avatar']}');
+      debugPrint('[PocketBase] ✅ Avatar uploaded successfully!');
+      debugPrint('[PocketBase] 📄 Record ID: ${record.id}');
+      debugPrint('[PocketBase] 📄 Avatar filename: ${record.data['avatar']}');
 
       return record;
     } catch (e, stackTrace) {
-      print('[PocketBase] ❌ ERROR uploading avatar: $e');
-      print('[PocketBase] 📋 Stack trace: $stackTrace');
+      debugPrint('[PocketBase] ❌ ERROR uploading avatar: $e');
+      debugPrint('[PocketBase] 📋 Stack trace: $stackTrace');
       rethrow;
     }
   }

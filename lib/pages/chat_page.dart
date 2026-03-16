@@ -9,7 +9,7 @@ import 'package:p7/components/my_text_field.dart';
 import 'package:p7/service/auth.dart';
 import 'package:p7/service/chat_service.dart';
 import '../components/audio_player_widget.dart';
-import '../models/messenge.dart';
+import '../models/message.dart';
 
 class ChatPage extends StatefulWidget {
   final String receiverName; // ИЗМЕНЕНО: username → name

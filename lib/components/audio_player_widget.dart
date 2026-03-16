@@ -40,7 +40,7 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
   void initState() {
     super.initState();
 
-    print('[AudioPlayer] 🎬 initState для URL: ${widget.url}');
+    debugPrint('[AudioPlayer] 🎬 initState для URL: ${widget.url}');
 
     _rippleController = AnimationController(
       vsync: this,
@@ -80,7 +80,7 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
     });
 
     _stateSub = _player.onPlayerStateChanged.listen((state) {
-      print('[AudioPlayer] State changed: $state');
+      debugPrint('[AudioPlayer] State changed: $state');
       if (mounted) {
         setState(() {
           _isPlaying = state == PlayerState.playing;
@@ -96,43 +96,43 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
 
     // ✅ НОВОЕ: Слушаем ошибки
     _completeSub = _player.onPlayerComplete.listen((event) {
-      print('[AudioPlayer] ✅ Воспроизведение завершено');
+      debugPrint('[AudioPlayer] ✅ Воспроизведение завершено');
     });
 
     // ✅ НОВОЕ: Обработка ошибок загрузки
     _logSub = _player.onLog.listen((msg) {
-      print('[AudioPlayer] 📋 Log: $msg');
+      debugPrint('[AudioPlayer] 📋 Log: $msg');
     });
   }
 
   /// ✅ НОВЫЙ МЕТОД: Предзагрузка аудио для получения duration
   Future<void> _loadAudioDuration() async {
     try {
-      print('[AudioPlayer] 📥 Загрузка метаданных аудио...');
+      debugPrint('[AudioPlayer] 📥 Загрузка метаданных аудио...');
       // ✅ ИСПРАВЛЕНИЕ: Используем setSource с явным mimeType для Android
       // PocketBase возвращает Content-Type: video/mp4, но нужен audio/mp4
       await _player.setSource(
         UrlSource(widget.url, mimeType: 'audio/mp4'),
       );
-      print('[AudioPlayer] ✅ Метаданные загружены');
+      debugPrint('[AudioPlayer] ✅ Метаданные загружены');
     } catch (e) {
-      print('[AudioPlayer] ❌ Ошибка загрузки метаданных: $e');
+      debugPrint('[AudioPlayer] ❌ Ошибка загрузки метаданных: $e');
     }
   }
 
   void _togglePlay() async {
     try {
       if (_isPlaying) {
-        print('[AudioPlayer] ⏸️ Пауза');
+        debugPrint('[AudioPlayer] ⏸️ Пауза');
         await _player.pause();
       } else {
-        print('[AudioPlayer] ▶️ Попытка воспроизведения: ${widget.url}');
+        debugPrint('[AudioPlayer] ▶️ Попытка воспроизведения: ${widget.url}');
         // ✅ ИСПРАВЛЕНИЕ: Явно указываем mimeType для Android
         await _player.play(UrlSource(widget.url, mimeType: 'audio/mp4'));
-        print('[AudioPlayer] ✅ play() вызван успешно');
+        debugPrint('[AudioPlayer] ✅ play() вызван успешно');
       }
     } catch (e) {
-      print('[AudioPlayer] ❌ ОШИБКА воспроизведения: $e');
+      debugPrint('[AudioPlayer] ❌ ОШИБКА воспроизведения: $e');
     }
   }
 

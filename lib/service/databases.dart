@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'package:p7/models/user.dart';
 import 'package:p7/service/auth.dart';
@@ -28,12 +29,12 @@ class Databases {
     try {
       await _pb.collection('users').update(uid, body: userMap);
 
-      print('[Databases] Профиль сохранен для пользователя: $uid');
+      debugPrint('[Databases] Профиль сохранен для пользователя: $uid');
     } on ClientException catch (e) {
-      print('[Databases] Ошибка сохранения профиля: ${e.statusCode} - ${e.response}');
+      debugPrint('[Databases] Ошибка сохранения профиля: ${e.statusCode} - ${e.response}');
       rethrow;
     } catch (e) {
-      print('[Databases] Неизвестная ошибка сохранения профиля: $e');
+      debugPrint('[Databases] Неизвестная ошибка сохранения профиля: $e');
       rethrow;
     }
   }
@@ -60,14 +61,14 @@ class Databases {
 
       return result;
     } on ClientException catch (e) {
-      print('[Databases] Ошибка получения профиля: ${e.statusCode} - ${e.response}');
+      debugPrint('[Databases] Ошибка получения профиля: ${e.statusCode} - ${e.response}');
       if (e.statusCode == 404 || e.statusCode == 403) {
         return null;
       }
-      print('[Databases] Пробуем кэш...');
+      debugPrint('[Databases] Пробуем кэш...');
       return await CacheService().getCachedOtherUserProfile(uid);
     } catch (e) {
-      print('[Databases] Ошибка сети, пробуем кэш: $e');
+      debugPrint('[Databases] Ошибка сети, пробуем кэш: $e');
       return await CacheService().getCachedOtherUserProfile(uid);
     }
   }
@@ -78,11 +79,11 @@ class Databases {
     try {
       await _pb.collection('users').update(uid, body: {'bio': bio});
 
-      print('[Databases] Биография обновлена для: $uid');
+      debugPrint('[Databases] Биография обновлена для: $uid');
     } on ClientException catch (e) {
-      print('[Databases] Ошибка обновления биографии: ${e.statusCode} - ${e.response}');
+      debugPrint('[Databases] Ошибка обновления биографии: ${e.statusCode} - ${e.response}');
     } catch (e) {
-      print('[Databases] Неизвестная ошибка обновления биографии: $e');
+      debugPrint('[Databases] Неизвестная ошибка обновления биографии: $e');
     }
   }
 
@@ -108,13 +109,13 @@ class Databases {
         return user.copyWith(avatarUrl: fullAvatarUrl);
       }).toList();
 
-      print('[Databases] Найдено репетиторов: ${tutors.length}');
+      debugPrint('[Databases] Найдено репетиторов: ${tutors.length}');
       return tutors;
     } on ClientException catch (e) {
-      print('[Databases] Ошибка получения репетиторов: ${e.statusCode} - ${e.response}');
+      debugPrint('[Databases] Ошибка получения репетиторов: ${e.statusCode} - ${e.response}');
       return [];
     } catch (e) {
-      print('[Databases] Неизвестная ошибка получения репетиторов: $e');
+      debugPrint('[Databases] Неизвестная ошибка получения репетиторов: $e');
       return [];
     }
   }
@@ -131,13 +132,13 @@ class Databases {
 
       cities.sort();
 
-      print('[Databases] Найдено городов: ${cities.length}');
+      debugPrint('[Databases] Найдено городов: ${cities.length}');
       return cities;
     } on ClientException catch (e) {
-      print('[Databases] Ошибка загрузки городов: ${e.statusCode} - ${e.response}');
+      debugPrint('[Databases] Ошибка загрузки городов: ${e.statusCode} - ${e.response}');
       return [];
     } catch (e) {
-      print('[Databases] Неизвестная ошибка загрузки городов: $e');
+      debugPrint('[Databases] Неизвестная ошибка загрузки городов: $e');
       return [];
     }
   }
@@ -161,14 +162,14 @@ class Databases {
       if (updates.isNotEmpty) {
         await _pb.collection('users').update(uid, body: updates);
 
-        print('[Databases] Профиль обновлен для: $uid, поля: ${updates.keys}');
+        debugPrint('[Databases] Профиль обновлен для: $uid, поля: ${updates.keys}');
       } else {
-        print('[Databases] Нечего обновлять, все поля null');
+        debugPrint('[Databases] Нечего обновлять, все поля null');
       }
     } on ClientException catch (e) {
-      print('[Databases] Ошибка обновления профиля: ${e.statusCode} - ${e.response}');
+      debugPrint('[Databases] Ошибка обновления профиля: ${e.statusCode} - ${e.response}');
     } catch (e) {
-      print('[Databases] Неизвестная ошибка обновления профиля: $e');
+      debugPrint('[Databases] Неизвестная ошибка обновления профиля: $e');
     }
   }
 }

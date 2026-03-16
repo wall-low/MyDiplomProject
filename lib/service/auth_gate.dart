@@ -22,12 +22,12 @@ class AuthGate extends StatelessWidget {
       }
       final cached = await cache.getCachedUserProfile();
       if (cached != null) {
-        print('[AuthGate] Профиль из кэша (сервер вернул null)');
+        debugPrint('[AuthGate] Профиль из кэша (сервер вернул null)');
         return cached;
       }
       return null;
     } catch (e) {
-      print('[AuthGate] Сервер недоступен, берём профиль из кэша: $e');
+      debugPrint('[AuthGate] Сервер недоступен, берём профиль из кэша: $e');
       return await cache.getCachedUserProfile();
     }
   }
@@ -42,19 +42,19 @@ class AuthGate extends StatelessWidget {
   }
 
   Widget _buildBody(BuildContext context, Auth auth) {
-    print('[AuthGate] Проверка авторизации: ${auth.isAuthenticated()}');
+    debugPrint('[AuthGate] Проверка авторизации: ${auth.isAuthenticated()}');
 
     if (auth.isAuthenticated()) {
       final userId = auth.getCurrentUid();
       final userEmail = auth.getCurrentUser()?.data['email'] as String? ?? '';
 
-      print('[AuthGate] Пользователь авторизован: $userId, email: $userEmail');
+      debugPrint('[AuthGate] Пользователь авторизован: $userId, email: $userEmail');
 
       return FutureBuilder(
         future: _loadProfileWithCache(userId),
         builder: (context, profileSnapshot) {
           if (profileSnapshot.connectionState == ConnectionState.waiting) {
-            print('[AuthGate] Загрузка профиля...');
+            debugPrint('[AuthGate] Загрузка профиля...');
             return Center(
               child: CircularProgressIndicator(
                 color: Theme.of(context).colorScheme.primary,
@@ -63,13 +63,13 @@ class AuthGate extends StatelessWidget {
           }
 
           if (profileSnapshot.hasData && profileSnapshot.data != null) {
-            print('[AuthGate] Профиль найден: ${profileSnapshot.data?.name}');
+            debugPrint('[AuthGate] Профиль найден: ${profileSnapshot.data?.name}');
             // Запускаем уведомления
             NotificationService().startPolling(userId);
             return const MainNavigation();
           }
 
-          print('[AuthGate] Профиль не найден: ${profileSnapshot.error}');
+          debugPrint('[AuthGate] Профиль не найден: ${profileSnapshot.error}');
           return RegisterProfilePage(
             email: userEmail,
           );

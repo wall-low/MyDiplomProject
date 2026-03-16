@@ -41,7 +41,7 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
 
     try {
       final tutorId = _auth.getCurrentUid();
-      if (tutorId == null) return;
+      if (tutorId.isEmpty) return;
 
       final templates = await _templateService.getTemplatesGroupedByDay(tutorId);
 
@@ -50,9 +50,9 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
         _isLoading = false;
       });
 
-      print('[WeeklyTemplateSetup] ✅ Загружено ${templates.length} дней с шаблонами');
+      debugPrint('[WeeklyTemplateSetup] ✅ Загружено ${templates.length} дней с шаблонами');
     } catch (e) {
-      print('[WeeklyTemplateSetup] ❌ Ошибка загрузки: $e');
+      debugPrint('[WeeklyTemplateSetup] ❌ Ошибка загрузки: $e');
       setState(() => _isLoading = false);
     }
   }
@@ -60,7 +60,7 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
   /// Добавить новый временной слот для дня
   Future<void> _addTimeSlot(int dayOfWeek) async {
     final tutorId = _auth.getCurrentUid();
-    if (tutorId == null) return;
+    if (tutorId.isEmpty) return;
 
     // Показываем диалог выбора времени
     final timeSlot = await _showTimePickerDialog(dayOfWeek);
@@ -154,7 +154,7 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
   /// Скопировать понедельник на все будни
   Future<void> _copyMondayToWeekdays() async {
     final tutorId = _auth.getCurrentUid();
-    if (tutorId == null) return;
+    if (tutorId.isEmpty) return;
 
     // Проверяем, есть ли слоты в понедельник
     final mondaySlots = _templatesByDay[1] ?? [];
@@ -218,7 +218,7 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
   /// Применить изменения (генерация слотов)
   Future<void> _applyChanges() async {
     final tutorId = _auth.getCurrentUid();
-    if (tutorId == null) return;
+    if (tutorId.isEmpty) return;
 
     // Подтверждение
     final confirm = await showDialog<bool>(
@@ -249,11 +249,11 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
 
     try {
       // 1. Удаляем старые сгенерированные свободные слоты
-      print('[WeeklyTemplateSetup] 🗑️ Удаление старых слотов...');
+      debugPrint('[WeeklyTemplateSetup] 🗑️ Удаление старых слотов...');
       await _scheduleService.clearGeneratedFreeSlots(tutorId);
 
       // 2. Генерируем новые слоты на 28 дней
-      print('[WeeklyTemplateSetup] 🔄 Генерация новых слотов...');
+      debugPrint('[WeeklyTemplateSetup] 🔄 Генерация новых слотов...');
       final createdCount = await _scheduleService.generateSlotsFromTemplate(
         tutorId: tutorId,
         daysAhead: 28,
@@ -272,7 +272,7 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
         Navigator.pop(context, true);
       }
     } catch (e) {
-      print('[WeeklyTemplateSetup] ❌ Ошибка применения: $e');
+      debugPrint('[WeeklyTemplateSetup] ❌ Ошибка применения: $e');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

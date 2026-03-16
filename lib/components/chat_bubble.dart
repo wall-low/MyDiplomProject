@@ -163,9 +163,11 @@ class ChatBubble extends StatelessWidget {
           ),
           TextButton(
             onPressed: () async {
+              final nav = Navigator.of(ctx);
+              final messenger = ScaffoldMessenger.of(ctx);
               await ChatService().blockUser(userID);
-              Navigator.pop(ctx, true);
-              ScaffoldMessenger.of(ctx).showSnackBar(
+              nav.pop(true);
+              messenger.showSnackBar(
                 SnackBar(
                   content: const Text('Пользователь заблокирован'),
                   backgroundColor: Colors.red,

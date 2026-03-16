@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 class UserProfile {
@@ -35,7 +36,7 @@ class UserProfile {
         parsedBirthDate = DateTime.now();
       }
     } catch (e) {
-      print('[UserProfile] Ошибка парсинга birthDate: $e');
+      debugPrint('[UserProfile] Ошибка парсинга birthDate: $e');
       parsedBirthDate = DateTime.now();
     }
 

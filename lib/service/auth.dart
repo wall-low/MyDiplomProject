@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 import 'cache_service.dart';
 import 'notification_service.dart';
@@ -19,13 +20,15 @@ class Auth {
         password,
       );
 
-      print('[Auth] Успешный вход: ${authData.record.data['email']}');
+      debugPrint('[Auth] Успешный вход: ${authData.record.data['email']}');
+      // Запускаем polling уведомлений
+      NotificationService().startPolling(authData.record.id);
       return authData;
     } on ClientException catch (e) {
-      print('[Auth] Ошибка входа: ${e.statusCode} - ${e.response}');
+      debugPrint('[Auth] Ошибка входа: ${e.statusCode} - ${e.response}');
       rethrow;
     } catch (e) {
-      print('[Auth] Неизвестная ошибка входа: $e');
+      debugPrint('[Auth] Неизвестная ошибка входа: $e');
       rethrow;
     }
   }
@@ -36,7 +39,7 @@ class Auth {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final username = '${emailPrefix}_$timestamp';
 
-      print('[Auth] Создание пользователя: $email (username: $username)');
+      debugPrint('[Auth] Создание пользователя: $email (username: $username)');
       await _pb.collection('users').create(body: {
         'email': email,
         'username': username,
@@ -48,19 +51,21 @@ class Auth {
         'birthDate': '2000-01-01',
       });
 
-      print('[Auth] Автоматический вход после регистрации');
+      debugPrint('[Auth] Автоматический вход после регистрации');
       final authData = await _pb.collection('users').authWithPassword(
         email,
         password,
       );
 
-      print('[Auth] Успешная регистрация: ${authData.record.data['email']}');
+      debugPrint('[Auth] Успешная регистрация: ${authData.record.data['email']}');
+      // Запускаем polling уведомлений
+      NotificationService().startPolling(authData.record.id);
       return authData;
     } on ClientException catch (e) {
-      print('[Auth] Ошибка регистрации: ${e.statusCode} - ${e.response}');
+      debugPrint('[Auth] Ошибка регистрации: ${e.statusCode} - ${e.response}');
       rethrow;
     } catch (e) {
-      print('[Auth] Неизвестная ошибка регистрации: $e');
+      debugPrint('[Auth] Неизвестная ошибка регистрации: $e');
       rethrow;
     }
   }
@@ -84,12 +89,12 @@ class Auth {
         },
       );
 
-      print('[Auth] Пароль успешно изменен для ${currentUser.id}');
+      debugPrint('[Auth] Пароль успешно изменен для ${currentUser.id}');
     } on ClientException catch (e) {
-      print('[Auth] Ошибка смены пароля: ${e.statusCode} - ${e.response}');
+      debugPrint('[Auth] Ошибка смены пароля: ${e.statusCode} - ${e.response}');
       rethrow;
     } catch (e) {
-      print('[Auth] Неизвестная ошибка смены пароля: $e');
+      debugPrint('[Auth] Неизвестная ошибка смены пароля: $e');
       rethrow;
     }
   }
@@ -98,9 +103,9 @@ class Auth {
     try {
       await _pb.collection('users').requestPasswordReset(email);
 
-      print('[Auth] Запрос на сброс пароля отправлен на: $email');
+      debugPrint('[Auth] Запрос на сброс пароля отправлен на: $email');
     } on ClientException catch (e) {
-      print('[Auth] Ошибка запроса сброса пароля: ${e.statusCode} - ${e.response}');
+      debugPrint('[Auth] Ошибка запроса сброса пароля: ${e.statusCode} - ${e.response}');
 
       if (e.statusCode == 404) {
         throw Exception('Пользователь с таким email не найден');
@@ -110,7 +115,7 @@ class Auth {
         throw Exception('Ошибка отправки письма');
       }
     } catch (e) {
-      print('[Auth] Неизвестная ошибка запроса сброса пароля: $e');
+      debugPrint('[Auth] Неизвестная ошибка запроса сброса пароля: $e');
       rethrow;
     }
   }
@@ -122,9 +127,9 @@ class Auth {
     try {
       await _pb.collection('users').delete(currentUser.id);
       _pb.authStore.clear();
-      print('[Auth] Пользователь ${currentUser.id} удалён');
+      debugPrint('[Auth] Пользователь ${currentUser.id} удалён');
     } catch (e) {
-      print('[Auth] Ошибка удаления пользователя: $e');
+      debugPrint('[Auth] Ошибка удаления пользователя: $e');
       _pb.authStore.clear();
     }
   }
@@ -133,6 +138,6 @@ class Auth {
     await NotificationService().reset();
     _pb.authStore.clear();
     await CacheService().clearAll();
-    print('[Auth] Пользователь вышел из системы, кэш очищен');
+    debugPrint('[Auth] Пользователь вышел из системы, кэш очищен');
   }
 }

@@ -7,8 +7,6 @@ import 'package:p7/service/tutor_profile_service.dart';
 import 'package:p7/service/review_service.dart';
 import 'package:p7/models/user.dart';
 import 'package:p7/models/tutor_profile.dart';
-import 'package:pocketbase/pocketbase.dart';
-import 'chat_page.dart';
 import 'tutor_profile_page.dart';
 import 'package:p7/service/pocketbase_service.dart';
 
@@ -108,21 +106,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
     });
   }
 
-  /// Сбросить все фильтры
-  void _resetFilters() {
-    setState(() {
-      _searchController.clear();
-      _searchQuery = '';
-      _selectedCity = null;
-      _selectedSubjects.clear();
-      _selectedLessonFormat = null;
-      _minExperience = null;
-      _priceMinController.clear();
-      _priceMaxController.clear();
-      _refreshKey++;
-    });
-  }
-
   /// Загрузка репетиторов с фильтрацией
   Future<List<TutorWithUserData>> _loadTutors() async {
     try {
@@ -164,7 +147,7 @@ class _FindTutorPageState extends State<FindTutorPage> {
       // Объединяем фильтры
       final filterStr = filters.isNotEmpty ? filters.join(' && ') : '';
 
-      print('[FindTutor] 🔍 Фильтр: $filterStr');
+      debugPrint('[FindTutor] 🔍 Фильтр: $filterStr');
 
       // Загружаем tutor_profiles с expand для userId
       final result = await _pb.collection('tutor_profiles').getList(
@@ -174,7 +157,7 @@ class _FindTutorPageState extends State<FindTutorPage> {
             perPage: 100,
           );
 
-      print('[FindTutor] ✅ Найдено профилей: ${result.totalItems}');
+      debugPrint('[FindTutor] ✅ Найдено профилей: ${result.totalItems}');
 
       // Преобразуем в список TutorWithUserData
       List<TutorWithUserData> tutors = [];
@@ -184,57 +167,50 @@ class _FindTutorPageState extends State<FindTutorPage> {
 
         // Получаем расширенные данные пользователя из expand
         final expandedData = record.expand;
-        if (expandedData != null && expandedData.containsKey('userId')) {
+        if (expandedData.containsKey('userId')) {
           final userRecordsRaw = expandedData['userId'];
-          if (userRecordsRaw != null && userRecordsRaw is List && userRecordsRaw.isNotEmpty) {
+          if (userRecordsRaw != null && userRecordsRaw.isNotEmpty) {
             final userRecordRaw = userRecordsRaw.first;
-            if (userRecordRaw is RecordModel) {
-              // ИСПРАВЛЕНИЕ: Генерируем полный URL аватара
-              final userProfile = UserProfile.fromRecord(userRecordRaw);
+            final userProfile = UserProfile.fromRecord(userRecordRaw);
 
-              // Генерируем полный URL аватара (как в databases.dart)
-              String? fullAvatarUrl;
-              final avatar = userRecordRaw.data['avatar'] as String?;
-              if (avatar != null && avatar.isNotEmpty) {
-                fullAvatarUrl = PocketBaseService().getFileUrl(
-                  userRecordRaw,
-                  avatar,
-                  thumb: '200x200',
-                );
-              }
+            // Генерируем полный URL аватара
+            String? fullAvatarUrl;
+            final avatar = userRecordRaw.data['avatar'] as String?;
+            if (avatar != null && avatar.isNotEmpty) {
+              fullAvatarUrl = PocketBaseService().getFileUrl(
+                userRecordRaw,
+                avatar,
+                thumb: '200x200',
+              );
+            }
 
-              // Обновляем профиль с полным URL
-              final userProfileWithAvatar = userProfile.copyWith(avatarUrl: fullAvatarUrl);
+            final userProfileWithAvatar = userProfile.copyWith(avatarUrl: fullAvatarUrl);
 
-              // Применяем дополнительные фильтры (город, имя)
-              // Эти фильтры применяем на клиенте, т.к. они относятся к users, а не tutor_profiles
+            // Исключаем текущего пользователя
+            if (userProfileWithAvatar.uid == _auth.getCurrentUid()) continue;
 
-              // Исключаем текущего пользователя
-              if (userProfileWithAvatar.uid == _auth.getCurrentUid()) continue;
+            // Фильтр по городу
+            if (_selectedCity != null && userProfileWithAvatar.city != _selectedCity) {
+              continue;
+            }
 
-              // Фильтр по городу
-              if (_selectedCity != null && userProfileWithAvatar.city != _selectedCity) {
+            // Фильтр по имени
+            if (_searchQuery.isNotEmpty) {
+              if (!userProfileWithAvatar.name.toLowerCase().contains(_searchQuery) &&
+                  !userProfileWithAvatar.username.toLowerCase().contains(_searchQuery)) {
                 continue;
               }
-
-              // Фильтр по имени
-              if (_searchQuery.isNotEmpty) {
-                if (!userProfileWithAvatar.name.toLowerCase().contains(_searchQuery) &&
-                    !userProfileWithAvatar.username.toLowerCase().contains(_searchQuery)) {
-                  continue;
-                }
-              }
-
-              tutors.add(TutorWithUserData(
-                tutorProfile: tutorProfile,
-                userProfile: userProfileWithAvatar,
-              ));
             }
+
+            tutors.add(TutorWithUserData(
+              tutorProfile: tutorProfile,
+              userProfile: userProfileWithAvatar,
+            ));
           }
         }
       }
 
-      print('[FindTutor] ✅ После фильтрации: ${tutors.length} репетиторов');
+      debugPrint('[FindTutor] ✅ После фильтрации: ${tutors.length} репетиторов');
 
       // Пересчитываем рейтинги всех найденных репетиторов в фоне
       // и перечитываем актуальные профили
@@ -259,9 +235,9 @@ class _FindTutorPageState extends State<FindTutorPage> {
 
       return tutors;
     } catch (e, stackTrace) {
-      print('[FindTutor] ❌ Ошибка загрузки репетиторов:');
-      print('  Error: $e');
-      print('  StackTrace: $stackTrace');
+      debugPrint('[FindTutor] ❌ Ошибка загрузки репетиторов:');
+      debugPrint('  Error: $e');
+      debugPrint('  StackTrace: $stackTrace');
       return [];
     }
   }

@@ -303,6 +303,9 @@ class SettingPage extends StatelessWidget {
             onPressed: () async {
               if (!_formKey.currentState!.validate()) return;
 
+              final nav = Navigator.of(context);
+              final messenger = ScaffoldMessenger.of(context);
+
               Navigator.of(ctx).pop(); // закрываем диалог
               // Показываем индикатор в основном контексте
               showDialog(
@@ -312,27 +315,22 @@ class SettingPage extends StatelessWidget {
               );
 
               try {
-                // Реаутентификация + смена пароля
                 await Auth().changePassword(
                   currentPassword: _currentPwCtrl.text,
                   newPassword: _newPwCtrl.text,
                 );
-                // Успех
-                Navigator.of(context).pop(); // закрыть индикатор
-                ScaffoldMessenger.of(context).showSnackBar(
+                nav.pop(); // закрыть индикатор
+                messenger.showSnackBar(
                   const SnackBar(content: Text('Пароль успешно обновлён')),
                 );
               } on Exception catch (e) {
-                // ИЗМЕНЕНО: FirebaseAuthException → Exception
-                //
-                // auth.changePassword() бросает Exception с понятным сообщением
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
+                nav.pop();
+                messenger.showSnackBar(
                   SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
                 );
               } catch (e) {
-                Navigator.of(context).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
+                nav.pop();
+                messenger.showSnackBar(
                   SnackBar(content: Text('Ошибка: $e')),
                 );
               }

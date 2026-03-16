@@ -139,20 +139,17 @@ class _RegisterPageState extends State<RegisterPage> {
 
         // Проверяем ответ от сервера для более точной ошибки
         final response = e.response;
-        if (response != null && response is Map) {
-          final data = response['data'];
-          if (data != null && data is Map) {
-            // PocketBase возвращает детальные ошибки в data
-            if (data.containsKey('email')) {
-              message = 'Этот email уже используется';
-            } else if (data.containsKey('password')) {
-              message = 'Слишком слабый пароль (минимум 8 символов)';
-            } else {
-              message = 'Ошибка регистрации: некорректные данные';
-            }
+        final data = response['data'];
+        if (data != null && data is Map && data.isNotEmpty) {
+          if (data.containsKey('email')) {
+            message = 'Этот email уже используется';
+          } else if (data.containsKey('password')) {
+            message = 'Слишком слабый пароль (минимум 8 символов)';
           } else {
-            message = 'Ошибка регистрации: ${response['message'] ?? 'Проверьте данные'}';
+            message = 'Ошибка регистрации: некорректные данные';
           }
+        } else if (response['message'] != null) {
+          message = 'Ошибка регистрации: ${response['message']}';
         } else if (e.statusCode == 400) {
           message = 'Некорректные данные';
         } else {

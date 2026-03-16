@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 class ScheduleSlot {
@@ -45,7 +46,7 @@ class ScheduleSlot {
         parsedDate = DateTime.now();
       }
     } catch (e) {
-      print('[ScheduleSlot] Ошибка парсинга date: $e');
+      debugPrint('[ScheduleSlot] Ошибка парсинга date: $e');
       parsedDate = DateTime.now();
     }
 
@@ -53,7 +54,7 @@ class ScheduleSlot {
     try {
       parsedCreatedAt = DateTime.parse(record.created);
     } catch (e) {
-      print('[ScheduleSlot] Ошибка парсинга createdAt: $e');
+      debugPrint('[ScheduleSlot] Ошибка парсинга createdAt: $e');
       parsedCreatedAt = DateTime.now();
     }
 
@@ -84,7 +85,7 @@ class ScheduleSlot {
         parsedDate = DateTime.now();
       }
     } catch (e) {
-      print('[ScheduleSlot] Ошибка парсинга date в fromMap: $e');
+      debugPrint('[ScheduleSlot] Ошибка парсинга date в fromMap: $e');
       parsedDate = DateTime.now();
     }
 
@@ -96,7 +97,7 @@ class ScheduleSlot {
         parsedCreatedAt = DateTime.now();
       }
     } catch (e) {
-      print('[ScheduleSlot] Ошибка парсинга createdAt в fromMap: $e');
+      debugPrint('[ScheduleSlot] Ошибка парсинга createdAt в fromMap: $e');
       parsedCreatedAt = DateTime.now();
     }
 

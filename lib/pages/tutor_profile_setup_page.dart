@@ -195,7 +195,7 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
 
     try {
       final userId = _auth.getCurrentUid();
-      print('[TutorProfileSetup] 📋 userId: $userId');
+      debugPrint('[TutorProfileSetup] 📋 userId: $userId');
 
       if (userId.isEmpty) {
         throw Exception('Пользователь не авторизован');
@@ -211,12 +211,12 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
           ? int.tryParse(_experienceController.text)
           : null;
 
-      print('[TutorProfileSetup] 📝 Данные для создания:');
-      print('  - subjects: $_selectedSubjects');
-      print('  - priceMin: $priceMin');
-      print('  - priceMax: $priceMax');
-      print('  - experience: $experience');
-      print('  - lessonFormats: $lessonFormats');
+      debugPrint('[TutorProfileSetup] 📝 Данные для создания:');
+      debugPrint('  - subjects: $_selectedSubjects');
+      debugPrint('  - priceMin: $priceMin');
+      debugPrint('  - priceMax: $priceMax');
+      debugPrint('  - experience: $experience');
+      debugPrint('  - lessonFormats: $lessonFormats');
 
       // Извлекаем последние 4 цифры карты для выплат
       // (если поле изменилось — содержит 16 цифр; если загружено из профиля — пропускаем)
@@ -277,9 +277,9 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
         }
       }
     } catch (e, stackTrace) {
-      print('[TutorProfileSetup] ❌ ОШИБКА сохранения профиля:');
-      print('  Error: $e');
-      print('  StackTrace: $stackTrace');
+      debugPrint('[TutorProfileSetup] ❌ ОШИБКА сохранения профиля:');
+      debugPrint('  Error: $e');
+      debugPrint('  StackTrace: $stackTrace');
 
       if (mounted) {
         hideLoad(context);

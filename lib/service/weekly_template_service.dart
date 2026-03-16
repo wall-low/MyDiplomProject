@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:pocketbase/pocketbase.dart';
 import 'package:p7/service/pocketbase_service.dart';
 import 'package:p7/models/weekly_template.dart';
 
@@ -21,14 +20,14 @@ class WeeklyTemplateService extends ChangeNotifier {
             perPage: 500,
           );
 
-      print(
+      debugPrint(
           '[WeeklyTemplateService] ✅ Загружено ${result.items.length} шаблонов');
 
       return result.items.map((r) => WeeklyTemplate.fromRecord(r)).toList();
     } catch (e, stackTrace) {
-      print('[WeeklyTemplateService] ❌ Ошибка загрузки шаблонов:');
-      print('  Error: $e');
-      print('  StackTrace: $stackTrace');
+      debugPrint('[WeeklyTemplateService] ❌ Ошибка загрузки шаблонов:');
+      debugPrint('  Error: $e');
+      debugPrint('  StackTrace: $stackTrace');
       return [];
     }
   }
@@ -47,7 +46,7 @@ class WeeklyTemplateService extends ChangeNotifier {
 
       return result.items.map((r) => WeeklyTemplate.fromRecord(r)).toList();
     } catch (e) {
-      print(
+      debugPrint(
           '[WeeklyTemplateService] ❌ Ошибка загрузки шаблонов для дня $dayOfWeek: $e');
       return [];
     }
@@ -75,14 +74,14 @@ class WeeklyTemplateService extends ChangeNotifier {
             body: template.toMap(),
           );
 
-      print('[WeeklyTemplateService] ✅ Шаблон создан: ${template.getFullDisplay()}');
+      debugPrint('[WeeklyTemplateService] ✅ Шаблон создан: ${template.getFullDisplay()}');
 
       notifyListeners();
       return WeeklyTemplate.fromRecord(record);
     } catch (e, stackTrace) {
-      print('[WeeklyTemplateService] ❌ Ошибка создания шаблона:');
-      print('  Error: $e');
-      print('  StackTrace: $stackTrace');
+      debugPrint('[WeeklyTemplateService] ❌ Ошибка создания шаблона:');
+      debugPrint('  Error: $e');
+      debugPrint('  StackTrace: $stackTrace');
       return null;
     }
   }
@@ -96,12 +95,12 @@ class WeeklyTemplateService extends ChangeNotifier {
             body: updatedTemplate.toMap(),
           );
 
-      print('[WeeklyTemplateService] ✅ Шаблон обновлен: $templateId');
+      debugPrint('[WeeklyTemplateService] ✅ Шаблон обновлен: $templateId');
 
       notifyListeners();
       return WeeklyTemplate.fromRecord(record);
     } catch (e) {
-      print('[WeeklyTemplateService] ❌ Ошибка обновления шаблона: $e');
+      debugPrint('[WeeklyTemplateService] ❌ Ошибка обновления шаблона: $e');
       return null;
     }
   }
@@ -111,12 +110,12 @@ class WeeklyTemplateService extends ChangeNotifier {
     try {
       await _pb.collection('weekly_templates').delete(templateId);
 
-      print('[WeeklyTemplateService] ✅ Шаблон удален: $templateId');
+      debugPrint('[WeeklyTemplateService] ✅ Шаблон удален: $templateId');
 
       notifyListeners();
       return true;
     } catch (e) {
-      print('[WeeklyTemplateService] ❌ Ошибка удаления шаблона: $e');
+      debugPrint('[WeeklyTemplateService] ❌ Ошибка удаления шаблона: $e');
       return false;
     }
   }
@@ -130,9 +129,9 @@ class WeeklyTemplateService extends ChangeNotifier {
         await deleteTemplate(template.id);
       }
 
-      print('[WeeklyTemplateService] ✅ Все шаблоны очищены');
+      debugPrint('[WeeklyTemplateService] ✅ Все шаблоны очищены');
     } catch (e) {
-      print('[WeeklyTemplateService] ❌ Ошибка очистки шаблонов: $e');
+      debugPrint('[WeeklyTemplateService] ❌ Ошибка очистки шаблонов: $e');
     }
   }
 
@@ -145,10 +144,10 @@ class WeeklyTemplateService extends ChangeNotifier {
         await deleteTemplate(template.id);
       }
 
-      print(
+      debugPrint(
           '[WeeklyTemplateService] ✅ Шаблоны дня $dayOfWeek очищены');
     } catch (e) {
-      print('[WeeklyTemplateService] ❌ Ошибка очистки дня: $e');
+      debugPrint('[WeeklyTemplateService] ❌ Ошибка очистки дня: $e');
     }
   }
 
@@ -161,11 +160,11 @@ class WeeklyTemplateService extends ChangeNotifier {
       final mondayTemplates = await getTemplatesForDay(tutorId, 1);
 
       if (mondayTemplates.isEmpty) {
-        print('[WeeklyTemplateService] ⚠️ Понедельник пустой, нечего копировать');
+        debugPrint('[WeeklyTemplateService] ⚠️ Понедельник пустой, нечего копировать');
         return false;
       }
 
-      print(
+      debugPrint(
           '[WeeklyTemplateService] 🔄 Копируем ${mondayTemplates.length} слотов понедельника на Вт-Пт');
 
       // 2. Для каждого дня недели (Вт-Пт)
@@ -184,15 +183,15 @@ class WeeklyTemplateService extends ChangeNotifier {
           });
         }
 
-        print('[WeeklyTemplateService] ✅ День $day скопирован');
+        debugPrint('[WeeklyTemplateService] ✅ День $day скопирован');
       }
 
       notifyListeners();
       return true;
     } catch (e, stackTrace) {
-      print('[WeeklyTemplateService] ❌ Ошибка копирования:');
-      print('  Error: $e');
-      print('  StackTrace: $stackTrace');
+      debugPrint('[WeeklyTemplateService] ❌ Ошибка копирования:');
+      debugPrint('  Error: $e');
+      debugPrint('  StackTrace: $stackTrace');
       return false;
     }
   }

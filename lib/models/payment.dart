@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 /// Модель платежа (имитация оплаты для диплома)
@@ -57,7 +58,7 @@ class Payment {
         parsedAmount = double.tryParse(amountValue) ?? 0.0;
       }
     } catch (e) {
-      print('[Payment] Ошибка парсинга amount: $e');
+      debugPrint('[Payment] Ошибка парсинга amount: $e');
     }
 
     // Парсинг created из record.created
@@ -65,7 +66,7 @@ class Payment {
     try {
       parsedCreated = DateTime.parse(record.created);
     } catch (e) {
-      print('[Payment] Ошибка парсинга created: $e');
+      debugPrint('[Payment] Ошибка парсинга created: $e');
       parsedCreated = DateTime.now();
     }
 

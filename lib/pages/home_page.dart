@@ -68,7 +68,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         _subscribeToPendingRequests();
       }
     } catch (e) {
-      print('[HomePage] Ошибка загрузки роли: $e');
+      debugPrint('[HomePage] Ошибка загрузки роли: $e');
     }
   }
 
@@ -207,7 +207,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
           if (snapshot.hasError){
             return Center(
-              child: Text("Ошибка: ${snapshot.error}"),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Theme.of(context).colorScheme.error),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Не удалось загрузить чаты',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 16),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Проверьте подключение к серверу',
+                    style: TextStyle(color: Theme.of(context).colorScheme.secondary, fontSize: 14),
+                  ),
+                ],
+              ),
             );
           }
 

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 class TutorProfile {
@@ -41,7 +42,7 @@ class TutorProfile {
         parsedSubjects = subjectsData.map((e) => e.toString()).toList();
       }
     } catch (e) {
-      print('[TutorProfile] Ошибка парсинга subjects: $e');
+      debugPrint('[TutorProfile] Ошибка парсинга subjects: $e');
     }
 
     List<String> parsedLessonFormat = [];
@@ -51,7 +52,7 @@ class TutorProfile {
         parsedLessonFormat = formatData.map((e) => e.toString()).toList();
       }
     } catch (e) {
-      print('[TutorProfile] Ошибка парсинга lessonFormat: $e');
+      debugPrint('[TutorProfile] Ошибка парсинга lessonFormat: $e');
     }
 
     DateTime? parsedLastPaidDate;
@@ -61,7 +62,7 @@ class TutorProfile {
         parsedLastPaidDate = DateTime.parse(dateStr);
       }
     } catch (e) {
-      print('[TutorProfile] Ошибка парсинга lastPaidLessonDate: $e');
+      debugPrint('[TutorProfile] Ошибка парсинга lastPaidLessonDate: $e');
     }
 
     double? parseDouble(String key) {
@@ -73,7 +74,7 @@ class TutorProfile {
         if (value is String) return double.tryParse(value);
         return null;
       } catch (e) {
-        print('[TutorProfile] Ошибка парсинга $key: $e');
+        debugPrint('[TutorProfile] Ошибка парсинга $key: $e');
         return null;
       }
     }
@@ -87,7 +88,7 @@ class TutorProfile {
         if (value is String) return int.tryParse(value);
         return null;
       } catch (e) {
-        print('[TutorProfile] Ошибка парсинга $key: $e');
+        debugPrint('[TutorProfile] Ошибка парсинга $key: $e');
         return null;
       }
     }
