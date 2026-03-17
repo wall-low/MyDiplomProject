@@ -6,6 +6,8 @@ import 'package:p7/pages/setting_page.dart';
 import 'package:p7/pages/tutor_profile_setup_page.dart';
 import 'package:p7/service/database_provider.dart';
 import 'package:p7/service/tutor_profile_service.dart';
+import 'package:p7/service/payment_service.dart';
+import 'package:p7/service/review_service.dart';
 import 'package:p7/service/pocketbase_service.dart';
 import 'package:p7/service/auth.dart';
 import 'package:provider/provider.dart';
@@ -24,10 +26,14 @@ class _ProfilePageState extends State<ProfilePage> {
   final _tutorProfileService = TutorProfileService();
 
   UserProfile? _user;
-  TutorProfile? _tutorProfile; // Профиль репетитора (если есть)
+  TutorProfile? _tutorProfile;
   final _bioCtrl = TextEditingController();
 
   bool _loading = true;
+
+  // Статистика репетитора
+  double _totalEarnings = 0;
+  int _totalReviews = 0;
 
   @override
   void initState() {
@@ -101,16 +107,25 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _loadUser() async {
     final u = await _databaseProvider.userProfile(widget.uid);
 
-    // Если пользователь - репетитор, загружаем его профиль
+    // Если пользователь - репетитор, загружаем его профиль и статистику
     TutorProfile? tutorProf;
+    double earnings = 0;
+    int reviewCount = 0;
     if (u?.role == 'Репетитор') {
       tutorProf = await _tutorProfileService.getTutorProfileByUserId(widget.uid);
+      try {
+        earnings = await PaymentService().getTutorTotalEarnings(widget.uid);
+        final reviews = await ReviewService().getTutorReviews(widget.uid);
+        reviewCount = reviews.length;
+      } catch (_) {}
     }
 
     if (mounted) {
       setState(() {
         _user = u;
         _tutorProfile = tutorProf;
+        _totalEarnings = earnings;
+        _totalReviews = reviewCount;
         _loading = false;
       });
     }
@@ -651,6 +666,39 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+
+            // Статистика
+            Row(
+              children: [
+                Expanded(
+                  child: _buildStatItem(
+                    icon: Icons.school,
+                    value: '${_tutorProfile!.totalPaidLessons}',
+                    label: 'Занятий',
+                    colorScheme: colorScheme,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildStatItem(
+                    icon: Icons.rate_review,
+                    value: '$_totalReviews',
+                    label: 'Отзывов',
+                    colorScheme: colorScheme,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _buildStatItem(
+                    icon: Icons.account_balance_wallet,
+                    value: '${_totalEarnings.toInt()} \u20BD',
+                    label: 'Доход',
+                    colorScheme: colorScheme,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
 
             // Предметы
@@ -728,6 +776,46 @@ class _ProfilePageState extends State<ProfilePage> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildStatItem({
+    required IconData icon,
+    required String value,
+    required String label,
+    required ColorScheme colorScheme,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 20, color: colorScheme.primary),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurface,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+          ),
+        ],
       ),
     );
   }

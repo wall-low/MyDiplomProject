@@ -5,7 +5,6 @@ import 'package:p7/service/databases.dart';
 class DatabaseProvider extends ChangeNotifier{
   final _db = Databases();
 
-  // ИЗМЕНЕНО: getUserFromFirebase → getUserFromPocketBase
   Future<UserProfile?> userProfile(String uid) => _db.getUserFromPocketBase(uid);
 
   Future<void> updateBio(String bio){

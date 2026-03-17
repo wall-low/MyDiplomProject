@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:p7/service/chat_service.dart';
 
-// УДАЛЕНО: import 'package:cloud_firestore/cloud_firestore.dart';
-// Мигрировали на PocketBase, используем DateTime вместо Timestamp
-
 class ChatBubble extends StatelessWidget {
   final String message;
   final String userID;
   final String messageID;
   final bool isCurrentUser;
-  final DateTime? timestamp; // ИЗМЕНЕНО: Timestamp → DateTime
+  final DateTime? timestamp;
 
   const ChatBubble({
     super.key,
@@ -20,12 +17,9 @@ class ChatBubble extends StatelessWidget {
     this.timestamp,
   });
 
-  // ИЗМЕНЕНО: Timestamp → DateTime
   String _formatTime(DateTime? timestamp) {
     if (timestamp == null) return '';
 
-    // БЫЛО: final date = timestamp.toDate();
-    // СТАЛО: timestamp уже DateTime
     final hour = timestamp.hour.toString().padLeft(2, '0');
     final minute = timestamp.minute.toString().padLeft(2, '0');
 

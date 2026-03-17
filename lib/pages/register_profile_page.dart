@@ -166,7 +166,6 @@ class _RegisterProfilePageState extends State<RegisterProfilePage> {
     showLoad(context, message: 'Сохранение профиля...');
 
     try {
-      // ИЗМЕНЕНО: saveInfoInFirebase → saveInfoInPocketBase
       await _db.saveInfoInPocketBase(
         name: nameController.text.trim(),
         email: widget.email,
@@ -183,13 +182,6 @@ class _RegisterProfilePageState extends State<RegisterProfilePage> {
 
         await Future.delayed(const Duration(milliseconds: 500));
 
-        // ИЗМЕНЕНО: AuthGate → MainNavigation
-        //
-        // ЛОГИКА:
-        // - Профиль уже сохранен в PocketBase
-        // - Пользователь авторизован
-        // - Переходим на MainNavigation (с Bottom Navigation Bar)
-        // - Это обеспечивает единообразный UX с обычным входом
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const MainNavigation()),

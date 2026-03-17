@@ -7,10 +7,6 @@ import 'package:p7/service/pocketbase_service.dart';
 import 'package:p7/pages/main_navigation.dart';
 import '../components/load_animation.dart';
 
-// УДАЛЕНО: import 'package:firebase_auth/firebase_auth.dart';
-// Мигрировали на PocketBase, используем ClientException вместо FirebaseAuthException
-// УДАЛЕНО: import 'package:p7/service/auth_gate.dart'; (AuthGate только для запуска приложения)
-
 class LoginPage extends StatefulWidget {
   final void Function()? onTap;
 
@@ -114,13 +110,6 @@ class _LoginPageState extends State<LoginPage> {
         setState(() => _isLoading = false);
       }
 
-      // ИЗМЕНЕНО: Прямой переход на MainNavigation после успешного входа
-      //
-      // ЛОГИКА:
-      // - При логине пользователь УЖЕ имеет заполненный профиль (заполнялся при регистрации)
-      // - AuthGate нужен только при запуске приложения (проверка сохраненной сессии)
-      // - После успешного входа сразу переходим на MainNavigation (с Bottom Navigation Bar)
-      // - Это обеспечивает единообразный UX с регистрацией
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -128,13 +117,6 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } on ClientException catch (e) {
-      // ИЗМЕНЕНО: FirebaseAuthException → ClientException
-      //
-      // PocketBase использует statusCode вместо code
-      // Основные коды ошибок:
-      // 400 - некорректные данные (неверный email/пароль)
-      // 403 - доступ запрещен
-      // 404 - пользователь не найден
       String message;
 
       if (e.statusCode == 400) {
@@ -226,9 +208,6 @@ class _LoginPageState extends State<LoginPage> {
               }
 
               try {
-                // ИЗМЕНЕНО: FirebaseAuth.instance.sendPasswordResetEmail → _auth.requestPasswordReset
-                //
-                // PocketBase отправит email с ссылкой для сброса пароля
                 await _auth.requestPasswordReset(
                   resetEmailController.text.trim(),
                 );
@@ -238,10 +217,6 @@ class _LoginPageState extends State<LoginPage> {
                   _showSnackBar('Письмо отправлено на почту');
                 }
               } on Exception catch (e) {
-                // ИЗМЕНЕНО: FirebaseAuthException → Exception
-                //
-                // auth.requestPasswordReset() уже обработал ClientException
-                // и бросил Exception с понятным сообщением
                 if (context.mounted) {
                   Navigator.pop(context);
                   _showSnackBar(e.toString().replaceAll('Exception: ', ''), isError: true);

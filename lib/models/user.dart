@@ -11,6 +11,7 @@ class UserProfile {
   final String role;
   final String bio;
   final String? avatarUrl;
+  final DateTime? lastSeen;
 
   UserProfile({
     required this.uid,
@@ -22,6 +23,7 @@ class UserProfile {
     required this.role,
     required this.bio,
     this.avatarUrl,
+    this.lastSeen,
   });
 
   factory UserProfile.fromRecord(RecordModel record) {
@@ -42,9 +44,16 @@ class UserProfile {
 
     final avatar = data['avatar'] as String?;
 
+    DateTime? lastSeen;
+    try {
+      final lastSeenStr = data['lastSeen'] as String?;
+      if (lastSeenStr != null && lastSeenStr.isNotEmpty) {
+        lastSeen = DateTime.parse(lastSeenStr);
+      }
+    } catch (_) {}
+
     return UserProfile(
       uid: record.id,
-
       name: data['name'] as String? ?? '',
       email: data['email'] as String? ?? '',
       username: data['username'] as String? ?? '',
@@ -52,8 +61,8 @@ class UserProfile {
       city: data['city'] as String? ?? 'Не указан',
       role: data['role'] as String? ?? 'Другое',
       bio: data['bio'] as String? ?? '',
-
       avatarUrl: avatar,
+      lastSeen: lastSeen,
     );
   }
 
@@ -73,6 +82,11 @@ class UserProfile {
     };
   }
 
+  bool get isOnline {
+    if (lastSeen == null) return false;
+    return DateTime.now().toUtc().difference(lastSeen!).inSeconds < 30;
+  }
+
   UserProfile copyWith({
     String? uid,
     String? name,
@@ -83,6 +97,7 @@ class UserProfile {
     String? role,
     String? bio,
     String? avatarUrl,
+    DateTime? lastSeen,
   }) {
     return UserProfile(
       uid: uid ?? this.uid,
@@ -94,6 +109,7 @@ class UserProfile {
       role: role ?? this.role,
       bio: bio ?? this.bio,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      lastSeen: lastSeen ?? this.lastSeen,
     );
   }
 }

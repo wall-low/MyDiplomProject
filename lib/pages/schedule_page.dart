@@ -10,6 +10,7 @@ import '../models/schedule_slot.dart';
 import '../service/auth.dart';
 import '../service/databases.dart';
 import '../service/schedule_service.dart';
+import '../service/review_service.dart';
 import '../service/tutor_profile_service.dart';
 import 'weekly_template_setup_page.dart';
 import 'chat_page.dart';
@@ -1274,22 +1275,28 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         ),
       );
 
-      // Показываем диалог отзыва:
-      // - оплата через приложение → isVerified: true → звёзды + текст → влияет на рейтинг
-      // - сторонняя оплата     → isVerified: false → только текст → НЕ влияет на рейтинг
+      // Показываем диалог отзыва (если ещё не оставляли)
       if (result != null && mounted) {
         final isVerified = result == 'app';
-        await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => ReviewDialog(
-            slot: slot,
-            tutorId: slot.tutorId,
-            studentId: _auth.getCurrentUid(),
-            tutorName: tutorUser.name,
-            isVerified: isVerified,
-          ),
+        final reviewService = ReviewService();
+        final alreadyReviewed = await reviewService.hasReviewForLesson(
+          _auth.getCurrentUid(),
+          slot.id,
         );
+
+        if (!alreadyReviewed && mounted) {
+          await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (context) => ReviewDialog(
+              slot: slot,
+              tutorId: slot.tutorId,
+              studentId: _auth.getCurrentUid(),
+              tutorName: tutorUser.name,
+              isVerified: isVerified,
+            ),
+          );
+        }
       }
 
       // ВСЕГДА обновляем список после закрытия диалога

@@ -52,10 +52,6 @@ class BlockedUserPage extends StatelessWidget {
         title: Text("З А Б Л О К И Р О В А Н Н Ы Е", style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         actions: [],
       ),
-      // ИЗМЕНЕНО: StreamBuilder → FutureBuilder
-      // ИЗМЕНЕНО: getBlockedUsersStream() → getBlockedUsers()
-      //
-      // PocketBase использует Future вместо Stream
       body: FutureBuilder<List<Map<String, dynamic>>>(
           future: ChatService().getBlockedUsers(userID),
           builder: (context, snapshot){

@@ -1,15 +1,12 @@
-import 'dart:async'; // ✅ Для StreamSubscription
+import 'dart:async';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
 
-// УДАЛЕНО: import 'package:cloud_firestore/cloud_firestore.dart';
-// Мигрировали на PocketBase, используем DateTime вместо Timestamp
-
 class ChatAudioPlayer extends StatefulWidget {
   final String url;
   final bool isCurrentUser;
-  final DateTime? timestamp; // ИЗМЕНЕНО: Timestamp → DateTime
+  final DateTime? timestamp;
 
   const ChatAudioPlayer({
     super.key,
@@ -29,7 +26,6 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
   Duration _position = Duration.zero;
   late AnimationController _rippleController;
 
-  // ✅ ИСПРАВЛЕНИЕ: Сохраняем подписки для правильной очистки в dispose()
   late final StreamSubscription<Duration> _durationSub;
   late final StreamSubscription<Duration> _positionSub;
   late final StreamSubscription<PlayerState> _stateSub;
@@ -47,15 +43,11 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
       duration: const Duration(milliseconds: 1500),
     );
 
-    // ✅ ВАЖНО: Сначала настроить AudioContext, ПОТОМ загружать source
     _player.setAudioContext(
       AudioContext(
         iOS: AudioContextIOS(
           category: AVAudioSessionCategory.playback,
-          options: {
-            // ✅ ИСПРАВЛЕНО: Удалил defaultToSpeaker (работает только с playAndRecord)
-            // AVAudioSessionOptions.defaultToSpeaker,
-          },
+          options: {},
         ),
         android: AudioContextAndroid(
           isSpeakerphoneOn: true,
@@ -67,10 +59,8 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
       ),
     );
 
-    // ✅ ИСПРАВЛЕНИЕ: Загружаем аудио ПОСЛЕ setAudioContext
     _loadAudioDuration();
 
-    // ✅ ИСПРАВЛЕНИЕ: Сохраняем подписки и проверяем mounted перед setState
     _durationSub = _player.onDurationChanged.listen((d) {
       if (mounted) setState(() => _duration = d);
     });
@@ -94,23 +84,18 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
       }
     });
 
-    // ✅ НОВОЕ: Слушаем ошибки
     _completeSub = _player.onPlayerComplete.listen((event) {
       debugPrint('[AudioPlayer] ✅ Воспроизведение завершено');
     });
 
-    // ✅ НОВОЕ: Обработка ошибок загрузки
     _logSub = _player.onLog.listen((msg) {
       debugPrint('[AudioPlayer] 📋 Log: $msg');
     });
   }
 
-  /// ✅ НОВЫЙ МЕТОД: Предзагрузка аудио для получения duration
   Future<void> _loadAudioDuration() async {
     try {
       debugPrint('[AudioPlayer] 📥 Загрузка метаданных аудио...');
-      // ✅ ИСПРАВЛЕНИЕ: Используем setSource с явным mimeType для Android
-      // PocketBase возвращает Content-Type: video/mp4, но нужен audio/mp4
       await _player.setSource(
         UrlSource(widget.url, mimeType: 'audio/mp4'),
       );
@@ -127,7 +112,6 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
         await _player.pause();
       } else {
         debugPrint('[AudioPlayer] ▶️ Попытка воспроизведения: ${widget.url}');
-        // ✅ ИСПРАВЛЕНИЕ: Явно указываем mimeType для Android
         await _player.play(UrlSource(widget.url, mimeType: 'audio/mp4'));
         debugPrint('[AudioPlayer] ✅ play() вызван успешно');
       }
@@ -138,8 +122,6 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
 
   @override
   void dispose() {
-    // ✅ ИСПРАВЛЕНИЕ: Отменяем все подписки ПЕРЕД dispose player
-    // Это предотвращает вызов setState() после dispose виджета
     _durationSub.cancel();
     _positionSub.cancel();
     _stateSub.cancel();
@@ -157,12 +139,9 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
     return '$m:$s';
   }
 
-  // ИЗМЕНЕНО: Timestamp → DateTime
   String _formatTime(DateTime? timestamp) {
     if (timestamp == null) return '';
 
-    // БЫЛО: final date = timestamp.toDate();
-    // СТАЛО: timestamp уже DateTime, не нужна конвертация
     final hour = timestamp.hour.toString().padLeft(2, '0');
     final minute = timestamp.minute.toString().padLeft(2, '0');
 
@@ -189,7 +168,6 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
         ? scheme.onPrimary
         : scheme.primary;
 
-    // ✅ ОБЁРТКА ДЛЯ ЗАЩИТЫ ОТ OVERFLOW
     return LayoutBuilder(
       builder: (context, constraints) {
         // Ограничиваем максимальную ширину с учётом доступного места
@@ -365,9 +343,9 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
           ],
         ),
           ),
-        ); // ✅ Закрываем Align
-      }, // ✅ Закрываем LayoutBuilder builder
-    ); // ✅ Закрываем LayoutBuilder
+        );
+      },
+    );
   }
 }
 

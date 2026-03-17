@@ -127,11 +127,6 @@ class _RegisterPageState extends State<RegisterPage> {
         );
       }
     } on ClientException catch (e) {
-      // ИЗМЕНЕНО: FirebaseAuthException → ClientException
-      //
-      // PocketBase использует statusCode вместо code
-      // Основные коды ошибок при регистрации:
-      // 400 - некорректные данные (слабый пароль, некорректный email, email уже используется)
       if (mounted) {
         setState(() => _isLoading = false);
 

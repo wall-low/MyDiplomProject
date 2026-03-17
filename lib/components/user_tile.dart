@@ -8,6 +8,7 @@ class UserTile extends StatelessWidget {
   final String? lastMessage;
   final DateTime? lastMessageTime;
   final int? unreadCount;
+  final bool isOnline;
   final void Function()? onTap;
 
   const UserTile({
@@ -18,6 +19,7 @@ class UserTile extends StatelessWidget {
     this.lastMessage,
     this.lastMessageTime,
     this.unreadCount,
+    this.isOnline = false,
     required this.onTap,
   });
 
@@ -25,11 +27,7 @@ class UserTile extends StatelessWidget {
     final now = DateTime.now();
     final diff = now.difference(time);
 
-    if (diff.inMinutes < 1) {
-      return 'Только что';
-    } else if (diff.inHours < 1) {
-      return '${diff.inMinutes} мин';
-    } else if (diff.inDays < 1) {
+    if (diff.inDays < 1) {
       return '${time.hour}:${time.minute.toString().padLeft(2, '0')}';
     } else if (diff.inDays == 1) {
       return 'Вчера';
@@ -59,10 +57,31 @@ class UserTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
           child: Row(
             children: [
-              // Аватар
-              UserAvatar(
-                avatarUrl: avatarUrl,
-                size: 56,
+              // Аватар с индикатором онлайн
+              Stack(
+                children: [
+                  UserAvatar(
+                    avatarUrl: avatarUrl,
+                    size: 56,
+                  ),
+                  if (isOnline)
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        width: 16,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.surface,
+                            width: 2.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(width: 16),
 

@@ -3,10 +3,6 @@ import 'package:pocketbase/pocketbase.dart';
 
 /// Модель сообщения в чате
 ///
-/// Мигрировано с Firestore на PocketBase
-/// Добавлен метод fromRecord() для преобразования RecordModel
-///
-/// СТРУКТУРА (ОБНОВЛЕНО ПОД POCKETBASE STORAGE):
 /// - Текстовые сообщения: type=text, message содержит текст, file=null
 /// - Изображения: type=image, file содержит имя файла, message=пустая строка
 /// - Аудио: type=audio, file содержит имя файла, message=пустая строка
@@ -15,14 +11,14 @@ class Message {
   final String senderEmail;
   final String receiverID;
   final String message; // Текст сообщения (только для type=text)
-  final DateTime timestamp; // ИЗМЕНЕНО: Timestamp → DateTime
+  final DateTime timestamp;
   final String type; // "text" | "image" | "audio"
-  final String? file; // ✅ НОВОЕ: Имя файла в PocketBase Storage (для image/audio)
+  final String? file; // Имя файла в PocketBase Storage (для image/audio)
   final String? fileName; // Оригинальное имя файла (опционально)
   final int? fileSize; // Размер файла в байтах
   final Duration? duration; // Длительность аудио
   final bool isRead;
-  final String? fileUrl; // ✅ НОВОЕ: Полный URL файла (вычисляется в fromRecord)
+  final String? fileUrl; // Полный URL файла (вычисляется в fromRecord)
 
   Message({
     required this.senderID,
@@ -31,44 +27,22 @@ class Message {
     required this.message,
     required this.timestamp,
     required this.type,
-    this.file, // ✅ НОВОЕ поле
+    this.file,
     this.fileName,
     this.fileSize,
     this.duration,
-    this.isRead = false, // По умолчанию false
-    this.fileUrl, // ✅ НОВОЕ: URL файла
+    this.isRead = false,
+    this.fileUrl,
   }) : assert(type == 'text' || type == 'image' || type == 'audio');
 
   /// Преобразование Message в Map для отправки в PocketBase
-  ///
-  /// ИЗМЕНЕНО:
-  /// - timestamp: Timestamp → DateTime.toIso8601String()
-  /// - Добавлено chatRoomId (будет добавлено в chat_service.dart)
   Map<String, dynamic> toMap() {
     return {
-      // ИЗМЕНЕНИЕ: Изменены названия полей для PocketBase
-      //
-      // БЫЛО (Firestore):
-      // 'senderID', 'receiverID' (с заглавными ID)
-      //
-      // СТАЛО (PocketBase):
-      // 'senderId', 'receiverId' (camelCase - стандарт PocketBase)
       'senderId': senderID,
       'senderEmail': senderEmail,
       'receiverId': receiverID,
       'message': message,
-
-      // ИЗМЕНЕНИЕ: timestamp теперь DateTime, а не Firestore Timestamp
-      //
-      // БЫЛО:
-      // 'timestamp': timestamp (Firestore Timestamp)
-      //
-      // СТАЛО:
-      // 'timestamp': timestamp.toIso8601String() (ISO 8601 строка)
-      //
-      // PocketBase автоматически распознает ISO 8601 строки
       'timestamp': timestamp.toIso8601String(),
-
       'type': type,
       'fileName': fileName,
       'fileSize': fileSize,
@@ -79,15 +53,13 @@ class Message {
   }
 
   /// Создание Message из Map
-  ///
-  /// ОБНОВЛЕНО для работы с DateTime вместо Timestamp
   factory Message.fromMap(Map<String, dynamic> map) {
     // Парсинг timestamp
     DateTime parsedTimestamp;
     try {
       if (map['timestamp'] is String) {
-        // ISO 8601 строка из PocketBase
-        parsedTimestamp = DateTime.parse(map['timestamp']);
+        // ISO 8601 строка из PocketBase → локальное время
+        parsedTimestamp = DateTime.parse(map['timestamp']).toLocal();
       } else {
         // Fallback
         parsedTimestamp = DateTime.now();
@@ -98,7 +70,6 @@ class Message {
     }
 
     return Message(
-      // Поддерживаем оба варианта (старый с ID и новый с Id)
       senderID: map['senderId'] ?? map['senderID'] ?? '',
       senderEmail: map['senderEmail'] ?? '',
       receiverID: map['receiverId'] ?? map['receiverID'] ?? '',
@@ -116,16 +87,7 @@ class Message {
 
   /// Создание Message из RecordModel (PocketBase)
   ///
-  /// НОВЫЙ МЕТОД для работы с PocketBase
-  ///
-  /// RecordModel содержит:
-  /// - record.id - ID сообщения
-  /// - record.data - Map с данными сообщения
-  /// - record.created - дата создания (ISO 8601 строка)
-  /// - record.updated - дата обновления (ISO 8601 строка)
-  ///
-  /// ОБНОВЛЕНО: Добавлена поддержка поля 'file' (PocketBase Storage)
-  /// ✅ НОВОЕ: Автоматически вычисляет fileUrl для изображений/аудио
+  /// Автоматически вычисляет fileUrl для изображений/аудио
   factory Message.fromRecord(RecordModel record, {PocketBase? pb}) {
     final data = record.data;
 
@@ -134,9 +96,9 @@ class Message {
     try {
       // Пытаемся взять timestamp из data, если нет - используем created
       if (data['timestamp'] != null) {
-        parsedTimestamp = DateTime.parse(data['timestamp']);
+        parsedTimestamp = DateTime.parse(data['timestamp']).toLocal();
       } else {
-        parsedTimestamp = DateTime.parse(record.created);
+        parsedTimestamp = DateTime.parse(record.created).toLocal();
       }
     } catch (e) {
       debugPrint('[Message] Ошибка парсинга timestamp: $e');
@@ -153,7 +115,7 @@ class Message {
       }
     }
 
-    // ✅ НОВОЕ: Вычисляем fileUrl если есть file
+    // Вычисляем fileUrl если есть file
     String? fileUrl;
     final fileName = data['file'] as String?;
 
@@ -179,19 +141,18 @@ class Message {
     }
 
     return Message(
-      // PocketBase использует camelCase: senderId, receiverId
       senderID: data['senderId'] as String? ?? '',
       senderEmail: data['senderEmail'] as String? ?? '',
       receiverID: data['receiverId'] as String? ?? '',
       message: data['message'] as String? ?? '',
       timestamp: parsedTimestamp,
       type: data['type'] as String? ?? 'text',
-      file: fileName, // ✅ Имя файла из PocketBase Storage
+      file: fileName,
       fileName: data['fileName'] as String?,
       fileSize: data['fileSize'] as int?,
       duration: parsedDuration,
       isRead: data['isRead'] as bool? ?? false,
-      fileUrl: fileUrl, // ✅ НОВОЕ: URL файла
+      fileUrl: fileUrl,
     );
   }
 
@@ -205,14 +166,14 @@ class Message {
     String? senderEmail,
     String? receiverID,
     String? message,
-    DateTime? timestamp, // ИЗМЕНЕНО: Timestamp → DateTime
+    DateTime? timestamp,
     String? type,
-    String? file, // ✅ НОВОЕ
+    String? file,
     String? fileName,
     int? fileSize,
     Duration? duration,
     bool? isRead,
-    String? fileUrl, // ✅ НОВОЕ
+    String? fileUrl,
   }) {
     return Message(
       senderID: senderID ?? this.senderID,
@@ -221,12 +182,12 @@ class Message {
       message: message ?? this.message,
       timestamp: timestamp ?? this.timestamp,
       type: type ?? this.type,
-      file: file ?? this.file, // ✅ НОВОЕ
+      file: file ?? this.file,
       fileName: fileName ?? this.fileName,
       fileSize: fileSize ?? this.fileSize,
       duration: duration ?? this.duration,
       isRead: isRead ?? this.isRead,
-      fileUrl: fileUrl ?? this.fileUrl, // ✅ НОВОЕ
+      fileUrl: fileUrl ?? this.fileUrl,
     );
   }
 }

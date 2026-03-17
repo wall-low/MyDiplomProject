@@ -27,7 +27,6 @@ class AvatarPicker extends StatefulWidget {
 class _AvatarPickerState extends State<AvatarPicker> {
   String? _avatarUrl;
   final ImagePicker _picker = ImagePicker();
-  // ИЗМЕНЕНИЕ 1: Добавили PocketBase сервис
   final _pbService = PocketBaseService();
 
   @override
@@ -36,46 +35,10 @@ class _AvatarPickerState extends State<AvatarPicker> {
     _loadSavedUrl();
   }
 
-  /// Загрузить сохраненный URL аватара
-  ///
-  /// БЫЛО (Firestore):
-  /// 1. Получали документ из Users коллекции
-  /// 2. Извлекали avatarUrl из data
-  ///
-  /// СТАЛО (PocketBase):
-  /// 1. Получаем RecordModel из users коллекции
-  /// 2. Генерируем URL через getUserAvatarUrl()
-  ///
-  /// ЗАЧЕМ:
-  /// PocketBase хранит только имя файла, URL генерируется динамически
   Future<void> _loadSavedUrl() async {
     try {
-      // ИЗМЕНЕНИЕ 2: Auth() вместо FirebaseAuth
-      //
-      // БЫЛО:
-      // final uid = FirebaseAuth.instance.currentUser!.uid;
-      //
-      // СТАЛО:
-      // final uid = Auth().getCurrentUid();
       final uid = Auth().getCurrentUid();
-
-      // ИЗМЕНЕНИЕ 3: getOne() вместо doc().get()
-      //
-      // БЫЛО (Firestore):
-      // final doc = await FirebaseFirestore.instance.collection('Users').doc(uid).get();
-      // final avatarUrl = doc.data()?['avatarUrl'];
-      //
-      // СТАЛО (PocketBase):
-      // final record = await _pbService.client.collection('users').getOne(uid);
-      // final avatarUrl = _pbService.getUserAvatarUrl(record);
       final record = await _pbService.client.collection('users').getOne(uid);
-
-      // ИЗМЕНЕНИЕ 4: getUserAvatarUrl() вместо прямого доступа к полю
-      //
-      // PocketBase:
-      // - record.data['avatar'] содержит только имя файла (например, "abc123.jpg")
-      // - Полный URL генерируется через pb.getFileUrl(record, filename)
-      // - getUserAvatarUrl() делает это автоматически с thumbnail
       final avatarUrl = _pbService.getUserAvatarUrl(record);
 
       if (!mounted) return;
@@ -85,19 +48,6 @@ class _AvatarPickerState extends State<AvatarPicker> {
     }
   }
 
-  /// Выбрать и загрузить новый аватар
-  ///
-  /// БЫЛО (Cloudinary + Firestore - 3 шага):
-  /// 1. ImagePicker → выбор файла
-  /// 2. Cloudinary.uploadAvatar() → загрузка, получение URL
-  /// 3. Firestore.update() → сохранение URL
-  ///
-  /// СТАЛО (PocketBase - 2 шага):
-  /// 1. ImagePicker → выбор файла
-  /// 2. PocketBase.uploadAvatar() → загрузка + обновление записи одновременно
-  ///
-  /// ЗАЧЕМ:
-  /// PocketBase хранит файлы вместе с записями, не нужен отдельный сервис
   Future<void> _pickAndUpload() async {
     debugPrint('[AvatarPicker] 🖼️ Начало выбора изображения...');
 
@@ -197,7 +147,6 @@ class _AvatarPickerState extends State<AvatarPicker> {
     return GestureDetector(
       onTap: widget.enablePicker ? _pickAndUpload : null,
       child: Hero(
-        // ИЗМЕНЕНИЕ 7: Auth() вместо FirebaseAuth
         tag: 'avatar-${Auth().getCurrentUid()}',
         child: Container(
           width: widget.size,

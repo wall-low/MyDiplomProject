@@ -8,11 +8,13 @@ import 'package:p7/components/chat_bubble.dart';
 import 'package:p7/components/my_text_field.dart';
 import 'package:p7/service/auth.dart';
 import 'package:p7/service/chat_service.dart';
+import 'package:p7/service/pocketbase_service.dart';
 import '../components/audio_player_widget.dart';
 import '../models/message.dart';
+import 'dart:async';
 
 class ChatPage extends StatefulWidget {
-  final String receiverName; // ИЗМЕНЕНО: username → name
+  final String receiverName;
   final String receiverID;
 
   const ChatPage({
@@ -38,9 +40,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   bool _isRecording = false;
   final Map<String, double> _uploadingFiles = {};
   final Set<String> _cancelledUploads = {};
-  // ИЗМЕНЕНО: List<DocumentSnapshot> → List<Message>
-  //
-  // PocketBase возвращает List<Message> вместо QuerySnapshot
   List<Message> _cachedMessages = [];
 
   bool _isUserScrolling = false;
@@ -48,12 +47,16 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   int _previousMessageCount = 0;
   int _newMessagesCount = 0;
 
-  static final Map<String, double> _scrollPositions = {};
-  String get _chatKey => '${_auth.getCurrentUid()}_${widget.receiverID}';
+  // Непрочитанные сообщения
+  int? _firstUnreadIndex;
+  bool _unreadScrollDone = false;
+  final GlobalKey _unreadDividerKey = GlobalKey();
 
-  // ✅ ИСПРАВЛЕНИЕ: Сохраняем ссылку на stream в переменной
-  // Проблема: Каждый раз при build создавался новый stream
-  // Решение: Создаём stream один раз в initState()
+  // Онлайн-статус
+  Timer? _presenceTimer;
+  String? _lastSeenText;
+  bool _isOnline = false;
+
   late final Stream<List<Message>> _messagesStream;
 
   @override
@@ -61,7 +64,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // ✅ ИСПРАВЛЕНИЕ: Инициализируем stream ОДИН РАЗ
     final myId = _auth.getCurrentUid();
     _messagesStream = _chatService.getMessagesStream(myId, widget.receiverID);
 
@@ -69,56 +71,37 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       _hasTextNotifier.value = _controller.text.trim().isNotEmpty;
     });
 
-    _focusNode.addListener(() {
-      if (_focusNode.hasFocus && !_isUserScrolling) {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted && !_isUserScrolling) _scrollToBottom(animate: false);
-        });
-      }
-    });
-
     _scrollController.addListener(_onScroll);
     _markMessagesAsRead();
     _initializeRecorder();
+    _startPresenceCheck();
   }
 
   void _onScroll() {
     if (!_scrollController.hasClients) return;
 
-    final maxScroll = _scrollController.position.maxScrollExtent;
     final currentScroll = _scrollController.position.pixels;
     const threshold = 100.0;
 
-    if (maxScroll - currentScroll > threshold) {
-      _isUserScrolling = true;
-      _scrollPositions[_chatKey] = currentScroll;
-    } else {
-      _isUserScrolling = false;
-      _newMessagesCount = 0;
-      // Сохраняем -1 как маркер "внизу", а не удаляем позицию
-      _scrollPositions[_chatKey] = -1;
+    // reverse: true — offset 0 = низ, offset > 0 = прокрутка вверх
+    final wasScrolling = _isUserScrolling;
+    _isUserScrolling = currentScroll > threshold;
+
+    if (wasScrolling != _isUserScrolling) {
+      setState(() {
+        if (!_isUserScrolling) _newMessagesCount = 0;
+      });
     }
   }
 
   @override
   void dispose() {
-    if (_scrollController.hasClients) {
-      final maxScroll = _scrollController.position.maxScrollExtent;
-      final currentScroll = _scrollController.position.pixels;
-      const threshold = 100.0;
+    _presenceTimer?.cancel();
 
-      // Сохраняем позицию: -1 если внизу, иначе реальную позицию
-      if (maxScroll - currentScroll <= threshold) {
-        _scrollPositions[_chatKey] = -1;
-      } else if (_isUserScrolling) {
-        _scrollPositions[_chatKey] = currentScroll;
-      }
-    }
     // Отменяем все активные загрузки
     _cancelledUploads.addAll(_uploadingFiles.keys);
     _uploadingFiles.clear();
 
-    // НОВОЕ: Отписываемся от realtime подписок
     _chatService.unsubscribeFromMessages(_auth.getCurrentUid(), widget.receiverID);
 
     WidgetsBinding.instance.removeObserver(this);
@@ -134,6 +117,55 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _markMessagesAsRead();
+    }
+  }
+
+  void _startPresenceCheck() {
+    _fetchPresence();
+    _presenceTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _fetchPresence(),
+    );
+  }
+
+  Future<void> _fetchPresence() async {
+    try {
+      final pb = PocketBaseService().client;
+      final record = await pb.collection('users').getOne(widget.receiverID);
+      final lastSeenStr = record.data['lastSeen'] as String?;
+
+      if (lastSeenStr == null || lastSeenStr.isEmpty) {
+        if (mounted) setState(() { _lastSeenText = null; _isOnline = false; });
+        return;
+      }
+
+      final lastSeen = DateTime.parse(lastSeenStr);
+      final diff = DateTime.now().toUtc().difference(lastSeen);
+
+      String text;
+      bool online;
+
+      if (diff.inSeconds < 30) {
+        text = 'онлайн';
+        online = true;
+      } else if (diff.inMinutes < 1) {
+        text = 'был(а) только что';
+        online = false;
+      } else if (diff.inMinutes < 60) {
+        text = 'был(а) ${diff.inMinutes} мин назад';
+        online = false;
+      } else if (diff.inHours < 24) {
+        text = 'был(а) ${diff.inHours} ч назад';
+        online = false;
+      } else {
+        final days = diff.inDays;
+        text = 'был(а) $days д назад';
+        online = false;
+      }
+
+      if (mounted) setState(() { _lastSeenText = text; _isOnline = online; });
+    } catch (e) {
+      debugPrint('[ChatPage] Presence check error: $e');
     }
   }
 
@@ -162,7 +194,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
     try {
       await _chatService.sendMessage(widget.receiverID, text);
-      if (!_isUserScrolling) _scrollToBottom(animate: false);
+      _scrollToBottom(animate: true);
     } catch (e) {
       if (mounted) _showError('Ошибка отправки сообщения');
     }
@@ -185,21 +217,15 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
       _uploadingFiles[localId] = 0.0;
     });
 
-    if (!_isUserScrolling) _scrollToBottom(animate: false);
-
     try {
       _simulateProgress(localId);
 
-      // ✅ УПРОЩЕНО: Просто передаём локальный путь в chat_service
-      // chat_service.dart сам загрузит файл в PocketBase Storage
       if (!mounted) throw Exception('Upload cancelled');
 
       await _chatService.sendMessageWithImage(
         receiverId: widget.receiverID,
-        filePath: pickedFile.path, // ✅ Передаём локальный путь
+        filePath: pickedFile.path,
       );
-
-      if (!_isUserScrolling) _scrollToBottom(animate: false);
     } catch (e) {
       if (mounted) _showError('Ошибка загрузки изображения');
     } finally {
@@ -346,17 +372,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
           _uploadingFiles[uploadId] = 0.0;
         });
 
-        if (!_isUserScrolling) _scrollToBottom(animate: false);
         _simulateProgress(uploadId);
 
-        // ✅ УПРОЩЕНО: Просто передаём локальный путь в chat_service
-        // chat_service.dart сам загрузит файл в PocketBase Storage
         if (mounted) {
           await _chatService.sendMessageWithAudio(
             receiverId: widget.receiverID,
-            filePath: result, // ✅ Передаём локальный путь
+            filePath: result,
           );
-          if (!_isUserScrolling) _scrollToBottom(animate: false);
         }
       }
     } catch (e) {
@@ -393,77 +415,21 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   void _scrollToBottom({bool animate = true}) {
     if (!_scrollController.hasClients || !mounted) return;
 
-    final maxScroll = _scrollController.position.maxScrollExtent;
-    final currentScroll = _scrollController.position.pixels;
-    const threshold = 50.0;
+    // reverse: true — низ = offset 0
+    if (_scrollController.position.pixels <= 10.0) return;
 
-    // Сбрасываем счётчик новых сообщений
-    if (mounted && _newMessagesCount > 0) {
-      setState(() {
-        _newMessagesCount = 0;
-      });
+    if (_newMessagesCount > 0) {
+      setState(() => _newMessagesCount = 0);
     }
 
-    // Если уже внизу, ничего не делаем
-    if (maxScroll - currentScroll <= 10.0) {
-      return;
-    }
-
-    // Если близко к низу или не нужна анимация - jumpTo
-    if (!animate || maxScroll - currentScroll <= threshold) {
-      _scrollController.jumpTo(maxScroll);
-    } else {
-      // Иначе плавная анимация
+    if (animate) {
       _scrollController.animateTo(
-        maxScroll,
+        0,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
-    }
-  }
-
-  void _restoreScrollPosition() {
-    if (!_scrollController.hasClients || !mounted) return;
-
-    try {
-      final maxExtent = _scrollController.position.maxScrollExtent;
-      final currentScroll = _scrollController.position.pixels;
-      final savedPosition = _scrollPositions[_chatKey];
-
-      if (savedPosition == null || savedPosition == -1) {
-        // Нет сохранённой позиции или был внизу -> прокручиваем в низ
-        // Проверяем что maxExtent уже рассчитан и мы еще не внизу
-        if (maxExtent > 0 && (maxExtent - currentScroll > 10.0)) {
-          _scrollController.jumpTo(maxExtent);
-        } else if (maxExtent == 0) {
-          // Если maxExtent еще 0, пробуем снова через небольшую задержку
-          Future.delayed(const Duration(milliseconds: 50), () {
-            if (mounted && _scrollController.hasClients) {
-              try {
-                final maxExtent = _scrollController.position.maxScrollExtent;
-                final currentScroll = _scrollController.position.pixels;
-                if (maxExtent - currentScroll > 10.0) {
-                  _scrollController.jumpTo(maxExtent);
-                }
-              } catch (e) {
-                // Игнорируем если ScrollPosition еще не готов
-              }
-            }
-          });
-        }
-        _isUserScrolling = false;
-      } else {
-        // Восстанавливаем сохранённую позицию
-        final targetPosition = savedPosition < maxExtent ? savedPosition : maxExtent;
-        // Проверяем что позиция действительно отличается
-        if ((targetPosition - currentScroll).abs() > 1.0) {
-          _scrollController.jumpTo(targetPosition);
-        }
-        _isUserScrolling = true;
-      }
-    } catch (e) {
-      // Игнорируем если ScrollPosition еще не готов
-      // Это может происходить при быстром переключении между чатами
+    } else {
+      _scrollController.jumpTo(0);
     }
   }
 
@@ -474,12 +440,27 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
-        title: Text(
-          widget.receiverName, // ИЗМЕНЕНО: показываем полное имя
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontWeight: FontWeight.w600,
-          ),
+        title: Column(
+          children: [
+            Text(
+              widget.receiverName,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (_lastSeenText != null)
+              Text(
+                _lastSeenText!,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  color: _isOnline
+                      ? Colors.green
+                      : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                ),
+              ),
+          ],
         ),
         centerTitle: true,
         backgroundColor: Theme.of(context).colorScheme.surface,
@@ -500,13 +481,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
             color: Theme.of(context).colorScheme.primaryContainer,
           ),
           Expanded(
-            // ИЗМЕНЕНО: FutureBuilder → StreamBuilder с realtime подписками
-            // ИЗМЕНЕНО: getMessages() → getMessagesStream()
-            //
-            // Используем realtime subscriptions через PocketBase subscribe()
-            // Сообщения обновляются автоматически при изменениях в БД
-            //
-            // ✅ ИСПРАВЛЕНИЕ: Используем _messagesStream (инициализирован в initState)
             child: StreamBuilder<List<Message>>(
               stream: _messagesStream,
               builder: (ctx, snap) {
@@ -540,9 +514,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                   );
                 }
 
-                // ИЗМЕНЕНО: snap.data?.docs → snap.data
-                //
-                // PocketBase возвращает List<Message>, а не QuerySnapshot с docs
                 _cachedMessages = snap.data ?? [];
                 final currentMessageCount = _cachedMessages.length;
 
@@ -578,34 +549,45 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                   );
                 }
 
+                // Определяем первое непрочитанное сообщение (один раз)
+                if (_isFirstLoad && !_unreadScrollDone && _firstUnreadIndex == null) {
+                  for (int j = 0; j < _cachedMessages.length; j++) {
+                    if (_cachedMessages[j].senderID != myId && !_cachedMessages[j].isRead) {
+                      _firstUnreadIndex = j;
+                      break;
+                    }
+                  }
+                  if (_firstUnreadIndex == null) _unreadScrollDone = true;
+                }
+
                 WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+
                   if (_isFirstLoad) {
-                    // Первая загрузка - даем время на построение ListView, затем восстанавливаем позицию
                     _previousMessageCount = currentMessageCount;
-                    // Дополнительная задержка чтобы ListView полностью построился
-                    Future.delayed(const Duration(milliseconds: 50), () {
-                      if (mounted) {
-                        _restoreScrollPosition();
-                        // Отключаем флаг первой загрузки только после восстановления позиции
-                        _isFirstLoad = false;
-                      }
-                    });
+                    _isFirstLoad = false;
+
+                    // Скролл к непрочитанным
+                    if (_firstUnreadIndex != null && !_unreadScrollDone) {
+                      _unreadScrollDone = true;
+                      Future.delayed(const Duration(milliseconds: 100), () {
+                        if (mounted && _unreadDividerKey.currentContext != null) {
+                          Scrollable.ensureVisible(
+                            _unreadDividerKey.currentContext!,
+                            alignment: 0.8,
+                            duration: const Duration(milliseconds: 200),
+                          );
+                        }
+                      });
+                    }
                   } else if (currentMessageCount > _previousMessageCount) {
-                    // Появились новые сообщения
                     final newMessagesAdded = currentMessageCount - _previousMessageCount;
                     _previousMessageCount = currentMessageCount;
 
-                    if (!_isUserScrolling) {
-                      // Пользователь внизу - прокручиваем без лишней задержки
-                      if (mounted) _scrollToBottom(animate: true);
-                    } else {
-                      // Пользователь прокрутил вверх - показываем счётчик
-                      if (mounted) {
-                        setState(() {
-                          _newMessagesCount += newMessagesAdded;
-                        });
-                      }
+                    if (_isUserScrolling) {
+                      setState(() => _newMessagesCount += newMessagesAdded);
                     }
+                    // Если внизу — reverse:true автоматически покажет новые
                   }
                 });
 
@@ -613,48 +595,45 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                   children: [
                     ListView.builder(
                       controller: _scrollController,
+                      reverse: true,
                       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
                       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                       itemCount: _cachedMessages.length + _uploadingFiles.length,
                       itemBuilder: (_, i) {
-                        if (i < _cachedMessages.length) {
-                          // ИЗМЕНЕНО: Теперь _cachedMessages содержит Message объекты, не DocumentSnapshot
-                          //
-                          // БЫЛО:
-                          // final doc = _cachedMessages[i];  // DocumentSnapshot
-                          // final data = doc.data()! as Map<String, dynamic>;
-                          // final msg = Message.fromMap(data);
-                          //
-                          // СТАЛО:
-                          // final msg = _cachedMessages[i];  // уже Message!
-                          final msg = _cachedMessages[i];
-                          final isMine = msg.senderID == myId;
-
-                          // ИЗМЕНЕНО: Теперь сравниваем Message объекты напрямую
-                          final showDateSeparator = i == 0 ||
-                              _shouldShowDateSeparator(
-                                _cachedMessages[i - 1],
-                                msg,
-                              );
-
-                          // ИЗМЕНЕНО: Генерируем уникальный ключ из timestamp + senderID
-                          // (вместо doc.id)
-                          final messageKey = '${msg.timestamp.millisecondsSinceEpoch}_${msg.senderID}';
-
-                          return Column(
-                            key: ValueKey(messageKey),
-                            children: [
-                              if (showDateSeparator)
-                                // ИЗМЕНЕНО: timestamp уже DateTime, не нужен toDate()
-                                _buildDateSeparator(msg.timestamp),
-                              _buildMessage(msg, isMine, messageKey),
-                            ],
-                          );
+                        // Загружаемые файлы — внизу (index 0 в reversed = низ экрана)
+                        if (i < _uploadingFiles.length) {
+                          final entry = _uploadingFiles.entries.elementAt(i);
+                          return _buildUploadingMessage(entry.key, entry.value);
                         }
 
-                        final uploadIndex = i - _cachedMessages.length;
-                        final entry = _uploadingFiles.entries.elementAt(uploadIndex);
-                        return _buildUploadingMessage(entry.key, entry.value);
+                        // Сообщения в обратном порядке
+                        final msgIndex = _cachedMessages.length - 1 - (i - _uploadingFiles.length);
+                        final msg = _cachedMessages[msgIndex];
+                        final isMine = msg.senderID == myId;
+
+                        // Разделитель дат
+                        final showDateSeparator = msgIndex == 0 ||
+                            _shouldShowDateSeparator(
+                              _cachedMessages[msgIndex - 1],
+                              msg,
+                            );
+
+                        // Разделитель непрочитанных
+                        final showUnreadDivider = _firstUnreadIndex != null &&
+                            msgIndex == _firstUnreadIndex;
+
+                        final messageKey = '${msg.timestamp.millisecondsSinceEpoch}_${msg.senderID}';
+
+                        return Column(
+                          key: ValueKey(messageKey),
+                          children: [
+                            if (showDateSeparator)
+                              _buildDateSeparator(msg.timestamp),
+                            if (showUnreadDivider)
+                              _buildUnreadDivider(),
+                            _buildMessage(msg, isMine, messageKey),
+                          ],
+                        );
                       },
                     ),
                     if (_isUserScrolling || _newMessagesCount > 0)
@@ -780,17 +759,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     );
   }
 
-  // ИЗМЕНЕНО: Теперь принимает Message вместо Map<String, dynamic>
-  //
-  // БЫЛО:
-  // bool _shouldShowDateSeparator(Map<String, dynamic> prevData, Map<String, dynamic> currentData) {
-  //   final prevTime = (prevData['timestamp'] as Timestamp).toDate();
-  //   final currentTime = (currentData['timestamp'] as Timestamp).toDate();
-  //
-  // СТАЛО:
-  // bool _shouldShowDateSeparator(Message prevMsg, Message currentMsg) {
-  //   final prevTime = prevMsg.timestamp;  // уже DateTime
-  //   final currentTime = currentMsg.timestamp;  // уже DateTime
   bool _shouldShowDateSeparator(Message prevMsg, Message currentMsg) {
     final prevTime = prevMsg.timestamp;
     final currentTime = currentMsg.timestamp;
@@ -833,10 +801,41 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     );
   }
 
-  // ИЗМЕНЕНО: Timestamp → DateTime
+  Widget _buildUnreadDivider() {
+    return Padding(
+      key: _unreadDividerKey,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Divider(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+              thickness: 1,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              'Непрочитанные сообщения',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.primary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Divider(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+              thickness: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _formatTime(DateTime timestamp) {
-    // БЫЛО: final date = timestamp.toDate();
-    // СТАЛО: timestamp уже DateTime
     final hour = timestamp.hour.toString().padLeft(2, '0');
     final minute = timestamp.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
@@ -844,7 +843,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   Widget _buildMessage(Message msg, bool isMine, String docId) {
     if (msg.type == 'audio') {
-      // ✅ ИСПРАВЛЕНО: Используем fileUrl вместо message для аудио
       final audioUrl = msg.fileUrl ?? msg.message;
 
       debugPrint('[ChatPage] 🎵 Аудио сообщение: fileUrl=${msg.fileUrl}, message="${msg.message}", final audioUrl="$audioUrl"');
@@ -873,11 +871,10 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         child: Align(
           alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
           child: Container(
-            constraints: const BoxConstraints(maxWidth: 280), // ✅ ОГРАНИЧЕНИЕ ШИРИНЫ
+            constraints: const BoxConstraints(maxWidth: 280),
             child: Builder(
               builder: (context) {
                 try {
-                  // ✅ ИСПОЛЬЗУЕМ ИСПРАВЛЕННЫЙ ChatAudioPlayer
                   return ChatAudioPlayer(
                     url: audioUrl,
                     isCurrentUser: isMine,
@@ -914,7 +911,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         ),
       );
     } else if (msg.type == 'image') {
-      // ✅ ИСПРАВЛЕНО: Используем fileUrl вместо message для изображений
       final imageUrl = msg.fileUrl ?? msg.message;
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),

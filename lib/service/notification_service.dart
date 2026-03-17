@@ -86,6 +86,8 @@ class NotificationService {
       await Future.wait([
         _checkNewMessages(pb),
         _checkNewBookings(pb),
+        _checkUpcomingLessons(pb),
+        _updateLastSeen(pb),
       ]);
     } catch (e) {
       debugPrint('[Notifications] Polling error: $e');
@@ -114,7 +116,7 @@ class NotificationService {
       if (result.items.isNotEmpty) {
         // Сохраняем время последней проверки
         await prefs.setString(
-            lastCheckKey, result.items.first.created);
+            lastCheckKey, result.items.first.get<String>('created'));
 
         // Группируем по отправителю
         final senderIds = <String>{};
@@ -201,6 +203,72 @@ class NotificationService {
       }
     } catch (e) {
       debugPrint('[Notifications] Check bookings error: $e');
+    }
+  }
+
+  /// Обновить lastSeen текущего пользователя
+  Future<void> _updateLastSeen(PocketBase pb) async {
+    try {
+      await pb.collection('users').update(
+        _currentUserId!,
+        body: {'lastSeen': DateTime.now().toUtc().toIso8601String()},
+      );
+    } catch (e) {
+      debugPrint('[Notifications] Update lastSeen error: $e');
+    }
+  }
+
+  /// Проверить приближающиеся занятия (за 30 минут)
+  Future<void> _checkUpcomingLessons(PocketBase pb) async {
+    final prefs = await SharedPreferences.getInstance();
+    final notifiedKey = 'notified_lessons_$_currentUserId';
+    final notifiedSet = (prefs.getStringList(notifiedKey) ?? []).toSet();
+
+    try {
+      final now = DateTime.now();
+      final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      // Ищем подтверждённые занятия на сегодня
+      final result = await pb.collection('slots').getList(
+        filter: '(tutorId="$_currentUserId" || studentId="$_currentUserId") '
+            '&& bookingStatus="confirmed" && date="$todayStr"',
+        perPage: 50,
+      );
+
+      for (final slot in result.items) {
+        final slotId = slot.id;
+        if (notifiedSet.contains(slotId)) continue;
+
+        final startTimeStr = slot.data['startTime'] as String? ?? '';
+        if (startTimeStr.isEmpty) continue;
+
+        final parts = startTimeStr.split(':');
+        if (parts.length < 2) continue;
+
+        final slotStart = DateTime(
+          now.year, now.month, now.day,
+          int.parse(parts[0]), int.parse(parts[1]),
+        );
+
+        final diff = slotStart.difference(now).inMinutes;
+
+        // Уведомляем если до занятия 5-30 минут
+        if (diff > 0 && diff <= 30) {
+          final endTime = slot.data['endTime'] as String? ?? '';
+
+          await _showNotification(
+            id: slotId.hashCode,
+            title: 'Занятие через $diff мин',
+            body: 'Занятие $startTimeStr - $endTime начнётся скоро',
+            payload: 'lesson:$slotId',
+          );
+
+          notifiedSet.add(slotId);
+          await prefs.setStringList(notifiedKey, notifiedSet.toList());
+        }
+      }
+    } catch (e) {
+      debugPrint('[Notifications] Check upcoming lessons error: $e');
     }
   }
 

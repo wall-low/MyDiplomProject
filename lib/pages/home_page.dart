@@ -10,9 +10,6 @@ import 'chat_page.dart';
 import 'booking_requests_page.dart';
 import 'student_booking_requests_page.dart';
 
-// УДАЛЕНО: import 'package:cloud_firestore/cloud_firestore.dart';
-// УДАЛЕНО: import 'dart:async' и Timer - больше не нужны!
-// Мигрировали на PocketBase с realtime подписками через WebSocket
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -152,8 +149,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ),
                     );
                   }
-                  // УДАЛЕНО: _loadPendingRequestsCount();
-                  // Счётчик обновляется автоматически через realtime subscription!
                 },
               ),
               // Бейдж с количеством запросов
@@ -191,18 +186,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Widget _buildUserList(){
-    // НОВОЕ: Используем getChatsStream() с REALTIME подписками!
-    //
-    // ПРЕИМУЩЕСТВА:
-    // ✅ 1 запрос вместо группировки сотен messages
-    // ✅ Встроенные счётчики непрочитанных
-    // ✅ Уже отсортировано по lastTimestamp
-    // ✅ Автоматическое обновление через WebSocket БЕЗ мерцания экрана
-    // ✅ Мгновенная реакция на новые сообщения
-    //
-    // Realtime подписки работают аналогично ChatPage
     return StreamBuilder<List<Chat>>(
-        stream: _chatService.getChatsStream(), // Realtime stream вместо Future
+        stream: _chatService.getChatsStream(),
         builder: (context, snapshot){
 
           if (snapshot.hasError){
@@ -235,7 +220,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           final chats = snapshot.data ?? [];
 
           if (chats.isEmpty) {
-            // Пустой список - убираем RefreshIndicator (не нужен с realtime!)
             return SingleChildScrollView(
                 physics: AlwaysScrollableScrollPhysics(),
                 child: Container(
@@ -272,7 +256,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               );
           }
 
-          // Список чатов - убираем RefreshIndicator, realtime обновляется автоматически!
           return ListView.builder(
             itemCount: chats.length,
             itemBuilder: (context, index) {
@@ -310,24 +293,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final otherUser = userSnapshot.data!;
 
         return UserTile(
-          text: otherUser.name, // ИСПРАВЛЕНО: используем name вместо username
+          text: otherUser.name,
           avatarUrl: otherUser.avatarUrl,
           lastMessage: chat.getLastMessagePreview(),
           lastMessageTime: chat.lastTimestamp,
           unreadCount: unreadCount > 0 ? unreadCount : null,
+          isOnline: otherUser.isOnline,
           onTap: () async {
             // Переходим в чат и ждём возврата
             await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => ChatPage(
-                  receiverName: otherUser.name, // ИЗМЕНЕНО: передаём name
+                  receiverName: otherUser.name,
                   receiverID: otherUserId,
                 ),
               ),
             );
 
-            // УДАЛЕНО: _refreshChats() - больше не нужен, realtime обновится автоматически!
           },
         );
       },

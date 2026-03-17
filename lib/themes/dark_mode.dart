@@ -9,15 +9,15 @@ final ThemeData darkMode = ThemeData(
     surface: Color(0xFF1C1C1E),
 
     primary: Color(0xFF5BA4F5),      // светлее синий для dark mode
-    onPrimary: Colors.white,         // ✅ Белый текст на синем (хорошая контрастность)
+    onPrimary: Colors.white,
 
     secondary: Color(0xFF8E8E93),
-    onSecondary: Colors.white,       // ✅ Белый текст на сером
+    onSecondary: Colors.white,
     tertiary: Color(0xFF636366),
     onTertiary: Colors.white,
 
     error: Color(0xFFFF453A),
-    onError: Colors.white,           // ✅ Белый текст на красном
+    onError: Colors.white,
 
     onSurface: Colors.white,
 

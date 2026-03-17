@@ -7,6 +7,7 @@ import 'package:p7/service/pocketbase_service.dart';
 import 'package:provider/provider.dart';
 
 import 'blocked_user_page.dart';
+import 'payment_history_page.dart';
 
 class SettingPage extends StatelessWidget {
   const SettingPage({super.key});
@@ -111,6 +112,25 @@ class SettingPage extends StatelessWidget {
                     ),
                   ),
                 ],
+              );
+            },
+          ),
+
+          const Divider(),
+
+          ListTile(
+            leading: const Icon(Icons.receipt_long),
+            title: Text(
+              "История платежей",
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: 18,
+              ),
+            ),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const PaymentHistoryPage()),
               );
             },
           ),

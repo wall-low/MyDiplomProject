@@ -29,7 +29,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-**ОБЩИЙ ПРОГРЕСС: 95%**
+**ОБЩИЙ ПРОГРЕСС: 100%**
 
 **ЗАВЕРШЕНО:**
 - Миграция Firebase → PocketBase (100%)
@@ -44,9 +44,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Красная карточка неоплаченного занятия (100%)
 - Кэширование профилей и чатов (100%)
 - Переключатель серверов Локальный/VPS (100%)
-
-**ОСТАЛОСЬ ДЛЯ ДИПЛОМА:**
-- Deployment на VPS (0%) - российский хостинг (Timeweb/Selectel)
+- Deployment на VPS (100%) - http://203.18.98.210:8090
 
 **ОПЦИОНАЛЬНО:**
 - Push-уведомления

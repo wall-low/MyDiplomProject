@@ -31,7 +31,7 @@ class Chat {
       lastMessage: record.data['lastMessage'],
       lastMessageType: record.data['lastMessageType'] ?? 'text',
       lastSenderId: record.data['lastSenderId'] ?? '',
-      lastTimestamp: DateTime.parse(record.data['lastTimestamp']),
+      lastTimestamp: DateTime.parse(record.data['lastTimestamp']).toLocal(),
       unreadCountUser1: record.data['unreadCountUser1'] ?? 0,
       unreadCountUser2: record.data['unreadCountUser2'] ?? 0,
     );
