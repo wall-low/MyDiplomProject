@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Показывает стандартное окно загрузки
+
 void showLoad(BuildContext context, {String? message}) {
   showDialog(
     context: context,
@@ -52,7 +52,6 @@ void showLoad(BuildContext context, {String? message}) {
   );
 }
 
-/// Скрывает окно загрузки, если оно открыто
 void hideLoad(BuildContext context) {
   final navigator = Navigator.of(context, rootNavigator: true);
   if (navigator.canPop()) {
@@ -60,7 +59,6 @@ void hideLoad(BuildContext context) {
   }
 }
 
-/// Показывает анимированное окно загрузки с новой анимацией
 void showLoadAnimated(BuildContext context, {String? message}) {
   showDialog(
     context: context,
@@ -88,8 +86,8 @@ class _NewAnimatedLoadingDialogState extends State<_NewAnimatedLoadingDialog>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 1), // Быстрая ротация
-    )..repeat(); // Бесконечная ротация
+      duration: const Duration(seconds: 1),
+    )..repeat();
 
     _rotationAnimation = Tween<double>(begin: 0.0, end: 2 * 3.14159).animate(
       CurvedAnimation(parent: _controller, curve: Curves.linear),
@@ -131,7 +129,6 @@ class _NewAnimatedLoadingDialogState extends State<_NewAnimatedLoadingDialog>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Анимированный индикатор загрузки
             SizedBox(
               width: 60,
               height: 60,
@@ -139,11 +136,9 @@ class _NewAnimatedLoadingDialogState extends State<_NewAnimatedLoadingDialog>
                 turns: _rotationAnimation,
                 child: CircularProgressIndicator(
                   strokeWidth: 6,
-                  value: null, // Бесконечная анимация
+                  value: null,
                   strokeCap: StrokeCap.round,
-                  valueColor: AlwaysStoppedAnimation<Color>(scheme.primary), // Один цвет
-                  // Или градиент (опционально)
-                  // valueColor: Animation<Color>(scheme.primary, scheme.secondary),
+                  valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
                 ),
               ),
             ),

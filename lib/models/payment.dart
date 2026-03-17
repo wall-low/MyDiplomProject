@@ -1,16 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
-/// Модель платежа (имитация оплаты для диплома)
-///
-/// Связан с:
-/// - users (studentId, tutorId) - кто платит и кому
-/// - slots (slotId) - за какое занятие
-///
-/// Статусы:
-/// - pending: ожидает оплаты
-/// - completed: успешно оплачено
-/// - failed: ошибка оплаты
 class Payment {
   final String id; // ID записи в payments
   final String studentId; // Relation → users.id (кто платит)
@@ -30,23 +20,9 @@ class Payment {
     required this.created,
   });
 
-  /// Создание Payment из RecordModel (PocketBase)
-  ///
-  /// RecordModel возвращается PocketBase при запросах к коллекции payments:
-  /// - record.id - ID записи в payments
-  /// - record.data - Map<String, dynamic> с данными платежа
-  /// - record.created - ISO 8601 строка с датой создания
-  ///
-  /// Поля из record.data:
-  /// - studentId: ID ученика (Relation → users.id)
-  /// - tutorId: ID репетитора (Relation → users.id)
-  /// - slotId: ID слота (Relation → slots.id)
-  /// - amount: число (сумма в рублях)
-  /// - status: строка ("pending", "completed", "failed")
   factory Payment.fromRecord(RecordModel record) {
     final data = record.data;
 
-    // Парсинг amount с fallback
     double parsedAmount = 0.0;
     try {
       final amountValue = data['amount'];
@@ -61,7 +37,6 @@ class Payment {
       debugPrint('[Payment] Ошибка парсинга amount: $e');
     }
 
-    // Парсинг created из record.created
     DateTime parsedCreated;
     try {
       parsedCreated = DateTime.parse(record.created);
@@ -81,14 +56,6 @@ class Payment {
     );
   }
 
-  /// Преобразование Payment в Map для отправки в PocketBase
-  ///
-  /// Используется при создании платежа:
-  /// pb.collection('payments').create(body: payment.toMap())
-  ///
-  /// ВАЖНО:
-  /// - id не включается (auto-generated)
-  /// - created не включается (AutodateField)
   Map<String, dynamic> toMap() {
     return {
       'studentId': studentId,
@@ -99,7 +66,6 @@ class Payment {
     };
   }
 
-  /// Копирование с изменениями (иммутабельный update)
   Payment copyWith({
     String? id,
     String? studentId,
@@ -120,18 +86,14 @@ class Payment {
     );
   }
 
-  /// Проверка, завершён ли платёж
+
   bool get isCompleted => status == 'completed';
 
-  /// Проверка, ожидает ли платёж обработки
   bool get isPending => status == 'pending';
 
-  /// Проверка, провалился ли платёж
+
   bool get isFailed => status == 'failed';
 
-  /// Форматированная строка суммы для отображения в UI
-  ///
-  /// Пример: 1500.0 → "1 500 ₽"
   String getAmountDisplay() {
     final intAmount = amount.toInt();
     final formatter = intAmount.toString().replaceAllMapped(
@@ -141,9 +103,6 @@ class Payment {
     return '$formatter ₽';
   }
 
-  /// Форматированная дата для отображения
-  ///
-  /// Пример: "15 марта 2024, 14:30"
   String getCreatedDisplay() {
     final months = [
       'января',
@@ -169,7 +128,7 @@ class Payment {
     return '$day $month $year, $hour:$minute';
   }
 
-  /// Текстовое описание статуса для UI
+
   String getStatusDisplay() {
     switch (status) {
       case 'pending':

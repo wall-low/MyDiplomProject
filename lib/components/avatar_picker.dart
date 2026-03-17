@@ -88,7 +88,6 @@ class _AvatarPickerState extends State<AvatarPicker> {
       final uid = Auth().getCurrentUid();
       debugPrint('[AvatarPicker] 👤 User ID: $uid');
 
-      // Проверяем размер файла
       final fileSize = await picked.length();
       debugPrint('[AvatarPicker] 📦 Размер файла: ${(fileSize / 1024).toStringAsFixed(2)} KB');
 
@@ -112,12 +111,10 @@ class _AvatarPickerState extends State<AvatarPicker> {
 
       if (!mounted) return;
 
-      // Убираем индикатор загрузки
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
       setState(() => _avatarUrl = url);
 
-      // Показываем успешное сообщение
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('✅ Аватар успешно обновлён!'),

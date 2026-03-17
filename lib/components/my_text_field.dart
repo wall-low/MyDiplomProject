@@ -128,7 +128,6 @@ class MyTextField extends StatelessWidget {
   }
 }
 
-// Версия с анимацией и эффектами
 class MyTextFieldAnimated extends StatefulWidget {
   final TextEditingController textEditingController;
   final String hintText;

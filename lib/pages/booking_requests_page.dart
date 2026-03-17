@@ -5,7 +5,6 @@ import '../service/auth.dart';
 import '../service/databases.dart';
 import '../service/schedule_service.dart';
 
-/// Группа запросов (для постоянного расписания)
 class BookingRequestGroup {
   final bool isRecurring;
   final String? recurringGroupId;
@@ -19,20 +18,11 @@ class BookingRequestGroup {
     this.studentId,
   });
 
-  // Первый слот для отображения информации
   ScheduleSlot get firstSlot => slots.first;
 
-  // Количество занятий
   int get count => slots.length;
 }
 
-/// Страница запросов на бронирование (для репетиторов)
-///
-/// Функции:
-/// - Просмотр всех pending запросов от учеников
-/// - Группировка постоянных расписаний (один запрос вместо N)
-/// - Подтверждение запроса (bookingStatus → confirmed)
-/// - Отклонение запроса (освобождение слота)
 class BookingRequestsPage extends StatefulWidget {
   const BookingRequestsPage({super.key});
 
@@ -90,7 +80,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
     );
   }
 
-  /// Список запросов (с группировкой)
   Widget _buildRequestsList(ColorScheme colorScheme) {
     return FutureBuilder<List<ScheduleSlot>>(
       key: ValueKey(_refreshKey),
@@ -166,7 +155,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
           );
         }
 
-        // Группируем запросы по recurringGroupId
         final groups = _groupRequests(requests);
 
         return ListView.builder(
@@ -181,31 +169,24 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
     );
   }
 
-  /// Группировка запросов по recurringGroupId
   List<BookingRequestGroup> _groupRequests(List<ScheduleSlot> requests) {
     final Map<String, List<ScheduleSlot>> groupsMap = {};
     final List<ScheduleSlot> singleRequests = [];
 
-    // Разделяем на группы и одиночные запросы
     for (final request in requests) {
       if (request.isRecurring && request.recurringGroupId != null) {
-        // Добавляем в группу
         if (!groupsMap.containsKey(request.recurringGroupId)) {
           groupsMap[request.recurringGroupId!] = [];
         }
         groupsMap[request.recurringGroupId!]!.add(request);
       } else {
-        // Одиночный запрос
         singleRequests.add(request);
       }
     }
 
-    // Создаем объекты BookingRequestGroup
     final List<BookingRequestGroup> result = [];
 
-    // Добавляем группы
     groupsMap.forEach((groupId, slots) {
-      // Сортируем слоты по дате
       slots.sort((a, b) => a.date.compareTo(b.date));
       result.add(BookingRequestGroup(
         isRecurring: true,
@@ -215,7 +196,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
       ));
     });
 
-    // Добавляем одиночные запросы
     for (final slot in singleRequests) {
       result.add(BookingRequestGroup(
         isRecurring: false,
@@ -224,13 +204,11 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
       ));
     }
 
-    // Сортируем по дате первого занятия
     result.sort((a, b) => a.firstSlot.date.compareTo(b.firstSlot.date));
 
     return result;
   }
 
-  /// Карточка группы запросов (может быть одна или несколько занятий)
   Widget _buildGroupCard(BookingRequestGroup group, ColorScheme colorScheme) {
     final request = group.firstSlot;
     final isRecurring = group.isRecurring;
@@ -245,7 +223,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Информация об ученике
             FutureBuilder(
               future: _db.getUserFromPocketBase(request.studentId ?? ''),
               builder: (context, userSnapshot) {
@@ -295,7 +272,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
             ),
             const SizedBox(height: 16),
 
-            // Информация о слоте
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -366,7 +342,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
             ),
             const SizedBox(height: 16),
 
-            // Кнопки действий
             Row(
               children: [
                 Expanded(
@@ -412,10 +387,8 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
     );
   }
 
-  /// Подтвердить запрос
   Future<void> _approveRequest(ScheduleSlot request) async {
     try {
-      // Показываем диалог подтверждения
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -441,7 +414,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
 
       if (confirmed != true) return;
 
-      // Подтверждаем запрос
       await _scheduleService.approveBooking(request.id);
 
       if (mounted) {
@@ -453,7 +425,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
           ),
         );
 
-        // Обновляем список
         _refreshList();
       }
     } catch (e) {
@@ -469,10 +440,8 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
     }
   }
 
-  /// Отклонить запрос
   Future<void> _rejectRequest(ScheduleSlot request) async {
     try {
-      // Показываем диалог подтверждения
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -498,7 +467,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
 
       if (confirmed != true) return;
 
-      // Отклоняем запрос
       await _scheduleService.rejectBooking(request.id);
 
       if (mounted) {
@@ -510,7 +478,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
           ),
         );
 
-        // Обновляем список
         _refreshList();
       }
     } catch (e) {
@@ -526,7 +493,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
     }
   }
 
-  /// Подтвердить группу повторяющихся занятий
   Future<void> _approveRecurringGroup(BookingRequestGroup group) async {
     try {
       final confirmed = await showDialog<bool>(
@@ -555,7 +521,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
 
       if (confirmed != true) return;
 
-      // Подтверждаем всю группу
       final count = await _scheduleService.approveRecurringGroup(group.recurringGroupId!);
 
       if (mounted) {
@@ -581,7 +546,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
     }
   }
 
-  /// Отклонить группу повторяющихся занятий
   Future<void> _rejectRecurringGroup(BookingRequestGroup group) async {
     try {
       final confirmed = await showDialog<bool>(
@@ -609,7 +573,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
 
       if (confirmed != true) return;
 
-      // Отклоняем всю группу
       final count = await _scheduleService.rejectRecurringGroup(group.recurringGroupId!);
 
       if (mounted) {
@@ -635,7 +598,6 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
     }
   }
 
-  /// Получить название дня недели
   String _getDayName(int weekday) {
     const days = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
     return days[weekday - 1];

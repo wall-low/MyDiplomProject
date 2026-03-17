@@ -170,7 +170,6 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Ограничиваем максимальную ширину с учётом доступного места
         final maxWidth = constraints.maxWidth > 280 ? 240.0 : constraints.maxWidth * 0.85;
 
         return Align(
@@ -199,15 +198,12 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Основной контент (кнопка + волны)
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Кнопка с пульсирующей анимацией
                 Stack(
                   alignment: Alignment.center,
                   children: [
-                    // Пульсирующие круги при воспроизведении
                     if (_isPlaying)
                       AnimatedBuilder(
                         animation: _rippleController,
@@ -258,13 +254,11 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
                 ),
                 const SizedBox(width: 12),
 
-                // Прогресс и волны
                 Flexible(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Анимированные звуковые волны
                       SizedBox(
                         height: 24,
                         child: AnimatedBuilder(
@@ -287,7 +281,6 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
                       ),
                       const SizedBox(height: 6),
 
-                      // Прогресс бар
                       ClipRRect(
                         borderRadius: BorderRadius.circular(2),
                         child: SizedBox(
@@ -306,9 +299,7 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
                       ),
                       const SizedBox(height: 4),
 
-                      // Длительность аудио
                       Text(
-                        // ✅ ЗАЩИТА: Предотвращаем отрицательные значения
                         _position.inSeconds > 0 && _duration.inSeconds > _position.inSeconds
                             ? _formatDuration(_duration - _position)
                             : _formatDuration(_duration),
@@ -326,7 +317,6 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
               ],
             ),
 
-            // Время отправки (как в текстовых сообщениях)
             if (widget.timestamp != null) ...[
               const SizedBox(height: 4),
               Align(
@@ -349,7 +339,7 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
   }
 }
 
-// Пульсирующие круги вокруг кнопки
+
 class RipplePainter extends CustomPainter {
   final Animation<double> animation;
   final Color color;
@@ -378,7 +368,6 @@ class RipplePainter extends CustomPainter {
   bool shouldRepaint(RipplePainter oldDelegate) => true;
 }
 
-// Анимированные звуковые волны
 class SoundWavesPainter extends CustomPainter {
   final Animation<double> animation;
   final Color color;
@@ -404,7 +393,6 @@ class SoundWavesPainter extends CustomPainter {
     for (int i = 0; i < barCount; i++) {
       final x = i * barWidth + barWidth / 2;
 
-      // Создаем волнообразный паттерн
       final wave = math.sin((i / barCount) * math.pi * 2 +
           (isPlaying ? animation.value * math.pi * 4 : 0));
 

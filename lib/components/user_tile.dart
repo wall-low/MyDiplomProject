@@ -146,7 +146,6 @@ class UserTile extends StatelessWidget {
                           ),
                         ),
 
-                        // Счётчик непрочитанных
                         if (unreadCount != null && unreadCount! > 0) ...[
                           const SizedBox(width: 8),
                           Container(

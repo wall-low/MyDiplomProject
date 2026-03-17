@@ -1,11 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
-/// Модель сообщения в чате
-///
-/// - Текстовые сообщения: type=text, message содержит текст, file=null
-/// - Изображения: type=image, file содержит имя файла, message=пустая строка
-/// - Аудио: type=audio, file содержит имя файла, message=пустая строка
 class Message {
   final String senderID;
   final String senderEmail;
@@ -35,7 +30,6 @@ class Message {
     this.fileUrl,
   }) : assert(type == 'text' || type == 'image' || type == 'audio');
 
-  /// Преобразование Message в Map для отправки в PocketBase
   Map<String, dynamic> toMap() {
     return {
       'senderId': senderID,
@@ -52,16 +46,12 @@ class Message {
     };
   }
 
-  /// Создание Message из Map
   factory Message.fromMap(Map<String, dynamic> map) {
-    // Парсинг timestamp
     DateTime parsedTimestamp;
     try {
       if (map['timestamp'] is String) {
-        // ISO 8601 строка из PocketBase → локальное время
         parsedTimestamp = DateTime.parse(map['timestamp']).toLocal();
       } else {
-        // Fallback
         parsedTimestamp = DateTime.now();
       }
     } catch (e) {
@@ -85,16 +75,11 @@ class Message {
     );
   }
 
-  /// Создание Message из RecordModel (PocketBase)
-  ///
-  /// Автоматически вычисляет fileUrl для изображений/аудио
   factory Message.fromRecord(RecordModel record, {PocketBase? pb}) {
     final data = record.data;
 
-    // Парсинг timestamp из record.created (ISO 8601)
     DateTime parsedTimestamp;
     try {
-      // Пытаемся взять timestamp из data, если нет - используем created
       if (data['timestamp'] != null) {
         parsedTimestamp = DateTime.parse(data['timestamp']).toLocal();
       } else {
@@ -105,7 +90,6 @@ class Message {
       parsedTimestamp = DateTime.now();
     }
 
-    // Парсинг duration
     Duration? parsedDuration;
     if (data['duration'] != null) {
       try {
@@ -115,14 +99,12 @@ class Message {
       }
     }
 
-    // Вычисляем fileUrl если есть file
     String? fileUrl;
     final fileName = data['file'] as String?;
 
     if (fileName != null && fileName.isNotEmpty && pb != null) {
       try {
         fileUrl = pb.getFileUrl(record, fileName).toString();
-        // Логируем только для аудио/изображений (для отладки)
         if (data['type'] == 'audio' || data['type'] == 'image') {
           debugPrint('[Message] 📁 Файл ${data['type']}:');
           debugPrint('  - fileName: $fileName');
@@ -160,7 +142,6 @@ class Message {
   bool get isImage => type == 'image';
   bool get isAudio => type == 'audio';
 
-  // Удобный метод для копирования с изменением isRead
   Message copyWith({
     String? senderID,
     String? senderEmail,

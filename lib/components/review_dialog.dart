@@ -2,25 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:p7/models/schedule_slot.dart';
 import 'package:p7/service/review_service.dart';
 
-/// Диалог оставления отзыва после занятия.
-///
-/// isVerified = true  → оплата через приложение:
-///   звёздная оценка (1-5) + текст → ВЛИЯЕТ на рейтинг репетитора
-///
-/// isVerified = false → занятие без оплаты через приложение:
-///   только текст → НЕ влияет на рейтинг (помечается как неверифицированный)
-///
-/// Это ключевой механизм монетизации платформы: чтобы получить рейтинг —
-/// нужно платить через приложение. Репетиторы с высоким рейтингом
-/// появляются выше в поиске.
 class ReviewDialog extends StatefulWidget {
   final ScheduleSlot slot;
   final String tutorId;
   final String studentId;
   final String tutorName;
 
-  /// true  → оплата через приложение → звёзды + текст → влияет на рейтинг
-  /// false → без оплаты через приложение → только текст → НЕ влияет на рейтинг
   final bool isVerified;
 
   const ReviewDialog({
@@ -50,7 +37,6 @@ class _ReviewDialogState extends State<ReviewDialog> {
   }
 
   Future<void> _submit() async {
-    // Для верифицированного отзыва — звезда обязательна
     if (widget.isVerified && _selectedRating == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -61,7 +47,6 @@ class _ReviewDialogState extends State<ReviewDialog> {
       return;
     }
 
-    // Для неверифицированного — хотя бы текст должен быть
     if (!widget.isVerified && _commentController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -78,7 +63,7 @@ class _ReviewDialogState extends State<ReviewDialog> {
       tutorId: widget.tutorId,
       studentId: widget.studentId,
       lessonId: widget.slot.id,
-      rating: widget.isVerified ? _selectedRating : null, // звёзды только при оплате
+      rating: widget.isVerified ? _selectedRating : null,
       comment: _commentController.text.trim().isNotEmpty
           ? _commentController.text.trim()
           : null,
@@ -141,7 +126,6 @@ class _ReviewDialogState extends State<ReviewDialog> {
             ),
             const SizedBox(height: 16),
 
-            // Заголовок
             Text(
               widget.isVerified ? 'Оцените занятие' : 'Написать отзыв',
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
@@ -157,7 +141,6 @@ class _ReviewDialogState extends State<ReviewDialog> {
             ),
             const SizedBox(height: 16),
 
-            // Либо звёзды, либо баннер "оплатите для звёзд"
             if (widget.isVerified) ...[
               // Звёзды
               Row(
@@ -194,7 +177,6 @@ class _ReviewDialogState extends State<ReviewDialog> {
               ],
               const SizedBox(height: 16),
             ] else ...[
-              // Баннер: объясняем почему нет звёзд
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
@@ -224,7 +206,6 @@ class _ReviewDialogState extends State<ReviewDialog> {
               const SizedBox(height: 16),
             ],
 
-            // Комментарий
             TextField(
               controller: _commentController,
               maxLines: 3,
@@ -253,7 +234,6 @@ class _ReviewDialogState extends State<ReviewDialog> {
             ),
             const SizedBox(height: 16),
 
-            // Кнопки
             Row(
               children: [
                 Expanded(

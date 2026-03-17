@@ -6,7 +6,6 @@ import '../service/payment_service.dart';
 import '../service/schedule_service.dart';
 import '../service/auth.dart';
 
-/// Форматтер для номера карты: "XXXX XXXX XXXX XXXX"
 class _CardNumberFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
@@ -28,7 +27,6 @@ class _CardNumberFormatter extends TextInputFormatter {
   }
 }
 
-/// Форматтер для срока карты: "MM/YY"
 class _ExpiryFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
@@ -48,7 +46,6 @@ class _ExpiryFormatter extends TextInputFormatter {
   }
 }
 
-/// Диалог имитации оплаты занятия (для диплома)
 class PaymentDialog extends StatefulWidget {
   final ScheduleSlot slot;
   final String tutorId;
@@ -80,10 +77,10 @@ class _PaymentDialogState extends State<PaymentDialog> {
   final _holderController = TextEditingController();
 
   bool _isProcessing = false;
-  String _paymentMethod = 'app'; // 'app' | 'external'
+  String _paymentMethod = 'app';
 
   SavedCard? _savedCard;
-  bool _useSavedCard = false; // true = использовать сохранённую карту
+  bool _useSavedCard = false;
   bool _cvvVisible = false;
 
   @override
@@ -115,12 +112,10 @@ class _PaymentDialogState extends State<PaymentDialog> {
     super.dispose();
   }
 
-  // ──────────────────────── оплата ────────────────────────
 
   Future<void> _processPayment() async {
     if (_paymentMethod == 'app') {
       if (!_useSavedCard || _savedCard == null) {
-        // Валидация формы карты
         final error = _validateCardForm();
         if (error != null) {
           _showError(error);
@@ -158,7 +153,6 @@ class _PaymentDialogState extends State<PaymentDialog> {
     if (!RegExp(r'^\d{2}/\d{2}$').hasMatch(expiry)) {
       return 'Введите срок действия карты (ММ/ГГ)';
     }
-    // Проверяем, что карта не просрочена
     final parts = expiry.split('/');
     final month = int.tryParse(parts[0]) ?? 0;
     final year = int.tryParse(parts[1]) ?? 0;
@@ -208,13 +202,12 @@ class _PaymentDialogState extends State<PaymentDialog> {
 
     await _scheduleService.updateSlotFields(widget.slot.id, {'isPaid': true});
 
-    // Предлагаем сохранить карту, если использовалась новая
     if (!_useSavedCard && mounted) {
       await _offerSaveCard();
     }
 
     if (mounted) {
-      Navigator.of(context).pop('app'); // оплата через приложение → верифицированный отзыв
+      Navigator.of(context).pop('app');
       _showSuccess('Оплата прошла успешно! 🎉');
     }
   }
@@ -222,12 +215,11 @@ class _PaymentDialogState extends State<PaymentDialog> {
   Future<void> _processExternalPayment() async {
     await _scheduleService.updateSlotFields(widget.slot.id, {'isPaid': true});
     if (mounted) {
-      Navigator.of(context).pop('external'); // сторонняя оплата → только текстовый отзыв
+      Navigator.of(context).pop('external');
       _showSuccess('Занятие помечено как оплаченное ✅');
     }
   }
 
-  /// Предложение сохранить карту после оплаты
   Future<void> _offerSaveCard() async {
     final digits =
         _cardNumberController.text.replaceAll(RegExp(r'\D'), '');
@@ -295,8 +287,6 @@ class _PaymentDialogState extends State<PaymentDialog> {
       behavior: SnackBarBehavior.floating,
     ));
   }
-
-  // ──────────────────────── UI ────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -545,7 +535,6 @@ class _PaymentDialogState extends State<PaymentDialog> {
     );
   }
 
-  // ────────── секция карты ──────────
 
   Widget _buildCardSection(ColorScheme colorScheme) {
     return Column(
@@ -558,7 +547,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
                 color: colorScheme.onSurface)),
         const SizedBox(height: 12),
 
-        // Сохранённая карта
+
         if (_savedCard != null) ...[
           _buildSavedCardTile(colorScheme),
           const SizedBox(height: 8),
@@ -567,7 +556,6 @@ class _PaymentDialogState extends State<PaymentDialog> {
           _buildCardForm(colorScheme),
         ],
 
-        // Форма новой карты (если выбрана "другая")
         if (_savedCard != null && !_useSavedCard) ...[
           const SizedBox(height: 12),
           _buildCardForm(colorScheme),
@@ -690,12 +678,11 @@ class _PaymentDialogState extends State<PaymentDialog> {
   Widget _buildCardForm(ColorScheme colorScheme) {
     return Column(
       children: [
-        // Номер карты
         TextField(
           controller: _cardNumberController,
           keyboardType: TextInputType.number,
           inputFormatters: [_CardNumberFormatter()],
-          onChanged: (_) => setState(() {}), // обновляем иконку сети
+          onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
             hintText: '0000 0000 0000 0000',
             labelText: 'Номер карты',
@@ -791,7 +778,6 @@ class _PaymentDialogState extends State<PaymentDialog> {
         ),
         const SizedBox(height: 12),
 
-        // Имя держателя
         TextField(
           controller: _holderController,
           textCapitalization: TextCapitalization.characters,
