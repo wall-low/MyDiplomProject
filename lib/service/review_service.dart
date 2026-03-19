@@ -134,19 +134,28 @@ class ReviewService extends ChangeNotifier {
 
       final reviews = result.items.map(Review.fromRecord).toList();
 
-      double weightSum = 0;
-      double weightedSum = 0;
+      final Map<String, List<int>> studentRatings = {};
       for (final r in reviews) {
         if (r.rating != null) {
-          weightedSum += r.rating! * r.weight;
-          weightSum += r.weight;
+          studentRatings.putIfAbsent(r.studentId, () => []);
+          studentRatings[r.studentId]!.add(r.rating!);
         }
+      }
+
+      double weightedSum = 0;
+      double weightSum = 0;
+      for (final entry in studentRatings.entries) {
+        final avgRating = entry.value.reduce((a, b) => a + b) / entry.value.length;
+        final paidLessons = await _countPaidLessonsBetween(entry.key, tutorId);
+        final weight = paidLessons.clamp(1, 5);
+        weightedSum += avgRating * weight;
+        weightSum += weight;
       }
 
       final newRating = weightSum > 0 ? weightedSum / weightSum : 0.0;
 
       final paidLessonsCount = await _countTotalPaidLessons(tutorId);
-      final isNewbie = reviews.isEmpty;
+      final isNewbie = studentRatings.isEmpty;
 
       final profile = await _tutorProfileService.getTutorProfileByUserId(tutorId);
       if (profile != null) {
@@ -159,7 +168,7 @@ class ReviewService extends ChangeNotifier {
       }
 
       debugPrint(
-          '[ReviewService] ✅ Рейтинг: $newRating, оплаченных занятий: $paidLessonsCount');
+          '[ReviewService] ✅ Рейтинг: $newRating (${studentRatings.length} учеников), оплаченных занятий: $paidLessonsCount');
     } catch (e) {
       debugPrint('[ReviewService] ❌ Ошибка пересчёта рейтинга: $e');
     }

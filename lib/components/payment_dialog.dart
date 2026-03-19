@@ -50,14 +50,14 @@ class PaymentDialog extends StatefulWidget {
   final ScheduleSlot slot;
   final String tutorId;
   final String tutorName;
-  final double? suggestedAmount;
+  final double amount;
 
   const PaymentDialog({
     super.key,
     required this.slot,
     required this.tutorId,
     required this.tutorName,
-    this.suggestedAmount,
+    required this.amount,
   });
 
   @override
@@ -70,7 +70,6 @@ class _PaymentDialogState extends State<PaymentDialog> {
   final _cardStorage = CardStorageService();
   final _auth = Auth();
 
-  final _amountController = TextEditingController();
   final _cardNumberController = TextEditingController();
   final _expiryController = TextEditingController();
   final _cvvController = TextEditingController();
@@ -86,9 +85,6 @@ class _PaymentDialogState extends State<PaymentDialog> {
   @override
   void initState() {
     super.initState();
-    if (widget.suggestedAmount != null) {
-      _amountController.text = widget.suggestedAmount!.toInt().toString();
-    }
     _loadSavedCard();
   }
 
@@ -104,7 +100,6 @@ class _PaymentDialogState extends State<PaymentDialog> {
 
   @override
   void dispose() {
-    _amountController.dispose();
     _cardNumberController.dispose();
     _expiryController.dispose();
     _cvvController.dispose();
@@ -179,24 +174,11 @@ class _PaymentDialogState extends State<PaymentDialog> {
   }
 
   Future<void> _processAppPayment() async {
-    final amountText = _amountController.text.trim();
-    if (amountText.isEmpty) {
-      _showError('Введите сумму оплаты');
-      setState(() => _isProcessing = false);
-      return;
-    }
-    final amount = double.tryParse(amountText);
-    if (amount == null || amount <= 0) {
-      _showError('Некорректная сумма');
-      setState(() => _isProcessing = false);
-      return;
-    }
-
     final payment = await _paymentService.createPayment(
       studentId: _auth.getCurrentUid(),
       tutorId: widget.tutorId,
       slotId: widget.slot.id,
-      amount: amount,
+      amount: widget.amount,
     );
     if (payment == null) throw Exception('Не удалось создать платёж');
 
@@ -388,6 +370,15 @@ class _PaymentDialogState extends State<PaymentDialog> {
             '${widget.slot.startTime} — ${widget.slot.endTime}',
             colorScheme,
           ),
+          if (widget.slot.subject != null && widget.slot.subject!.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _infoRow(
+              Icons.book,
+              'Предмет',
+              widget.slot.subject!,
+              colorScheme,
+            ),
+          ],
         ],
       ),
     );
@@ -491,47 +482,38 @@ class _PaymentDialogState extends State<PaymentDialog> {
   }
 
   Widget _buildAmountField(ColorScheme colorScheme) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Сумма оплаты',
-            style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colorScheme.onSurface)),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _amountController,
-          keyboardType: TextInputType.number,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: InputDecoration(
-            hintText: 'Введите сумму в рублях',
-            prefixIcon:
-                Icon(Icons.currency_ruble, color: colorScheme.primary),
-            suffixText: '₽',
-            border:
-                OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                  color: colorScheme.outline.withValues(alpha: 0.3)),
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.currency_ruble, color: colorScheme.primary, size: 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Сумма к оплате',
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: colorScheme.onSurface.withValues(alpha: 0.6))),
+                Text(
+                  '${widget.amount.toInt()} ₽',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.primary,
+                  ),
+                ),
+              ],
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: colorScheme.primary, width: 2),
-            ),
-          ),
-        ),
-        if (widget.suggestedAmount != null) ...[
-          const SizedBox(height: 6),
-          Text(
-            'Рекомендуемая стоимость: ${widget.suggestedAmount!.toInt()} ₽',
-            style: TextStyle(
-                fontSize: 12,
-                color: colorScheme.onSurface.withValues(alpha: 0.55)),
           ),
         ],
-      ],
+      ),
     );
   }
 

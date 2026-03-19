@@ -16,6 +16,7 @@ class ScheduleSlot {
   final String bookingStatus;
   final bool isRecurring;
   final String? recurringGroupId;
+  final String? subject;
 
   ScheduleSlot({
     required this.id,
@@ -32,6 +33,7 @@ class ScheduleSlot {
     this.bookingStatus = 'free',
     this.isRecurring = false,
     this.recurringGroupId,
+    this.subject,
   });
 
   factory ScheduleSlot.fromRecord(RecordModel record) {
@@ -73,6 +75,7 @@ class ScheduleSlot {
       bookingStatus: data['bookingStatus'] as String? ?? 'free',
       isRecurring: data['isRecurring'] as bool? ?? false,
       recurringGroupId: data['recurringGroupId'] as String?,
+      subject: data['subject'] as String?,
     );
   }
 
@@ -116,6 +119,7 @@ class ScheduleSlot {
       bookingStatus: map['bookingStatus'] ?? 'free',
       isRecurring: map['isRecurring'] ?? false,
       recurringGroupId: map['recurringGroupId'],
+      subject: map['subject'] as String?,
     );
   }
 
@@ -138,6 +142,7 @@ class ScheduleSlot {
 
       'isRecurring': isRecurring,
       if (recurringGroupId != null) 'recurringGroupId': recurringGroupId,
+      if (subject != null) 'subject': subject,
 
       'createdAt': createdAt.toIso8601String(),
     };
@@ -158,6 +163,7 @@ class ScheduleSlot {
     String? bookingStatus,
     bool? isRecurring,
     String? recurringGroupId,
+    String? subject,
   }) {
     return ScheduleSlot(
       id: id ?? this.id,
@@ -174,6 +180,7 @@ class ScheduleSlot {
       bookingStatus: bookingStatus ?? this.bookingStatus,
       isRecurring: isRecurring ?? this.isRecurring,
       recurringGroupId: recurringGroupId ?? this.recurringGroupId,
+      subject: subject ?? this.subject,
     );
   }
 

@@ -4,6 +4,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import '../models/schedule_slot.dart';
 import '../service/auth.dart';
 import '../service/schedule_service.dart';
+import '../service/tutor_profile_service.dart';
 
 /// Страница просмотра расписания репетитора (для ученика)
 ///
@@ -324,6 +325,17 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
                       ),
                     ],
                   ),
+                  if (slot.subject != null && slot.subject!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      slot.subject!,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 8),
 
                   // Статус слота (бейдж)
@@ -446,10 +458,28 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
   /// Забронировать слот
   Future<void> _bookSlot(ScheduleSlot slot) async {
     try {
-      // Переменная для диалога
-      bool isRecurring = false;
+      // Загружаем предметы репетитора для выбора
+      List<String> tutorSubjects = [];
+      if (slot.subject == null || slot.subject!.isEmpty) {
+        try {
+          final tutorProfileService = TutorProfileService();
+          final profile = await tutorProfileService.getTutorProfileByUserId(widget.tutorId);
+          if (profile != null) {
+            tutorSubjects = profile.subjects;
+          }
+        } catch (_) {}
+      }
 
-      // Показываем диалог подтверждения с опцией постоянного расписания
+      if (!mounted) return;
+
+      bool isRecurring = false;
+      String? selectedSubject = slot.subject;
+      final needSubjectSelection = (slot.subject == null || slot.subject!.isEmpty) && tutorSubjects.length > 1;
+
+      if (tutorSubjects.length == 1 && (slot.subject == null || slot.subject!.isEmpty)) {
+        selectedSubject = tutorSubjects.first;
+      }
+
       final result = await showDialog<Map<String, dynamic>>(
         context: context,
         builder: (context) => StatefulBuilder(
@@ -463,9 +493,25 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
                   Text(
                     'Запрос на занятие ${DateFormat('d MMMM', 'ru').format(slot.date)} с ${slot.startTime} до ${slot.endTime}.',
                   ),
+                  if (needSubjectSelection) ...[
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: selectedSubject,
+                      decoration: InputDecoration(
+                        labelText: 'Предмет',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      items: tutorSubjects.map((s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(s),
+                      )).toList(),
+                      onChanged: (v) => setDialogState(() => selectedSubject = v),
+                    ),
+                  ],
                   const SizedBox(height: 16),
 
-                  // Чекбокс "Постоянно (каждую неделю)"
                   CheckboxListTile(
                     value: isRecurring,
                     onChanged: (value) {
@@ -507,10 +553,19 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
                 child: const Text('Отмена'),
               ),
               ElevatedButton(
-                onPressed: () => Navigator.pop(context, {
-                  'confirmed': true,
-                  'isRecurring': isRecurring,
-                }),
+                onPressed: () {
+                  if (needSubjectSelection && selectedSubject == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Выберите предмет')),
+                    );
+                    return;
+                  }
+                  Navigator.pop(context, {
+                    'confirmed': true,
+                    'isRecurring': isRecurring,
+                    'subject': selectedSubject,
+                  });
+                },
                 child: const Text('Отправить'),
               ),
             ],
@@ -521,10 +576,14 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
       if (result == null || result['confirmed'] != true) return;
 
       final isRecurringBooking = result['isRecurring'] as bool;
+      final bookedSubject = result['subject'] as String?;
 
-      // Выполняем бронирование
+      // Записываем предмет в слот, если выбран
+      if (bookedSubject != null && bookedSubject.isNotEmpty) {
+        await _scheduleService.updateSlotFields(slot.id, {'subject': bookedSubject});
+      }
+
       if (isRecurringBooking) {
-        // Постоянное расписание
         final bookingResult = await _scheduleService.bookRecurringSlots(
           initialSlot: slot,
           studentId: _auth.getCurrentUid(),

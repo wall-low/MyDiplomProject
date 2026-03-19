@@ -59,12 +59,14 @@ class ScheduleService extends ChangeNotifier {
     required DateTime date,
     required String startTime,
     required String endTime,
+    String? subject,
   }) async {
     try {
       debugPrint('[ScheduleService] ========== СОЗДАНИЕ СЛОТА ==========');
       debugPrint('[ScheduleService] 👤 TutorID: $tutorId');
       debugPrint('[ScheduleService] 📅 Date: $date');
       debugPrint('[ScheduleService] ⏰ Time: $startTime - $endTime');
+      if (subject != null) debugPrint('[ScheduleService] 📚 Subject: $subject');
 
       final dateOnly = DateTime(date.year, date.month, date.day);
       debugPrint('[ScheduleService] 📅 Date normalized: $dateOnly');
@@ -77,6 +79,7 @@ class ScheduleService extends ChangeNotifier {
         endTime: endTime,
         isBooked: false,
         createdAt: DateTime.now(),
+        subject: subject,
       );
 
       final slotMap = slot.toMap();

@@ -739,6 +739,17 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
                           ),
                         ],
                       ),
+                      if (slot.subject != null && slot.subject!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          slot.subject!,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       // Статус
                       Row(
@@ -1035,9 +1046,25 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
     );
   }
 
-  void _showAddSlotDialog(BuildContext context) {
+  void _showAddSlotDialog(BuildContext context) async {
     TimeOfDay startTime = const TimeOfDay(hour: 9, minute: 0);
     TimeOfDay endTime = const TimeOfDay(hour: 10, minute: 0);
+    String? selectedSubject;
+
+    // Загружаем предметы из профиля репетитора
+    List<String> subjects = [];
+    try {
+      final tutorProfileService = TutorProfileService();
+      final profile = await tutorProfileService.getTutorProfileByUserId(_auth.getCurrentUid());
+      if (profile != null) {
+        subjects = profile.subjects;
+        if (subjects.length == 1) {
+          selectedSubject = subjects.first;
+        }
+      }
+    } catch (_) {}
+
+    if (!mounted) return;
 
     showDialog(
       context: context,
@@ -1049,6 +1076,23 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  if (subjects.length > 1)
+                    DropdownButtonFormField<String>(
+                      value: selectedSubject,
+                      decoration: InputDecoration(
+                        labelText: 'Предмет',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      items: subjects.map((s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(s),
+                      )).toList(),
+                      onChanged: (v) => setDialogState(() => selectedSubject = v),
+                    ),
+                  if (subjects.length > 1)
+                    const SizedBox(height: 12),
                   ListTile(
                     leading: const Icon(Icons.access_time),
                     title: const Text('Начало'),
@@ -1090,8 +1134,14 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
                 ),
                 TextButton(
                   onPressed: () async {
+                    if (subjects.length > 1 && selectedSubject == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Выберите предмет')),
+                      );
+                      return;
+                    }
                     Navigator.pop(context);
-                    await _addSlot(startTime, endTime);
+                    await _addSlot(startTime, endTime, selectedSubject);
                   },
                   child: const Text('Добавить'),
                 ),
@@ -1103,7 +1153,7 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
     );
   }
 
-  Future<void> _addSlot(TimeOfDay startTime, TimeOfDay endTime) async {
+  Future<void> _addSlot(TimeOfDay startTime, TimeOfDay endTime, String? subject) async {
     try {
       final start = '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}';
       final end = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
@@ -1116,6 +1166,7 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         date: _selectedDate,
         startTime: start,
         endTime: end,
+        subject: subject,
       );
 
       debugPrint('[SchedulePage] ✅ Слот создан успешно');
@@ -1239,31 +1290,40 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         throw Exception('Не удалось загрузить данные репетитора');
       }
 
-      // Пытаемся получить профиль репетитора для рекомендуемой цены
-      double? suggestedAmount;
+      // Рассчитываем сумму: цена за час × длительность слота
+      double amount = 0;
       try {
         final tutorProfileService = TutorProfileService();
         final tutorProfile = await tutorProfileService.getTutorProfileByUserId(slot.tutorId);
 
-        // Берём среднюю цену между min и max (если указаны)
         if (tutorProfile != null) {
-          if (tutorProfile.priceMin != null && tutorProfile.priceMax != null) {
-            suggestedAmount = (tutorProfile.priceMin! + tutorProfile.priceMax!) / 2;
+          // Вычисляем длительность слота в часах
+          final startParts = slot.startTime.split(':');
+          final endParts = slot.endTime.split(':');
+          final startMinutes = int.parse(startParts[0]) * 60 + int.parse(startParts[1]);
+          final endMinutes = int.parse(endParts[0]) * 60 + int.parse(endParts[1]);
+          final durationHours = (endMinutes - startMinutes) / 60.0;
+
+          // Берём цену за предмет слота
+          double? hourlyRate;
+          if (slot.subject != null && tutorProfile.subjectPrices.containsKey(slot.subject)) {
+            hourlyRate = tutorProfile.subjectPrices[slot.subject!];
+          } else if (tutorProfile.subjectPrices.isNotEmpty) {
+            hourlyRate = tutorProfile.subjectPrices.values.first;
           } else if (tutorProfile.priceMin != null) {
-            suggestedAmount = tutorProfile.priceMin;
-          } else if (tutorProfile.priceMax != null) {
-            suggestedAmount = tutorProfile.priceMax;
+            hourlyRate = tutorProfile.priceMin;
+          }
+
+          if (hourlyRate != null) {
+            amount = hourlyRate * durationHours;
           }
         }
       } catch (e) {
-        debugPrint('[SchedulePage] ⚠️ Не удалось загрузить профиль репетитора: $e');
-        // Продолжаем без рекомендуемой цены
+        debugPrint('[SchedulePage] ⚠️ Не удалось рассчитать стоимость: $e');
       }
 
       if (!mounted) return;
 
-      // Показываем диалог оплаты
-      // Возвращает: 'app' (оплата через приложение), 'external' (сторонняя), null (отмена)
       final result = await showDialog<String>(
         context: context,
         barrierDismissible: false,
@@ -1271,7 +1331,7 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
           slot: slot,
           tutorId: slot.tutorId,
           tutorName: tutorUser.name,
-          suggestedAmount: suggestedAmount,
+          amount: amount,
         ),
       );
 

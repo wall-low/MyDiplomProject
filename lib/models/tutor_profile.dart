@@ -5,6 +5,7 @@ class TutorProfile {
   final String id;
   final String userId;
   final List<String> subjects;
+  final Map<String, double> subjectPrices;
   final double? priceMin;
   final double? priceMax;
   final int? experience;
@@ -20,6 +21,7 @@ class TutorProfile {
     required this.id,
     required this.userId,
     this.subjects = const [],
+    this.subjectPrices = const {},
     this.priceMin,
     this.priceMax,
     this.experience,
@@ -43,6 +45,21 @@ class TutorProfile {
       }
     } catch (e) {
       debugPrint('[TutorProfile] Ошибка парсинга subjects: $e');
+    }
+
+    Map<String, double> parsedSubjectPrices = {};
+    try {
+      final pricesData = data['subjectPrices'];
+      if (pricesData is Map) {
+        parsedSubjectPrices = pricesData.map(
+          (key, value) => MapEntry(
+            key.toString(),
+            (value is num) ? value.toDouble() : double.tryParse(value.toString()) ?? 0.0,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[TutorProfile] Ошибка парсинга subjectPrices: $e');
     }
 
     List<String> parsedLessonFormat = [];
@@ -93,12 +110,24 @@ class TutorProfile {
       }
     }
 
+    double? computedPriceMin;
+    double? computedPriceMax;
+    if (parsedSubjectPrices.isNotEmpty) {
+      final prices = parsedSubjectPrices.values.toList();
+      computedPriceMin = prices.reduce((a, b) => a < b ? a : b);
+      computedPriceMax = prices.reduce((a, b) => a > b ? a : b);
+    } else {
+      computedPriceMin = parseDouble('priceMin');
+      computedPriceMax = parseDouble('priceMax');
+    }
+
     return TutorProfile(
       id: record.id,
       userId: data['userId'] as String? ?? '',
       subjects: parsedSubjects,
-      priceMin: parseDouble('priceMin'),
-      priceMax: parseDouble('priceMax'),
+      subjectPrices: parsedSubjectPrices,
+      priceMin: computedPriceMin,
+      priceMax: computedPriceMax,
       experience: parseInt('experience'),
       education: data['education'] as String?,
       lessonFormat: parsedLessonFormat,
@@ -114,6 +143,7 @@ class TutorProfile {
     return {
       'userId': userId,
       'subjects': subjects,
+      'subjectPrices': subjectPrices,
       if (priceMin != null) 'priceMin': priceMin,
       if (priceMax != null) 'priceMax': priceMax,
       if (experience != null) 'experience': experience,
@@ -128,10 +158,13 @@ class TutorProfile {
     };
   }
 
+  double? getPriceForSubject(String subject) => subjectPrices[subject];
+
   TutorProfile copyWith({
     String? id,
     String? userId,
     List<String>? subjects,
+    Map<String, double>? subjectPrices,
     double? priceMin,
     double? priceMax,
     int? experience,
@@ -147,6 +180,7 @@ class TutorProfile {
       id: id ?? this.id,
       userId: userId ?? this.userId,
       subjects: subjects ?? this.subjects,
+      subjectPrices: subjectPrices ?? this.subjectPrices,
       priceMin: priceMin ?? this.priceMin,
       priceMax: priceMax ?? this.priceMax,
       experience: experience ?? this.experience,

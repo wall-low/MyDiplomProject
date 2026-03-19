@@ -8,6 +8,7 @@ class TutorProfileService extends ChangeNotifier {
   Future<TutorProfile?> createTutorProfile({
     required String userId,
     List<String> subjects = const [],
+    Map<String, double> subjectPrices = const {},
     double? priceMin,
     double? priceMax,
     int? experience,
@@ -22,11 +23,19 @@ class TutorProfileService extends ChangeNotifier {
         return null;
       }
 
+      final effectivePriceMin = subjectPrices.isNotEmpty
+          ? subjectPrices.values.reduce((a, b) => a < b ? a : b)
+          : priceMin;
+      final effectivePriceMax = subjectPrices.isNotEmpty
+          ? subjectPrices.values.reduce((a, b) => a > b ? a : b)
+          : priceMax;
+
       final body = {
         'userId': userId,
         'subjects': subjects,
-        if (priceMin != null) 'priceMin': priceMin,
-        if (priceMax != null) 'priceMax': priceMax,
+        'subjectPrices': subjectPrices,
+        if (effectivePriceMin != null) 'priceMin': effectivePriceMin,
+        if (effectivePriceMax != null) 'priceMax': effectivePriceMax,
         if (experience != null) 'experience': experience,
         if (education != null && education.isNotEmpty) 'education': education,
         'lessonFormat': lessonFormat,

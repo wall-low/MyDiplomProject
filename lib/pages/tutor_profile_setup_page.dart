@@ -49,8 +49,7 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
   final _formKey = GlobalKey<FormState>();
 
   // Контроллеры для текстовых полей
-  final TextEditingController _priceMinController = TextEditingController();
-  final TextEditingController _priceMaxController = TextEditingController();
+  final Map<String, TextEditingController> _subjectPriceControllers = {};
   final TextEditingController _experienceController = TextEditingController();
   final TextEditingController _educationController = TextEditingController();
   final TextEditingController _payoutCardController = TextEditingController();
@@ -102,11 +101,13 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
       _selectedSubjects = List<String>.from(profile.subjects);
       _isOnline = profile.lessonFormat.contains('online');
       _isOffline = profile.lessonFormat.contains('offline');
-      if (profile.priceMin != null) {
-        _priceMinController.text = profile.priceMin!.toInt().toString();
-      }
-      if (profile.priceMax != null) {
-        _priceMaxController.text = profile.priceMax!.toInt().toString();
+      for (final subject in _selectedSubjects) {
+        final controller = TextEditingController();
+        final price = profile.subjectPrices[subject];
+        if (price != null) {
+          controller.text = price.toInt().toString();
+        }
+        _subjectPriceControllers[subject] = controller;
       }
       if (profile.experience != null) {
         _experienceController.text = profile.experience.toString();
@@ -122,8 +123,9 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
 
   @override
   void dispose() {
-    _priceMinController.dispose();
-    _priceMaxController.dispose();
+    for (final c in _subjectPriceControllers.values) {
+      c.dispose();
+    }
     _experienceController.dispose();
     _educationController.dispose();
     _payoutCardController.dispose();
@@ -176,16 +178,20 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
       return;
     }
 
-    // Валидация цен
-    final priceMin = _priceMinController.text.isNotEmpty
-        ? double.tryParse(_priceMinController.text)
-        : null;
-    final priceMax = _priceMaxController.text.isNotEmpty
-        ? double.tryParse(_priceMaxController.text)
-        : null;
+    // Собираем цены по предметам
+    final Map<String, double> subjectPrices = {};
+    for (final subject in _selectedSubjects) {
+      final controller = _subjectPriceControllers[subject];
+      if (controller != null && controller.text.isNotEmpty) {
+        final price = double.tryParse(controller.text);
+        if (price != null && price > 0) {
+          subjectPrices[subject] = price;
+        }
+      }
+    }
 
-    if (priceMin != null && priceMax != null && priceMin > priceMax) {
-      _showSnackBar('Минимальная цена не может быть больше максимальной',
+    if (subjectPrices.isEmpty) {
+      _showSnackBar('Укажите стоимость хотя бы для одного предмета',
           isError: true);
       return;
     }
@@ -213,8 +219,7 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
 
       debugPrint('[TutorProfileSetup] 📝 Данные для создания:');
       debugPrint('  - subjects: $_selectedSubjects');
-      debugPrint('  - priceMin: $priceMin');
-      debugPrint('  - priceMax: $priceMax');
+      debugPrint('  - subjectPrices: $subjectPrices');
       debugPrint('  - experience: $experience');
       debugPrint('  - lessonFormats: $lessonFormats');
 
@@ -234,10 +239,12 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
 
       if (widget.isEditing && _existingProfileId != null) {
         // Обновляем существующий профиль
+        final prices = subjectPrices.values.toList();
         final updates = <String, dynamic>{
           'subjects': _selectedSubjects,
-          if (priceMin != null) 'priceMin': priceMin,
-          if (priceMax != null) 'priceMax': priceMax,
+          'subjectPrices': subjectPrices,
+          'priceMin': prices.reduce((a, b) => a < b ? a : b),
+          'priceMax': prices.reduce((a, b) => a > b ? a : b),
           if (experience != null) 'experience': experience,
           if (education != null) 'education': education,
           'lessonFormat': lessonFormats,
@@ -250,8 +257,7 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
         profile = await _tutorProfileService.createTutorProfile(
           userId: userId,
           subjects: _selectedSubjects,
-          priceMin: priceMin,
-          priceMax: priceMax,
+          subjectPrices: subjectPrices,
           experience: experience,
           education: education,
           lessonFormat: lessonFormats,
@@ -338,20 +344,35 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
                 _buildSubjectsSelector(),
                 const SizedBox(height: 24),
 
-                // Стоимость занятий
-                _buildSectionTitle('Стоимость занятий (₽/час)'),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
+                // Стоимость занятий по предметам
+                _buildSectionTitle('Стоимость занятий (₽/час) *'),
+                const SizedBox(height: 4),
+                if (_selectedSubjects.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'Сначала выберите предметы выше',
+                      style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                    ),
+                  )
+                else
+                  ..._selectedSubjects.map((subject) {
+                    _subjectPriceControllers.putIfAbsent(
+                      subject,
+                      () => TextEditingController(),
+                    );
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 8),
                       child: TextField(
-                        controller: _priceMinController,
+                        controller: _subjectPriceControllers[subject],
                         keyboardType: TextInputType.number,
                         inputFormatters: [
                           FilteringTextInputFormatter.digitsOnly,
                         ],
                         decoration: InputDecoration(
-                          hintText: 'От',
+                          labelText: subject,
+                          hintText: 'Цена за час',
+                          suffixText: '₽/час',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -370,40 +391,8 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text('—', style: TextStyle(fontSize: 20)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: _priceMaxController,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        decoration: InputDecoration(
-                          hintText: 'До',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: Theme.of(context).colorScheme.tertiary,
-                            ),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: Theme.of(context).colorScheme.primary,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                    );
+                  }),
                 const SizedBox(height: 24),
 
                 // Опыт работы
