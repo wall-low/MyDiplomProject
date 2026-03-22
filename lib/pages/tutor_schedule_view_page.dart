@@ -458,25 +458,32 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
   /// Забронировать слот
   Future<void> _bookSlot(ScheduleSlot slot) async {
     try {
-      // Загружаем предметы репетитора для выбора
+      // Загружаем предметы и цены репетитора
       List<String> tutorSubjects = [];
-      if (slot.subject == null || slot.subject!.isEmpty) {
-        try {
-          final tutorProfileService = TutorProfileService();
-          final profile = await tutorProfileService.getTutorProfileByUserId(widget.tutorId);
-          if (profile != null) {
-            tutorSubjects = profile.subjects;
-          }
-        } catch (_) {}
-      }
+      Map<String, double> subjectPrices = {};
+      try {
+        final tutorProfileService = TutorProfileService();
+        final profile = await tutorProfileService.getTutorProfileByUserId(widget.tutorId);
+        if (profile != null) {
+          tutorSubjects = profile.subjects;
+          subjectPrices = profile.subjectPrices;
+        }
+      } catch (_) {}
 
       if (!mounted) return;
 
-      bool isRecurring = false;
-      String? selectedSubject = slot.subject;
-      final needSubjectSelection = (slot.subject == null || slot.subject!.isEmpty) && tutorSubjects.length > 1;
+      // Вычисляем длительность слота в часах
+      final startParts = slot.startTime.split(':');
+      final endParts = slot.endTime.split(':');
+      final startMinutes = int.parse(startParts[0]) * 60 + int.parse(startParts[1]);
+      final endMinutes = int.parse(endParts[0]) * 60 + int.parse(endParts[1]);
+      final durationHours = (endMinutes - startMinutes) / 60.0;
 
-      if (tutorSubjects.length == 1 && (slot.subject == null || slot.subject!.isEmpty)) {
+      bool isRecurring = false;
+      String? selectedSubject;
+      final needSubjectSelection = tutorSubjects.length > 1;
+
+      if (tutorSubjects.length == 1) {
         selectedSubject = tutorSubjects.first;
       }
 
@@ -503,11 +510,47 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      items: tutorSubjects.map((s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(s),
-                      )).toList(),
+                      items: tutorSubjects.map((s) {
+                        final price = subjectPrices[s];
+                        return DropdownMenuItem(
+                          value: s,
+                          child: Text(price != null ? '$s — ${price.toInt()} ₽/ч' : s),
+                        );
+                      }).toList(),
                       onChanged: (v) => setDialogState(() => selectedSubject = v),
+                    ),
+                  ] else if (selectedSubject != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Предмет: $selectedSubject',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[700],
+                      ),
+                    ),
+                  ],
+                  if (selectedSubject != null && subjectPrices.containsKey(selectedSubject)) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.payments_outlined, size: 18, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Стоимость: ${(subjectPrices[selectedSubject]! * durationHours).toInt()} ₽',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                   const SizedBox(height: 16),

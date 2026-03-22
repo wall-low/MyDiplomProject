@@ -147,7 +147,7 @@ class ReviewService extends ChangeNotifier {
       for (final entry in studentRatings.entries) {
         final avgRating = entry.value.reduce((a, b) => a + b) / entry.value.length;
         final paidLessons = await _countPaidLessonsBetween(entry.key, tutorId);
-        final weight = paidLessons.clamp(1, 5);
+        final weight = paidLessons.clamp(1, 20);
         weightedSum += avgRating * weight;
         weightSum += weight;
       }

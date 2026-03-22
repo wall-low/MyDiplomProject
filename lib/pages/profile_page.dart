@@ -598,20 +598,25 @@ class _ProfilePageState extends State<ProfilePage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.school, color: colorScheme.primary),
-                    const SizedBox(width: 8),
-                    Text(
-                      'ПРОФИЛЬ РЕПЕТИТОРА',
-                      style: TextStyle(
-                        color: colorScheme.primary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1.2,
+                Expanded(
+                  child: Row(
+                    children: [
+                      Icon(Icons.school, color: colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'ПРОФИЛЬ РЕПЕТИТОРА',
+                          style: TextStyle(
+                            color: colorScheme.primary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
                 IconButton(
                   onPressed: () async {

@@ -341,33 +341,38 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
               });
             },
           ),
-          InkWell(
-            onTap: () => _selectDate(context),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.calendar_today,
-                    size: 20,
-                    color: colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    DateFormat('d MMMM, EEEE', 'ru').format(_selectedDate),
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: colorScheme.onSurface,
+          Flexible(
+            child: InkWell(
+              onTap: () => _selectDate(context),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.calendar_today,
+                      size: 20,
+                      color: colorScheme.primary,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        DateFormat('d MMMM, EEEE', 'ru').format(_selectedDate),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1049,20 +1054,6 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
   void _showAddSlotDialog(BuildContext context) async {
     TimeOfDay startTime = const TimeOfDay(hour: 9, minute: 0);
     TimeOfDay endTime = const TimeOfDay(hour: 10, minute: 0);
-    String? selectedSubject;
-
-    // Загружаем предметы из профиля репетитора
-    List<String> subjects = [];
-    try {
-      final tutorProfileService = TutorProfileService();
-      final profile = await tutorProfileService.getTutorProfileByUserId(_auth.getCurrentUid());
-      if (profile != null) {
-        subjects = profile.subjects;
-        if (subjects.length == 1) {
-          selectedSubject = subjects.first;
-        }
-      }
-    } catch (_) {}
 
     if (!mounted) return;
 
@@ -1076,23 +1067,6 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (subjects.length > 1)
-                    DropdownButtonFormField<String>(
-                      value: selectedSubject,
-                      decoration: InputDecoration(
-                        labelText: 'Предмет',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      items: subjects.map((s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(s),
-                      )).toList(),
-                      onChanged: (v) => setDialogState(() => selectedSubject = v),
-                    ),
-                  if (subjects.length > 1)
-                    const SizedBox(height: 12),
                   ListTile(
                     leading: const Icon(Icons.access_time),
                     title: const Text('Начало'),
@@ -1134,14 +1108,8 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
                 ),
                 TextButton(
                   onPressed: () async {
-                    if (subjects.length > 1 && selectedSubject == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Выберите предмет')),
-                      );
-                      return;
-                    }
                     Navigator.pop(context);
-                    await _addSlot(startTime, endTime, selectedSubject);
+                    await _addSlot(startTime, endTime);
                   },
                   child: const Text('Добавить'),
                 ),
@@ -1153,7 +1121,7 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
     );
   }
 
-  Future<void> _addSlot(TimeOfDay startTime, TimeOfDay endTime, String? subject) async {
+  Future<void> _addSlot(TimeOfDay startTime, TimeOfDay endTime) async {
     try {
       final start = '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}';
       final end = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
@@ -1166,7 +1134,6 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         date: _selectedDate,
         startTime: start,
         endTime: end,
-        subject: subject,
       );
 
       debugPrint('[SchedulePage] ✅ Слот создан успешно');
