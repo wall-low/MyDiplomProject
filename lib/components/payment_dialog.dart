@@ -195,7 +195,16 @@ class _PaymentDialogState extends State<PaymentDialog> {
   }
 
   Future<void> _processExternalPayment() async {
+    final payment = await _paymentService.createExternalPayment(
+      studentId: _auth.getCurrentUid(),
+      tutorId: widget.tutorId,
+      slotId: widget.slot.id,
+      amount: widget.amount,
+    );
+    if (payment == null) throw Exception('Не удалось записать платёж');
+
     await _scheduleService.updateSlotFields(widget.slot.id, {'isPaid': true});
+
     if (mounted) {
       Navigator.of(context).pop('external');
       _showSuccess('Занятие помечено как оплаченное ✅');
@@ -785,26 +794,66 @@ class _PaymentDialogState extends State<PaymentDialog> {
   }
 
   Widget _buildExternalInfo(ColorScheme colorScheme) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.blue.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.info_outline, color: Colors.blue[700], size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Вы договорились об оплате вне приложения. Занятие будет помечено как оплаченное.',
-              style: TextStyle(
-                  fontSize: 13, color: Colors.blue[700], height: 1.4),
-            ),
+    return Column(
+      children: [
+        // Сумма к переводу
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: colorScheme.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: colorScheme.primary.withValues(alpha: 0.3)),
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              Icon(Icons.currency_ruble, color: colorScheme.primary, size: 28),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Сумма к переводу',
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: colorScheme.onSurface.withValues(alpha: 0.6))),
+                    Text(
+                      '${widget.amount.toInt()} \u20BD',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Подсказка
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.blue.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue[700], size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Переведите указанную сумму репетитору напрямую. Занятие будет помечено как оплаченное.',
+                  style: TextStyle(
+                      fontSize: 13, color: Colors.blue[700], height: 1.4),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 

@@ -261,6 +261,91 @@ class PaymentService extends ChangeNotifier {
     }
   }
 
+  /// Создать платёж за оплату вне приложения (наличные / перевод)
+  ///
+  /// Использует реальный slotId и статус 'completed_external'
+  Future<Payment?> createExternalPayment({
+    required String studentId,
+    required String tutorId,
+    required String slotId,
+    required double amount,
+  }) async {
+    try {
+      debugPrint('[PaymentService] 💵 Создание внешнего платежа...');
+
+      final record = await _pb.collection('payments').create(body: {
+        'studentId': studentId,
+        'tutorId': tutorId,
+        'slotId': slotId,
+        'amount': amount,
+        'status': 'completed_external',
+      });
+
+      debugPrint('[PaymentService] ✅ Внешний платёж создан: ${record.id}');
+
+      // Обновляем счётчик оплаченных занятий
+      try {
+        final tutorProfileService = TutorProfileService();
+        final profile = await tutorProfileService.getTutorProfileByUserId(tutorId);
+        if (profile != null) {
+          await tutorProfileService.incrementPaidLessons(profile.id);
+        }
+      } catch (e) {
+        debugPrint('[PaymentService] ⚠️ Не удалось обновить счётчик: $e');
+      }
+
+      notifyListeners();
+      return Payment.fromRecord(record);
+    } catch (e) {
+      debugPrint('[PaymentService] ❌ Ошибка создания внешнего платежа: $e');
+      return null;
+    }
+  }
+
+  /// Добавить оплату вручную (не через приложение — наличные, перевод и т.д.)
+  ///
+  /// tutorId - кому заплатили
+  /// amount - сумма
+  /// note - описание (например имя ученика)
+  Future<Payment?> createManualPayment({
+    required String tutorId,
+    required double amount,
+    String note = '',
+  }) async {
+    try {
+      final record = await _pb.collection('payments').create(body: {
+        'studentId': note, // используем поле для описания
+        'tutorId': tutorId,
+        'slotId': 'manual', // маркер ручной оплаты
+        'amount': amount,
+        'status': 'completed',
+      });
+      notifyListeners();
+      return Payment.fromRecord(record);
+    } catch (e) {
+      debugPrint('[PaymentService] ❌ Ошибка создания ручного платежа: $e');
+      return null;
+    }
+  }
+
+  /// Получить статистику репетитора за текущий месяц
+  ///
+  /// Возвращает: Map с ключами 'earnings' (double) и 'count' (int)
+  Future<Map<String, dynamic>> getTutorThisMonthStats(String tutorId) async {
+    try {
+      final payments = await getPaymentsByTutor(tutorId);
+      final now = DateTime.now();
+      final thisMonth = payments.where((p) =>
+          p.isCompleted &&
+          p.created.year == now.year &&
+          p.created.month == now.month);
+      final earnings = thisMonth.fold<double>(0.0, (sum, p) => sum + p.amount);
+      return {'earnings': earnings, 'count': thisMonth.length};
+    } catch (e) {
+      return {'earnings': 0.0, 'count': 0};
+    }
+  }
+
   /// Проверить, оплачен ли слот
   ///
   /// slotId - ID слота

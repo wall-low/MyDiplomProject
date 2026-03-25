@@ -87,7 +87,13 @@ class Payment {
   }
 
 
-  bool get isCompleted => status == 'completed';
+  bool get isCompleted => status == 'completed' || status == 'completed_external';
+
+  /// Платёж добавлен репетитором вручную (не через приложение)
+  bool get isManual => slotId == 'manual';
+
+  /// Платёж произведён вне приложения (наличные / перевод)
+  bool get isExternal => status == 'completed_external';
 
   bool get isPending => status == 'pending';
 

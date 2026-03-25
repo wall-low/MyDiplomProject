@@ -12,6 +12,7 @@ import 'package:p7/service/pocketbase_service.dart';
 import 'package:p7/service/auth.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
+import 'payment_history_page.dart';
 
 class ProfilePage extends StatefulWidget {
   final String uid;
@@ -184,7 +185,9 @@ class _ProfilePageState extends State<ProfilePage> {
                 style: TextStyle(color: colorScheme.onSurface),
               ),
             )
-          : CustomScrollView(
+          : RefreshIndicator(
+              onRefresh: _loadUser,
+              child: CustomScrollView(
               slivers: [
                 // Gradient Header с аватаром
                 SliverAppBar(
@@ -359,6 +362,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ],
             ),
+          ),
     );
   }
 
@@ -704,7 +708,27 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
+
+            // Кнопка перехода в историю доходов
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PaymentHistoryPage(),
+                  ),
+                ),
+                icon: Icon(Icons.receipt_long, size: 16, color: colorScheme.primary),
+                label: Text(
+                  'Подробная история',
+                  style: TextStyle(color: colorScheme.primary, fontSize: 13),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 4),
 
             // Предметы
             if (_tutorProfile!.subjects.isNotEmpty) ...[

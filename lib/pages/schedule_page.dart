@@ -22,7 +22,7 @@ class SchedulePage extends StatefulWidget {
   State<SchedulePage> createState() => _SchedulePageState();
 }
 
-class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderStateMixin {
+class _SchedulePageState extends State<SchedulePage> {
   final ScheduleService _scheduleService = ScheduleService();
   final Auth _auth = Auth();
   final Databases _db = Databases();
@@ -31,7 +31,6 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
   bool _isTutor = false;
   bool _isLoading = true;
   String? _loadError;
-  late AnimationController _refreshController;
 
   // Формат календаря (для ученика)
   CalendarFormat _calendarFormat = CalendarFormat.month;
@@ -42,21 +41,18 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
   // Все занятия ученика (для календаря)
   List<ScheduleSlot> _allStudentSlots = [];
 
+  // Ключ для принудительного обновления FutureBuilder репетитора
+  int _tutorRefreshKey = 0;
+
   @override
   void initState() {
     super.initState();
     initializeDateFormatting('ru', null);
-    // Инициализируем контроллер анимации для кнопки обновления
-    _refreshController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
     _loadUserRole();
   }
 
   @override
   void dispose() {
-    _refreshController.dispose();
     super.dispose();
   }
 
@@ -86,22 +82,18 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
     }
   }
 
-  /// Обновить расписание вручную
-  ///
-  /// Запускает анимацию вращения кнопки и обновляет список слотов через setState()
   Future<void> _refreshSchedule() async {
-    // Запускаем анимацию вращения
-    _refreshController.forward(from: 0.0);
+    debugPrint('[SchedulePage] 🔄 Обновление расписания');
 
-    debugPrint('[SchedulePage] 🔄 Ручное обновление расписания');
-
-    // Для ученика перезагружаем все занятия
+    // Для ученика перезагружаем все занятия, для репетитора инкрементируем ключ
     if (!_isTutor) {
       try {
         _allStudentSlots = await _scheduleService.getStudentSlots(_auth.getCurrentUid());
       } catch (e) {
         debugPrint('[SchedulePage] ❌ Ошибка обновления занятий: $e');
       }
+    } else {
+      _tutorRefreshKey++;
     }
 
     // Обновляем UI
@@ -265,15 +257,6 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
                 });
               },
             ),
-          // Кнопка обновления (для всех пользователей)
-          RotationTransition(
-            turns: _refreshController,
-            child: IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Обновить',
-              onPressed: _refreshSchedule,
-            ),
-          ),
           // Кнопка настройки недельного графика (только для репетиторов)
           if (_isTutor)
             IconButton(
@@ -399,44 +382,56 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         _buildCalendar(colorScheme),
         // Список занятий
         Expanded(
-          child: slotsForSelectedDate.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.event_busy,
-                        size: 80,
-                        color: colorScheme.secondary.withValues(alpha: 0.5),
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        'Нет занятий на эту дату',
-                        style: TextStyle(
-                          color: colorScheme.secondary,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w500,
+          child: RefreshIndicator(
+            onRefresh: _refreshSchedule,
+            child: slotsForSelectedDate.isEmpty
+                ? LayoutBuilder(
+                    builder: (context, constraints) => SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: SizedBox(
+                        height: constraints.maxHeight,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.event_busy,
+                                size: 80,
+                                color: colorScheme.secondary.withValues(alpha: 0.5),
+                              ),
+                              const SizedBox(height: 20),
+                              Text(
+                                'Нет занятий на эту дату',
+                                style: TextStyle(
+                                  color: colorScheme.secondary,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Выберите другую дату в календаре',
+                                style: TextStyle(
+                                  color: colorScheme.secondary.withValues(alpha: 0.7),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Выберите другую дату в календаре',
-                        style: TextStyle(
-                          color: colorScheme.secondary.withValues(alpha: 0.7),
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
+                    ),
+                  )
+                : ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    itemCount: slotsForSelectedDate.length,
+                    itemBuilder: (context, index) {
+                      final slot = slotsForSelectedDate[index];
+                      return _buildSlotCard(slot, colorScheme);
+                    },
                   ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: slotsForSelectedDate.length,
-                  itemBuilder: (context, index) {
-                    final slot = slotsForSelectedDate[index];
-                    return _buildSlotCard(slot, colorScheme);
-                  },
-                ),
+          ),
         ),
       ],
     );
@@ -544,8 +539,10 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
   Widget _buildScheduleList(ColorScheme colorScheme) {
     // Этот метод используется только для репетиторов
     // Для учеников используется _buildStudentView с CustomScrollView
-    return FutureBuilder<List<ScheduleSlot>>(
-      key: ValueKey('tutor_${_selectedDate.toString()}'),
+    return RefreshIndicator(
+      onRefresh: _refreshSchedule,
+      child: FutureBuilder<List<ScheduleSlot>>(
+      key: ValueKey('tutor_${_selectedDate.toString()}_$_tutorRefreshKey'),
       future: _scheduleService.getTutorScheduleByDate(
         _auth.getCurrentUid(),
         _selectedDate,
@@ -612,6 +609,7 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
         }
 
         return ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           itemCount: slots.length,
           itemBuilder: (context, index) {
@@ -620,6 +618,7 @@ class _SchedulePageState extends State<SchedulePage> with SingleTickerProviderSt
           },
         );
       },
+    ),
     );
   }
 
