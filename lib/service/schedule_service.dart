@@ -647,20 +647,19 @@ class ScheduleService extends ChangeNotifier {
     try {
       debugPrint('[ScheduleService] 🔄 Начало генерации слотов на $daysAhead дней');
 
-      final templatesResult = await _pb.collection('weekly_templates').getList(
+      final templatesResult = await _pb.collection('weekly_templates').getFullList(
             filter: 'tutorId="$tutorId" && isActive=true',
-            perPage: 500,
           );
 
-      if (templatesResult.items.isEmpty) {
+      if (templatesResult.isEmpty) {
         debugPrint('[ScheduleService] ⚠️ Шаблон не настроен');
         return 0;
       }
 
-      debugPrint('[ScheduleService] ✅ Загружено ${templatesResult.items.length} шаблонов');
+      debugPrint('[ScheduleService] ✅ Загружено ${templatesResult.length} шаблонов');
 
       Map<int, List<WeeklyTemplate>> templatesByDay = {};
-      for (var record in templatesResult.items) {
+      for (var record in templatesResult) {
         final template = WeeklyTemplate.fromRecord(record);
         final day = template.dayOfWeek;
         templatesByDay[day] = templatesByDay[day] ?? [];
@@ -668,6 +667,19 @@ class ScheduleService extends ChangeNotifier {
       }
 
       final today = DateTime.now();
+      final todayOnly = DateTime(today.year, today.month, today.day);
+      final endDate = todayOnly.add(Duration(days: daysAhead));
+      final todayStr = _formatDate(todayOnly);
+      final endDateStr = _formatDate(endDate.add(const Duration(days: 1)));
+
+      // Предварительно загружаем ВСЕ существующие слоты за этот период,
+      // чтобы избежать N*M запросов и ошибок сравнения дат в фильтре PocketBase
+      final existingSlotsResult = await _pb.collection('slots').getFullList(
+            filter: 'tutorId="$tutorId" && date >= "$todayStr" && date < "$endDateStr"',
+          );
+      
+      final existingSlots = existingSlotsResult.map((e) => ScheduleSlot.fromRecord(e)).toList();
+      debugPrint('[ScheduleService] 📦 Найдено ${existingSlots.length} существующих слотов в периоде');
 
       for (int i = 0; i <= daysAhead; i++) {
         final date = today.add(Duration(days: i));
@@ -677,14 +689,16 @@ class ScheduleService extends ChangeNotifier {
         if (!templatesByDay.containsKey(dayOfWeek)) continue;
 
         for (var template in templatesByDay[dayOfWeek]!) {
-          final dateStr = _formatDate(dateOnly);
-          final existing = await _pb.collection('slots').getList(
-                filter:
-                    'tutorId="$tutorId" && date="$dateStr" && startTime="${template.startTime}" && endTime="${template.endTime}"',
-                perPage: 1,
-              );
+          // Проверяем наличие слота локально
+          final bool exists = existingSlots.any((slot) =>
+              slot.date.year == dateOnly.year &&
+              slot.date.month == dateOnly.month &&
+              slot.date.day == dateOnly.day &&
+              slot.startTime == template.startTime &&
+              slot.endTime == template.endTime);
 
-          if (existing.items.isEmpty) {
+          if (!exists) {
+            final dateStr = _formatDate(dateOnly);
             await _pb.collection('slots').create(body: {
               'tutorId': tutorId,
               'date': dateStr,
@@ -700,6 +714,16 @@ class ScheduleService extends ChangeNotifier {
             createdCount++;
             debugPrint(
                 '[ScheduleService] ✅ Создан слот: $dateStr ${template.startTime}-${template.endTime}');
+            
+            // Добавляем в локальный список, чтобы не создать дубликат в этом же цикле
+            existingSlots.add(ScheduleSlot(
+              id: 'temp',
+              tutorId: tutorId,
+              date: dateOnly,
+              startTime: template.startTime,
+              endTime: template.endTime,
+              createdAt: DateTime.now(),
+            ));
           }
         }
       }
@@ -768,19 +792,24 @@ class ScheduleService extends ChangeNotifier {
       debugPrint('[ScheduleService] 🗑️ Очистка сгенерированных свободных слотов');
 
       final today = DateTime.now();
-      final todayStr = _formatDate(today);
+      final todayOnly = DateTime(today.year, today.month, today.day);
+      final todayStr = _formatDate(todayOnly);
 
-      final result = await _pb.collection('slots').getList(
+      // Используем getFullList, чтобы получить ВСЕ слоты, а не только первые 500
+      final records = await _pb.collection('slots').getFullList(
             filter:
                 'tutorId="$tutorId" && generatedFromTemplate=true && isBooked=false && date>="$todayStr"',
-            perPage: 500,
           );
 
-      debugPrint('[ScheduleService] 🔍 Найдено ${result.items.length} слотов для удаления');
+      debugPrint('[ScheduleService] 🔍 Найдено ${records.length} слотов для удаления');
 
-      for (var record in result.items) {
-        await _pb.collection('slots').delete(record.id);
-        deletedCount++;
+      for (var record in records) {
+        try {
+          await _pb.collection('slots').delete(record.id);
+          deletedCount++;
+        } catch (e) {
+          debugPrint('[ScheduleService] ❌ Ошибка удаления слота ${record.id}: $e');
+        }
       }
 
       debugPrint('[ScheduleService] ✅ Удалено $deletedCount слотов');
