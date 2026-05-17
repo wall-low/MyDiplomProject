@@ -36,7 +36,7 @@ class Message {
       'senderEmail': senderEmail,
       'receiverId': receiverID,
       'message': message,
-      'timestamp': timestamp.toIso8601String(),
+      'timestamp': timestamp.toUtc().toIso8601String(),
       'type': type,
       'fileName': fileName,
       'fileSize': fileSize,

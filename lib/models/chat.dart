@@ -44,7 +44,7 @@ class Chat {
       'lastMessage': lastMessage,
       'lastMessageType': lastMessageType,
       'lastSenderId': lastSenderId,
-      'lastTimestamp': lastTimestamp.toIso8601String(),
+      'lastTimestamp': lastTimestamp.toUtc().toIso8601String(),
       'unreadCountUser1': unreadCountUser1,
       'unreadCountUser2': unreadCountUser2,
     };

@@ -227,7 +227,7 @@ class ChatService extends ChangeNotifier {
         throw Exception('Не удалось создать чат между $currentUserId и $receiverID');
       }
 
-      final messageTimestamp = DateTime.now();
+      final messageTimestamp = DateTime.now().toUtc();
       final newMessage = Message(
         senderID: currentUserId,
         senderEmail: currentUserEmail,
@@ -278,7 +278,7 @@ class ChatService extends ChangeNotifier {
         throw Exception('Не удалось создать чат между $currentUserId и $receiverId');
       }
 
-      final messageTimestamp = DateTime.now();
+      final messageTimestamp = DateTime.now().toUtc();
 
       final body = <String, dynamic>{
         'chatId': chatId,
@@ -352,7 +352,7 @@ class ChatService extends ChangeNotifier {
         throw Exception('Не удалось создать чат между $currentUserId и $receiverId');
       }
 
-      final messageTimestamp = DateTime.now();
+      final messageTimestamp = DateTime.now().toUtc();
 
       final body = <String, dynamic>{
         'chatId': chatId,
@@ -856,7 +856,7 @@ class ChatService extends ChangeNotifier {
             'lastMessage': '',
             'lastMessageType': 'text',
             'lastSenderId': user1Id,
-            'lastTimestamp': DateTime.now().toIso8601String(),
+            'lastTimestamp': DateTime.now().toUtc().toIso8601String(),
             'unreadCountUser1': 0,
             'unreadCountUser2': 0,
           });
