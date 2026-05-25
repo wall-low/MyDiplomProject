@@ -123,17 +123,46 @@ class ReviewService extends ChangeNotifier {
 
   Future<void> _recalculateTutorRating(String tutorId) async {
     try {
-      final cutoff = DateTime.now()
-          .subtract(const Duration(days: 180))
-          .toIso8601String();
+      debugPrint('[ReviewService] 🔄 Начало пересчёта рейтинга для: $tutorId');
 
-      final result = await _pb.collection('reviews').getList(
-        filter: 'tutorId="$tutorId" && isVerified=true && created>="$cutoff"',
-        perPage: 500,
+      // 1. Получаем ВСЕ проверенные отзывы репетитора (без лимита в 180 дней)
+      final reviewsResult = await _pb.collection('reviews').getFullList(
+        filter: 'tutorId="$tutorId" && isVerified=true',
+        sort: '-created',
       );
 
-      final reviews = result.items.map(Review.fromRecord).toList();
+      final reviews = reviewsResult.map(Review.fromRecord).toList();
 
+      if (reviews.isEmpty) {
+        debugPrint('[ReviewService] ℹ️ Отзывов нет, проверяем только оплаты');
+        final paidLessonsCount = await _countTotalPaidLessons(tutorId);
+        final profile = await _tutorProfileService.getTutorProfileByUserId(tutorId);
+        if (profile != null) {
+          await _tutorProfileService.updateRating(
+            profileId: profile.id,
+            newRating: 0.0,
+            totalPaidLessons: paidLessonsCount,
+            isNewbie: paidLessonsCount == 0,
+          );
+        }
+        return;
+      }
+
+      // 2. Получаем ВСЕ оплаты этого репетитора, чтобы посчитать веса учеников за один раз
+      final paymentsResult = await _pb.collection('payments').getFullList(
+        filter: 'tutorId="$tutorId" && (status="completed" || status="completed_external")',
+      );
+      
+      // Группируем оплаты по ученикам для быстрого доступа
+      final Map<String, int> studentPaymentsCount = {};
+      for (final p in paymentsResult) {
+        final sId = p.data['studentId'] as String? ?? '';
+        if (sId.isNotEmpty) {
+          studentPaymentsCount[sId] = (studentPaymentsCount[sId] ?? 0) + 1;
+        }
+      }
+
+      // 3. Группируем оценки по ученикам
       final Map<String, List<int>> studentRatings = {};
       for (final r in reviews) {
         if (r.rating != null) {
@@ -142,35 +171,43 @@ class ReviewService extends ChangeNotifier {
         }
       }
 
+      // 4. Считаем средневзвешенный рейтинг
       double weightedSum = 0;
       double weightSum = 0;
+      
       for (final entry in studentRatings.entries) {
-        final avgRating = entry.value.reduce((a, b) => a + b) / entry.value.length;
-        final paidLessons = await _countPaidLessonsBetween(entry.key, tutorId);
-        final weight = paidLessons.clamp(1, 20);
+        final studentId = entry.key;
+        final ratings = entry.value;
+        
+        final avgRating = ratings.reduce((a, b) => a + b) / ratings.length;
+        
+        // Вес зависит от количества оплаченных занятий (от 1 до 20)
+        final paidLessons = studentPaymentsCount[studentId] ?? 1;
+        final weight = paidLessons.clamp(1, 20).toDouble();
+        
         weightedSum += avgRating * weight;
         weightSum += weight;
       }
 
       final newRating = weightSum > 0 ? weightedSum / weightSum : 0.0;
+      final totalPaidLessons = paymentsResult.length;
 
-      final paidLessonsCount = await _countTotalPaidLessons(tutorId);
-      final isNewbie = studentRatings.isEmpty;
-
+      // 5. Обновляем профиль
       final profile = await _tutorProfileService.getTutorProfileByUserId(tutorId);
       if (profile != null) {
         await _tutorProfileService.updateRating(
           profileId: profile.id,
           newRating: double.parse(newRating.toStringAsFixed(1)),
-          totalPaidLessons: paidLessonsCount,
-          isNewbie: isNewbie,
+          totalPaidLessons: totalPaidLessons,
+          isNewbie: false, // Раз есть отзывы/оплаты, уже не новичок
         );
       }
 
       debugPrint(
-          '[ReviewService] ✅ Рейтинг: $newRating (${studentRatings.length} учеников), оплаченных занятий: $paidLessonsCount');
-    } catch (e) {
+          '[ReviewService] ✅ Рейтинг пересчитан: $newRating, Оплат всего: $totalPaidLessons');
+    } catch (e, stack) {
       debugPrint('[ReviewService] ❌ Ошибка пересчёта рейтинга: $e');
+      debugPrint(stack.toString());
     }
   }
 }

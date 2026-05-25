@@ -9,6 +9,7 @@ import 'package:p7/service/tutor_profile_service.dart';
 import 'package:p7/service/payment_service.dart';
 import 'package:p7/service/review_service.dart';
 import 'package:p7/service/pocketbase_service.dart';
+import 'package:p7/service/schedule_service.dart';
 import 'package:p7/service/auth.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -29,11 +30,13 @@ class _ProfilePageState extends State<ProfilePage> {
   UserProfile? _user;
   TutorProfile? _tutorProfile;
   final _bioCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final _cityCtrl = TextEditingController();
 
   bool _loading = true;
 
-  // Статистика репетитора
-  double _totalEarnings = 0;
+  // Статистика
+  double _totalEarnings = 0; // Для репетитора
   int _totalReviews = 0;
 
   @override
@@ -46,6 +49,8 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void dispose() {
     _bioCtrl.dispose();
+    _nameCtrl.dispose();
+    _cityCtrl.dispose();
     super.dispose();
   }
 
@@ -112,6 +117,7 @@ class _ProfilePageState extends State<ProfilePage> {
     TutorProfile? tutorProf;
     double earnings = 0;
     int reviewCount = 0;
+
     if (u?.role == 'Репетитор') {
       tutorProf = await _tutorProfileService.getTutorProfileByUserId(widget.uid);
       try {
@@ -156,6 +162,50 @@ class _ProfilePageState extends State<ProfilePage> {
       _loading=false;
     });
 
+  }
+
+  void _showProfileEditor() {
+    _nameCtrl.text = _user?.name ?? '';
+    _cityCtrl.text = _user?.city ?? '';
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Редактировать профиль'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(labelText: 'Имя'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _cityCtrl,
+              decoration: const InputDecoration(labelText: 'Город'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              setState(() => _loading = true);
+              await _databaseProvider.updateProfile(
+                name: _nameCtrl.text.trim(),
+                city: _cityCtrl.text.trim(),
+              );
+              await _loadUser();
+            },
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
   }
 
   int _calculateAge(DateTime birthDate) {
@@ -377,21 +427,31 @@ class _ProfilePageState extends State<ProfilePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(Icons.info_outline, color: colorScheme.primary),
-                const SizedBox(width: 8),
-                Text(
-                  'ИНФОРМАЦИЯ',
-                  style: TextStyle(
-                    color: colorScheme.primary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                  ),
+                Row(
+                  children: [
+                    Icon(Icons.info_outline, color: colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'ИНФОРМАЦИЯ',
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+                IconButton(
+                  onPressed: _showProfileEditor,
+                  icon: Icon(Icons.edit, color: colorScheme.primary, size: 20),
+                  tooltip: 'Редактировать имя и город',
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             const Divider(height: 1),
             const SizedBox(height: 16),
 

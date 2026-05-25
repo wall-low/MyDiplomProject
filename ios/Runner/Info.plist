@@ -36,6 +36,12 @@
     <string>Нужен доступ к камере для отправки фотографий в чатах</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Нужен доступ к галерее для отправки фотографий в чатах</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Нужен доступ для сохранения фотографий из чатов в галерею</string>
+    <key>UIFileSharingEnabled</key>
+    <true/>
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

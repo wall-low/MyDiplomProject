@@ -7,8 +7,8 @@ class Message {
   final String receiverID;
   final String message; // Текст сообщения (только для type=text)
   final DateTime timestamp;
-  final String type; // "text" | "image" | "audio"
-  final String? file; // Имя файла в PocketBase Storage (для image/audio)
+  final String type; // "text" | "image" | "audio" | "file"
+  final String? file; // Имя файла в PocketBase Storage (для image/audio/file)
   final String? fileName; // Оригинальное имя файла (опционально)
   final int? fileSize; // Размер файла в байтах
   final Duration? duration; // Длительность аудио
@@ -28,7 +28,7 @@ class Message {
     this.duration,
     this.isRead = false,
     this.fileUrl,
-  }) : assert(type == 'text' || type == 'image' || type == 'audio');
+  }) : assert(type == 'text' || type == 'image' || type == 'audio' || type == 'file');
 
   Map<String, dynamic> toMap() {
     return {
@@ -130,12 +130,24 @@ class Message {
       timestamp: parsedTimestamp,
       type: data['type'] as String? ?? 'text',
       file: fileName,
-      fileName: data['fileName'] as String?,
-      fileSize: data['fileSize'] as int?,
+      // Улучшенная логика получения имени
+      fileName: data['fileName'] as String? ?? 
+                (data['type'] == 'file' ? data['message'] as String? : null) ?? 
+                fileName,
+      // Улучшенная логика получения размера (обрабатываем int, double и String)
+      fileSize: _parseFileSize(data['fileSize']),
       duration: parsedDuration,
       isRead: data['isRead'] as bool? ?? false,
       fileUrl: fileUrl,
     );
+  }
+
+  static int? _parseFileSize(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) return int.tryParse(value);
+    return null;
   }
 
   bool get isText => type == 'text';

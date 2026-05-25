@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_sound/flutter_sound.dart' as fs;
@@ -12,6 +14,7 @@ import 'package:p7/service/pocketbase_service.dart';
 import '../components/audio_player_widget.dart';
 import '../models/message.dart';
 import 'dart:async';
+import 'dart:math' as Math;
 
 class ChatPage extends StatefulWidget {
   final String receiverName;
@@ -238,6 +241,49 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     }
   }
 
+  Future<void> _pickAndSendFile() async {
+    if (!mounted) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: false,
+        type: FileType.any,
+      );
+
+      if (result == null || result.files.single.path == null || !mounted) return;
+
+      final file = result.files.single;
+      final localId = DateTime.now().millisecondsSinceEpoch.toString();
+
+      setState(() {
+        _uploadingFiles[localId] = 0.0;
+      });
+
+      _simulateProgress(localId);
+
+      await _chatService.sendMessageWithFile(
+        receiverId: widget.receiverID,
+        filePath: file.path!,
+        fileName: file.name,
+        fileSize: file.size,
+      );
+
+    } catch (e) {
+      if (mounted) _showError('Ошибка выбора файла');
+      debugPrint('[ChatPage] File picker error: $e');
+    } finally {
+      if (mounted) {
+        final localId = _uploadingFiles.keys.lastWhere((k) => true, orElse: () => '');
+        if (localId.isNotEmpty) {
+          setState(() {
+            _uploadingFiles.remove(localId);
+            _cancelledUploads.remove(localId);
+          });
+        }
+      }
+    }
+  }
+
   void _simulateProgress(String localId) {
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_cancelledUploads.contains(localId)) return;
@@ -252,7 +298,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     });
   }
 
-  void _showImageSourceDialog() {
+  void _showAttachmentSheet() {
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
@@ -266,9 +312,13 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: Icon(
-                  Icons.photo_library,
-                  color: Theme.of(context).colorScheme.primary,
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.photo_library, color: Colors.blue),
                 ),
                 title: const Text('Галерея'),
                 onTap: () {
@@ -277,14 +327,33 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                 },
               ),
               ListTile(
-                leading: Icon(
-                  Icons.camera_alt,
-                  color: Theme.of(context).colorScheme.primary,
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.camera_alt, color: Colors.orange),
                 ),
                 title: const Text('Камера'),
                 onTap: () {
                   Navigator.pop(context);
                   _pickAndSendImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.purple.withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.insert_drive_file, color: Colors.purple),
+                ),
+                title: const Text('Документ'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickAndSendFile();
                 },
               ),
             ],
@@ -1032,6 +1101,14 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
           ),
         ),
       );
+    } else if (msg.type == 'file') {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Align(
+          alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+          child: _buildFileMessage(msg, isMine),
+        ),
+      );
     } else {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
@@ -1047,6 +1124,106 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         ),
       );
     }
+  }
+
+  Widget _buildFileMessage(Message msg, bool isMine) {
+    String fileName = msg.fileName ?? 'Файл';
+    // Если имя файла содержит технический префикс PocketBase (15 символов + подчеркивание), убираем его для красоты
+    if (fileName.contains('_') && fileName.length > 16) {
+      final parts = fileName.split('_');
+      if (parts.length > 1 && parts[0].length >= 10) {
+        fileName = parts.sublist(1).join('_');
+      }
+    }
+
+    final extension = fileName.contains('.') ? fileName.split('.').last.toUpperCase() : 'DOC';
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return GestureDetector(
+      onTap: () async {
+        if (msg.fileUrl != null) {
+          final url = Uri.parse(msg.fileUrl!);
+          if (await canLaunchUrl(url)) {
+            await launchUrl(url, mode: LaunchMode.externalApplication);
+          } else {
+            _showError('Не удалось открыть файл');
+          }
+        }
+      },
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isMine
+              ? colorScheme.primary
+              : colorScheme.secondary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isMine
+                    ? Colors.white.withValues(alpha: 0.2)
+                    : colorScheme.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    Icons.insert_drive_file,
+                    color: isMine ? Colors.white : colorScheme.primary,
+                    size: 32,
+                  ),
+                  Positioned(
+                    bottom: 2,
+                    child: Text(
+                      extension.substring(0, Math.min(extension.length, 3)),
+                      style: TextStyle(
+                        fontSize: 7,
+                        fontWeight: FontWeight.bold,
+                        color: isMine ? colorScheme.primary : Colors.white,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Text(
+                fileName,
+                style: TextStyle(
+                  color: isMine ? Colors.white : colorScheme.onSurface,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.download_rounded,
+              size: 20,
+              color: isMine ? Colors.white70 : colorScheme.primary.withValues(alpha: 0.7),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes <= 0) return '0 B';
+    const suffixes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var i = (Math.log(bytes) / Math.log(1024)).floor();
+    return '${(bytes / Math.pow(1024, i)).toStringAsFixed(1)} ${suffixes[i]}';
   }
 
   Widget _buildMessageInput() {
@@ -1065,7 +1242,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
         child: Row(
           children: [
             IconButton(
-              onPressed: _uploadingFiles.isNotEmpty ? null : _showImageSourceDialog,
+              onPressed: _uploadingFiles.isNotEmpty ? null : _showAttachmentSheet,
               icon: Icon(
                 Icons.add_circle_outline,
                 size: 28,

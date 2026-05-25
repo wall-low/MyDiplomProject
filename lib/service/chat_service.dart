@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:mime/mime.dart';
 import 'package:p7/models/message.dart';
 import 'package:p7/models/chat.dart';
 import 'package:p7/service/auth.dart';
@@ -311,7 +313,7 @@ class ChatService extends ChangeNotifier {
         'file',
         fileBytes,
         filename: fileName,
-        contentType: http.MediaType.parse(imageMimeType),
+        contentType: MediaType.parse(imageMimeType),
       );
 
       final createdMessage = await _pb.collection('messages').create(
@@ -387,7 +389,7 @@ class ChatService extends ChangeNotifier {
         'file',
         fileBytes,
         filename: fileName,
-        contentType: http.MediaType.parse(mimeType),
+        contentType: MediaType.parse(mimeType),
       );
 
       debugPrint('[ChatService] 🎵 Отправка аудио: $fileName (${mimeType})');
@@ -425,6 +427,73 @@ class ChatService extends ChangeNotifier {
       _invalidateChatsCache();
     } catch (e) {
       debugPrint('[ChatService] ❌ Ошибка отправки аудио: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> sendMessageWithFile({
+    required String receiverId,
+    required String filePath,
+    required String fileName,
+    required int fileSize,
+  }) async {
+    try {
+      final currentUserId = Auth().getCurrentUid();
+      final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
+
+      debugPrint('[ChatService] 📤 Отправка файла от: $currentUserId → $receiverId');
+      debugPrint('[ChatService] 📁 Путь к файлу: $filePath');
+
+      final chatId = await _getChatIdByUsers(currentUserId, receiverId);
+      if (chatId == null) {
+        throw Exception('Не удалось создать чат');
+      }
+
+      final messageTimestamp = DateTime.now().toUtc();
+
+      final body = <String, dynamic>{
+        'chatId': chatId,
+        'senderId': currentUserId,
+        'senderEmail': currentUserEmail,
+        'receiverId': receiverId,
+        'message': fileName,
+        'type': 'file', // Теперь используем официальный тип
+        'isRead': false,
+        'timestamp': messageTimestamp.toIso8601String(),
+        'fileName': fileName,
+        'fileSize': fileSize,
+      };
+
+      final fileBytes = await File(filePath).readAsBytes();
+      
+      // Определяем MIME-тип файла автоматически
+      final mimeType = lookupMimeType(filePath) ?? 'application/octet-stream';
+
+      final file = http.MultipartFile.fromBytes(
+        'file',
+        fileBytes,
+        filename: fileName,
+        contentType: MediaType.parse(mimeType),
+      );
+
+      final createdMessage = await _pb.collection('messages').create(
+        body: body,
+        files: [file],
+      );
+
+      debugPrint('[ChatService] ✅ Файл отправлен: ${createdMessage.id}');
+
+      await _updateChatMetadata(
+        chatId: chatId,
+        lastMessage: '📄 $fileName',
+        lastMessageType: 'file',
+        lastSenderId: currentUserId,
+        messageTimestamp: messageTimestamp,
+      );
+
+      _invalidateChatsCache();
+    } catch (e) {
+      debugPrint('[ChatService] ❌ Ошибка отправки файла: $e');
       rethrow;
     }
   }

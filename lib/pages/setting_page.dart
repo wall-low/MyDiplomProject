@@ -172,6 +172,24 @@ class SettingPage extends StatelessWidget {
 
           const Divider(),
 
+          // Удаление аккаунта
+          ListTile(
+            title: Text(
+              "Удалить аккаунт",
+              style: TextStyle(
+                color: Colors.red.withValues(alpha: 0.7),
+                fontSize: 18,
+              ),
+            ),
+            leading: Icon(
+              Icons.delete_forever_outlined,
+              color: Colors.red.withValues(alpha: 0.7),
+            ),
+            onTap: () => _showDeleteAccountDialog(context),
+          ),
+
+          const Divider(),
+
           // Logout кнопка
           ListTile(
             title: Text(
@@ -228,6 +246,50 @@ class SettingPage extends StatelessWidget {
           MaterialPageRoute(builder: (context) => const AuthGate()),
           (route) => false, // Удаляем весь стек навигации
         );
+      }
+    }
+  }
+
+  void _showDeleteAccountDialog(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Удаление аккаунта"),
+        content: const Text(
+          "Вы уверены, что хотите безвозвратно удалить свой аккаунт? Все ваши данные, чаты и история занятий будут стерты.",
+        ),
+        actions: [
+          TextButton(
+            child: const Text("Отмена"),
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Удалить"),
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && context.mounted) {
+      try {
+        await Auth().deleteCurrentUser();
+        if (context.mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const AuthGate()),
+            (route) => false,
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Ошибка удаления: $e')),
+          );
+        }
       }
     }
   }

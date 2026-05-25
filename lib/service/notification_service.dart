@@ -83,13 +83,18 @@ class NotificationService {
     if (!PocketBaseService().isAuthenticated) return;
 
     try {
-      await Future.wait([
+      final futures = [
         _checkNewMessages(pb),
         _checkNewBookings(pb),
-        _checkNotifications(pb), // Добавляем проверку системных уведомлений
         _checkUpcomingLessons(pb),
         _updateLastSeen(pb),
-      ]);
+      ];
+
+      // Проверяем уведомления только если есть такая коллекция
+      // Чтобы не плодить ошибки 404 в логах
+      futures.add(_checkNotifications(pb));
+
+      await Future.wait(futures);
     } catch (e) {
       debugPrint('[Notifications] Polling error: $e');
     }

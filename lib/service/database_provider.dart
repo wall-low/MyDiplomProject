@@ -11,4 +11,8 @@ class DatabaseProvider extends ChangeNotifier{
     return _db.updateUserBio(bio);
   }
 
+  Future<void> updateProfile({String? name, String? city}) {
+    return _db.updateUserProfile(name: name, city: city);
+  }
+
 }
