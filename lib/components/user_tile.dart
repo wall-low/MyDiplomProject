@@ -9,6 +9,7 @@ class UserTile extends StatelessWidget {
   final DateTime? lastMessageTime;
   final int? unreadCount;
   final bool isOnline;
+  final bool hasDebt; // Флаг неоплаченного занятия
   final void Function()? onTap;
 
   const UserTile({
@@ -20,6 +21,7 @@ class UserTile extends StatelessWidget {
     this.lastMessageTime,
     this.unreadCount,
     this.isOnline = false,
+    this.hasDebt = false,
     required this.onTap,
   });
 
@@ -106,6 +108,11 @@ class UserTile extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (hasDebt) ...[
+                          const SizedBox(width: 4),
+                          const Icon(Icons.warning_amber_rounded, size: 18, color: Colors.orange),
+                          const SizedBox(width: 4),
+                        ],
                         if (lastMessageTime != null) ...[
                           const SizedBox(width: 8),
                           Text(

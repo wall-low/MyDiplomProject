@@ -870,6 +870,27 @@ class ScheduleService extends ChangeNotifier {
     }
   }
 
+  Future<List<ScheduleSlot>> getUnpaidPastSlots(String tutorId) async {
+    try {
+      final today = DateTime.now();
+      final todayStr = _formatDate(today);
+
+      final result = await _pb.collection('slots').getList(
+            filter:
+                'tutorId="$tutorId" && isBooked=true && isPaid=false && date<="$todayStr"',
+            sort: '-date,-startTime',
+            perPage: 500,
+          );
+
+      // Фильтруем те, что действительно прошли по времени (endTime)
+      final slots = result.items.map((record) => ScheduleSlot.fromRecord(record)).toList();
+      return slots.where((slot) => slot.isPast).toList();
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка получения неоплаченных слотов: $e');
+      return [];
+    }
+  }
+
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
   }

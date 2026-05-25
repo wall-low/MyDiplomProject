@@ -1039,7 +1039,7 @@ class _SchedulePageState extends State<SchedulePage> {
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 365)), // Можно смотреть историю за год
       lastDate: DateTime.now().add(const Duration(days: 365)),
       locale: const Locale('ru'),
     );

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:p7/components/user_tile.dart';
 import 'package:p7/models/chat.dart';
+import 'package:p7/models/schedule_slot.dart';
 import 'package:p7/service/auth.dart';
 import 'package:p7/service/chat_service.dart';
 import 'package:p7/service/databases.dart';
@@ -26,6 +27,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   bool _isTutor = false; // Роль пользователя
   int _pendingRequestsCount = 0; // Количество запросов
+  List<ScheduleSlot> _unpaidSlots = []; // Неоплаченные прошедшие слоты
 
   String getCurrentUser(){
     return _auth.getCurrentUid();
@@ -60,6 +62,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         setState(() {
           _isTutor = user.role == 'Репетитор';
         });
+
+        if (_isTutor) {
+          final unpaid = await _scheduleService.getUnpaidPastSlots(_auth.getCurrentUid());
+          if (mounted) {
+            setState(() {
+              _unpaidSlots = unpaid;
+            });
+          }
+        }
 
         // Запускаем real-time подписку на pending запросы
         _subscribeToPendingRequests();
@@ -125,6 +136,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         title: Text("Ч А Т Ы"),
         foregroundColor: Theme.of(context).colorScheme.primary,
         actions: [
+          // Список должников (только для репетиторов)
+          if (_isTutor && _unpaidSlots.isNotEmpty)
+            IconButton(
+              icon: Icon(Icons.money_off, color: Colors.orange),
+              tooltip: 'Неоплаченные занятия',
+              onPressed: () => _showUnpaidSlotsDialog(context),
+            ),
           // Колокольчик с уведомлениями о запросах (для всех пользователей)
           Stack(
             children: [
@@ -291,6 +309,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         }
 
         final otherUser = userSnapshot.data!;
+        final bool hasDebt = _isTutor && _unpaidSlots.any((slot) => slot.studentId == otherUserId);
 
         return UserTile(
           text: otherUser.name,
@@ -299,6 +318,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           lastMessageTime: chat.lastTimestamp,
           unreadCount: unreadCount > 0 ? unreadCount : null,
           isOnline: otherUser.isOnline,
+          hasDebt: hasDebt,
           onTap: () async {
             // Переходим в чат и ждём возврата
             await Navigator.push(
@@ -314,6 +334,64 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           },
         );
       },
+    );
+  }
+
+  /// Диалог со списком неоплаченных занятий
+  void _showUnpaidSlotsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.money_off, color: Colors.orange),
+            SizedBox(width: 12),
+            Text('Неоплаченные уроки'),
+          ],
+        ),
+        content: Container(
+          width: double.maxFinite,
+          child: _unpaidSlots.isEmpty
+              ? Text('Все занятия оплачены 👍')
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: _unpaidSlots.length,
+                  itemBuilder: (context, index) {
+                    final slot = _unpaidSlots[index];
+                    return FutureBuilder(
+                      future: _db.getUserFromPocketBase(slot.studentId ?? ''),
+                      builder: (context, userSnapshot) {
+                        final studentName = userSnapshot.data?.name ?? 'Загрузка...';
+                        return ListTile(
+                          leading: Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                          title: Text(studentName),
+                          subtitle: Text('${slot.startTime} - ${slot.endTime} (${slot.date.day}.${slot.date.month})'),
+                          trailing: Icon(Icons.chat_bubble_outline, size: 20),
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ChatPage(
+                                  receiverName: studentName,
+                                  receiverID: slot.studentId!,
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Закрыть'),
+          ),
+        ],
+      ),
     );
   }
 }

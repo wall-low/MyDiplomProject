@@ -1,5 +1,6 @@
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:p7/service/auth_gate.dart';
 import 'package:p7/service/database_provider.dart';
 import 'package:p7/service/notification_service.dart';
@@ -38,6 +39,16 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       home: const AuthGate(),
       theme: Provider.of<ThemProvider>(context).themeData,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('ru', 'RU'),
+        Locale('en', 'US'),
+      ],
+      locale: const Locale('ru', 'RU'),
     );
   }
 }
