@@ -1014,11 +1014,22 @@ class _SchedulePageState extends State<SchedulePage> {
                       if (_isTutor && !slot.isPast) ...[
                         const SizedBox(width: 12),
                         IconButton.filledTonal(
-                          onPressed: () => _cancelStudentBooking(slot),
-                          icon: const Icon(Icons.person_remove_outlined),
-                          tooltip: 'Отменить запись',
+                          onPressed: () => _showRescheduleDialog(slot),
+                          icon: const Icon(Icons.edit_calendar_outlined),
+                          tooltip: 'Перенести занятие',
                           style: IconButton.styleFrom(
-                            backgroundColor: colorScheme.errorContainer,
+                            backgroundColor: colorScheme.primaryContainer.withValues(alpha: 0.6),
+                            foregroundColor: colorScheme.primary,
+                            padding: const EdgeInsets.all(12),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton.filledTonal(
+                          onPressed: () => _showTerminateCollaborationDialog(slot.studentId!),
+                          icon: const Icon(Icons.person_off_outlined),
+                          tooltip: 'Прекратить работу с учеником',
+                          style: IconButton.styleFrom(
+                            backgroundColor: colorScheme.errorContainer.withValues(alpha: 0.6),
                             foregroundColor: colorScheme.error,
                             padding: const EdgeInsets.all(12),
                           ),
@@ -1222,6 +1233,152 @@ class _SchedulePageState extends State<SchedulePage> {
     }
   }
 
+  /// Диалог разового переноса занятия
+  Future<void> _showRescheduleDialog(ScheduleSlot slot) async {
+    DateTime newDate = slot.date;
+    TimeOfDay startTime = TimeOfDay(
+      hour: int.parse(slot.startTime.split(':')[0]),
+      minute: int.parse(slot.startTime.split(':')[1]),
+    );
+    TimeOfDay endTime = TimeOfDay(
+      hour: int.parse(slot.endTime.split(':')[0]),
+      minute: int.parse(slot.endTime.split(':')[1]),
+    );
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Перенос занятия'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Выберите новую дату и время для этого занятия:'),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.calendar_today),
+                title: Text(DateFormat('d MMMM, EEEE', 'ru').format(newDate)),
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: newDate,
+                    firstDate: DateTime.now(),
+                    lastDate: DateTime.now().add(const Duration(days: 365)),
+                    locale: const Locale('ru'),
+                  );
+                  if (picked != null) {
+                    setDialogState(() => newDate = picked);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.access_time),
+                title: Text('Начало: ${startTime.format(context)}'),
+                onTap: () async {
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: startTime,
+                  );
+                  if (picked != null) {
+                    setDialogState(() => startTime = picked);
+                  }
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.access_time_filled),
+                title: Text('Конец: ${endTime.format(context)}'),
+                onTap: () async {
+                  final picked = await showTimePicker(
+                    context: context,
+                    initialTime: endTime,
+                  );
+                  if (picked != null) {
+                    setDialogState(() => endTime = picked);
+                  }
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Отмена'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Перенести'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final start = '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}';
+      final end = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
+
+      // 1. Проверяем наличие других слотов на это время
+      final existingSlots = await _scheduleService.getTutorScheduleByDate(_auth.getCurrentUid(), newDate);
+      
+      final hasOverlap = existingSlots.any((s) => 
+        s.id != slot.id && // Не проверяем тот же самый слот
+        (s.startTime == start || // Точное совпадение начала
+         s.endTime == end ||     // Точное совпадение конца
+         // Проверка пересечения интервалов: (StartA < EndB) AND (EndA > StartB)
+         (start.compareTo(s.endTime) < 0 && end.compareTo(s.startTime) > 0))
+      );
+
+      if (hasOverlap) {
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Ошибка переноса'),
+              content: const Text('На это время уже назначен другой урок или создан свободный слот. Пожалуйста, выберите другое время.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('ОК')),
+              ],
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. Если наложений нет, выполняем перенос
+      await _scheduleService.rescheduleSlot(
+        slotId: slot.id,
+        newDate: newDate,
+        newStartTime: start,
+        newEndTime: end,
+      );
+
+      if (mounted) {
+        setState(() {
+          _flippedCards.remove(slot.id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Занятие успешно перенесено'),
+            backgroundColor: Colors.blue,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Ошибка переноса: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   /// Отменить запись ученика (для репетитора)
   Future<void> _cancelStudentBooking(ScheduleSlot slot) async {
     final confirmed = await showDialog<bool>(
@@ -1271,6 +1428,69 @@ class _SchedulePageState extends State<SchedulePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ Ошибка отмены: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Прекратить сотрудничество (отменить все будущие уроки)
+  Future<void> _showTerminateCollaborationDialog(String studentId) async {
+    // Сначала получим имя ученика для диалога
+    final student = await _db.getUserFromPocketBase(studentId);
+    final studentName = student?.name ?? 'этим учеником';
+
+    if (!mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Прекратить работу?'),
+        content: Text(
+          'Вы уверены, что хотите прекратить сотрудничество с пользователем $studentName?\n\n'
+          'Все будущие занятия с ним будут автоматически отменены, а слоты освобождены для других.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Прекратить работу'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final count = await _scheduleService.terminateCollaboration(_auth.getCurrentUid(), studentId);
+
+      if (mounted) {
+        setState(() {
+          _flippedCards.clear(); // Закрываем все перевернутые карточки
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ Сотрудничество прекращено. Отменено занятий: $count'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Ошибка: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

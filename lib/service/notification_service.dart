@@ -86,6 +86,7 @@ class NotificationService {
       await Future.wait([
         _checkNewMessages(pb),
         _checkNewBookings(pb),
+        _checkNotifications(pb), // Добавляем проверку системных уведомлений
         _checkUpcomingLessons(pb),
         _updateLastSeen(pb),
       ]);
@@ -269,6 +270,42 @@ class NotificationService {
       }
     } catch (e) {
       debugPrint('[Notifications] Check upcoming lessons error: $e');
+    }
+  }
+
+  /// Проверить новые системные уведомления (отмена, перенос и т.д.)
+  Future<void> _checkNotifications(PocketBase pb) async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastCheckKey = 'last_system_notif_check_$_currentUserId';
+    final lastCheck = prefs.getString(lastCheckKey) ?? '';
+
+    String filter = 'receiverId="$_currentUserId" && isRead=false';
+    if (lastCheck.isNotEmpty) {
+      filter += ' && created>"$lastCheck"';
+    }
+
+    try {
+      final result = await pb.collection('notifications').getList(
+            filter: filter,
+            perPage: 10,
+            sort: '-created',
+          );
+
+      if (result.items.isNotEmpty) {
+        await prefs.setString(
+            lastCheckKey, result.items.first.get<String>('created'));
+
+        for (final notif in result.items) {
+          await _showNotification(
+            id: notif.id.hashCode,
+            title: notif.data['title'] ?? 'Уведомление',
+            body: notif.data['body'] ?? '',
+            payload: 'system_notif',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[Notifications] Check system notifications error: $e');
     }
   }
 

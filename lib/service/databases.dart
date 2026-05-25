@@ -7,6 +7,7 @@ import 'pocketbase_service.dart';
 
 class Databases {
   final _pb = PocketBaseService().client;
+  PocketBase get client => _pb;
 
   Future<void> saveInfoInPocketBase({
     required String name,

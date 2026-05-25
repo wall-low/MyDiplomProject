@@ -2,10 +2,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/schedule_slot.dart';
 import '../models/weekly_template.dart';
+import 'chat_service.dart';
 import 'pocketbase_service.dart';
 
 class ScheduleService extends ChangeNotifier {
   final _pb = PocketBaseService().client;
+  final _chatService = ChatService();
 
   Future<List<ScheduleSlot>> getTutorSchedule(String tutorId) async {
     try {
@@ -33,7 +35,7 @@ class ScheduleService extends ChangeNotifier {
 
       final dateStr = targetDate.toIso8601String().split('T')[0];
       final nextDayStr =
-          targetDate.add(Duration(days: 1)).toIso8601String().split('T')[0];
+          targetDate.add(const Duration(days: 1)).toIso8601String().split('T')[0];
 
       final result = await _pb.collection('slots').getList(
             filter: 'tutorId="$tutorId" && date >= "$dateStr" && date < "$nextDayStr"',
@@ -624,9 +626,112 @@ class ScheduleService extends ChangeNotifier {
       );
 
       debugPrint('[ScheduleService] ✅ Запись отменена репетитором: $slotId');
+      
+      // Отправляем сообщение в чат ученику
+      final slotRecord = await _pb.collection('slots').getOne(slotId);
+      final studentId = slotRecord.data['studentId'];
+      
+      if (studentId != null) {
+        final date = slotRecord.data['date'].split('T')[0];
+        final time = "${slotRecord.data['startTime']} - ${slotRecord.data['endTime']}";
+        
+        await _chatService.sendMessage(
+          studentId, 
+          '🔔 Внимание: Занятие на $date ($time) было отменено репетитором.',
+        );
+      }
+
       notifyListeners();
     } catch (e) {
       debugPrint('[ScheduleService] ❌ Ошибка отмены записи репетитором: $e');
+      rethrow;
+    }
+  }
+
+  Future<int> terminateCollaboration(String tutorId, String studentId) async {
+    try {
+      debugPrint('[ScheduleService] 🔴 Прекращение сотрудничества: tutor=$tutorId, student=$studentId');
+
+      final todayStr = _formatDate(DateTime.now());
+
+      // Находим все будущие забронированные слоты этого ученика у этого репетитора
+      final result = await _pb.collection('slots').getFullList(
+        filter: 'tutorId="$tutorId" && studentId="$studentId" && date >= "$todayStr"',
+      );
+
+      int count = 0;
+      for (final record in result) {
+        try {
+          await _pb.collection('slots').update(record.id, body: {
+            'isBooked': false,
+            'studentId': null,
+            'bookingStatus': 'free',
+            'isRecurring': false,
+            'recurringGroupId': null,
+            'subject': null,
+          });
+          count++;
+        } catch (e) {
+          debugPrint('[ScheduleService] ❌ Ошибка освобождения слота ${record.id}: $e');
+        }
+      }
+
+      debugPrint('[ScheduleService] ✅ Сотрудничество прекращено. Освобождено $count слотов');
+
+      // Отправляем сообщение в чат об отмене всех занятий
+      if (count > 0) {
+        await _chatService.sendMessage(
+          studentId,
+          '❌ Репетитор прекратил сотрудничество. Все ваши будущие записи были отменены.',
+        );
+      }
+
+      notifyListeners();
+      return count;
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка прекращения сотрудничества: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> rescheduleSlot({
+    required String slotId,
+    required DateTime newDate,
+    required String newStartTime,
+    required String newEndTime,
+  }) async {
+    try {
+      debugPrint('[ScheduleService] 🔄 Перенос слота $slotId на $newDate $newStartTime-$newEndTime');
+
+      final dateStr = _formatDate(newDate);
+
+      await _pb.collection('slots').update(
+        slotId,
+        body: {
+          'date': dateStr,
+          'startTime': newStartTime,
+          'endTime': newEndTime,
+          'isRecurring': false, // Делаем разовым при переносе
+          'recurringGroupId': null,
+        },
+      );
+
+      debugPrint('[ScheduleService] ✅ Слот успешно перенесен');
+
+      // Отправляем сообщение в чат о переносе
+      final slotRecord = await _pb.collection('slots').getOne(slotId);
+      final studentId = slotRecord.data['studentId'];
+
+      if (studentId != null) {
+        await _chatService.sendMessage(
+          studentId,
+          '📅 Внимание: Занятие было перенесено. Новое время: $dateStr с $newStartTime до $newEndTime',
+        );
+      }
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка переноса слота: $e');
       rethrow;
     }
   }

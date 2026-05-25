@@ -27,6 +27,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   bool _isTutor = false; // Роль пользователя
   int _pendingRequestsCount = 0; // Количество запросов
+  int _systemNotificationsCount = 0; // Количество системных уведомлений
   List<ScheduleSlot> _unpaidSlots = []; // Неоплаченные прошедшие слоты
 
   String getCurrentUser(){
@@ -107,12 +108,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           setState(() {
             _pendingRequestsCount = count;
           });
+          _loadSystemNotificationsCount(); // Обновляем и системные при любых изменениях
         }
       },
       onError: (error) {
         debugPrint('[HomePage] ❌ Ошибка подписки: $error');
       },
     );
+  }
+
+  Future<void> _loadSystemNotificationsCount() async {
+    try {
+      final result = await _db.client.collection('notifications').getList(
+        filter: 'receiverId="${_auth.getCurrentUid()}" && isRead=false',
+        perPage: 1,
+      );
+      if (mounted) {
+        setState(() {
+          _systemNotificationsCount = result.totalItems;
+        });
+      }
+    } catch (e) {
+      debugPrint('[HomePage] Ошибка загрузки уведомлений: $e');
+    }
   }
 
   @override
@@ -185,7 +203,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       minHeight: 18,
                     ),
                     child: Text(
-                      _pendingRequestsCount > 9 ? '9+' : '$_pendingRequestsCount',
+                      (_pendingRequestsCount + _systemNotificationsCount) > 9 
+                          ? '9+' 
+                          : '${_pendingRequestsCount + _systemNotificationsCount}',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 10,
