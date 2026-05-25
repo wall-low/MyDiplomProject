@@ -195,19 +195,23 @@ class _PaymentDialogState extends State<PaymentDialog> {
   }
 
   Future<void> _processExternalPayment() async {
-    final payment = await _paymentService.createExternalPayment(
-      studentId: _auth.getCurrentUid(),
-      tutorId: widget.tutorId,
-      slotId: widget.slot.id,
-      amount: widget.amount,
-    );
-    if (payment == null) throw Exception('Не удалось записать платёж');
+    try {
+      final payment = await _paymentService.createExternalPayment(
+        studentId: _auth.getCurrentUid(),
+        tutorId: widget.tutorId,
+        slotId: widget.slot.id,
+        amount: widget.amount,
+      );
+      if (payment == null) throw Exception('Не удалось записать платёж');
 
-    await _scheduleService.updateSlotFields(widget.slot.id, {'isPaid': true});
+      await _scheduleService.updateSlotFields(widget.slot.id, {'isPaid': true});
 
-    if (mounted) {
-      Navigator.of(context).pop('external');
-      _showSuccess('Занятие помечено как оплаченное ✅');
+      if (mounted) {
+        Navigator.of(context).pop('external');
+        _showSuccess('Занятие помечено как оплаченное ✅');
+      }
+    } catch (e) {
+      rethrow;
     }
   }
 
@@ -863,7 +867,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
         Expanded(
           child: OutlinedButton(
             onPressed:
-                _isProcessing ? null : () => Navigator.of(context).pop(false),
+                _isProcessing ? null : () => Navigator.of(context).pop(),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(

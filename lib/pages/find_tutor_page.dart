@@ -213,23 +213,28 @@ class _FindTutorPageState extends State<FindTutorPage> {
       debugPrint('[FindTutor] ✅ После фильтрации: ${tutors.length} репетиторов');
 
       // Пересчитываем рейтинги всех найденных репетиторов в фоне
-      // и перечитываем актуальные профили
+      // Это гарантирует актуальность рейтинга даже если он изменился недавно
       if (tutors.isNotEmpty) {
-        // Пересчёт рейтингов параллельно
-        await Future.wait(
-          tutors.map((t) => _reviewService.refreshTutorRating(t.userProfile.uid)),
-        );
+        try {
+          // Пересчёт рейтингов параллельно
+          await Future.wait(
+            tutors.map((t) => _reviewService.refreshTutorRating(t.userProfile.uid)),
+          );
 
-        // Перечитываем обновлённые профили
-        for (int i = 0; i < tutors.length; i++) {
-          final updated = await _tutorProfileService
-              .getTutorProfileByUserId(tutors[i].userProfile.uid);
-          if (updated != null) {
-            tutors[i] = TutorWithUserData(
-              tutorProfile: updated,
-              userProfile: tutors[i].userProfile,
-            );
+          // Перечитываем обновлённые профили для отображения свежих данных
+          for (int i = 0; i < tutors.length; i++) {
+            final updated = await _tutorProfileService
+                .getTutorProfileByUserId(tutors[i].userProfile.uid);
+            if (updated != null) {
+              tutors[i] = TutorWithUserData(
+                tutorProfile: updated,
+                userProfile: tutors[i].userProfile,
+              );
+            }
           }
+        } catch (e) {
+          debugPrint('[FindTutor] ⚠️ Ошибка фонового обновления рейтингов: $e');
+          // Продолжаем работу с тем, что есть
         }
       }
 

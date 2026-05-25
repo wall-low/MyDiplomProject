@@ -72,7 +72,7 @@ class PaymentService extends ChangeNotifier {
           debugPrint('[PaymentService] ✅ totalPaidLessons увеличен для репетитора: $tutorId');
         }
       } catch (e) {
-        debugPrint('[PaymentService] ⚠️ Не удалось обновить счётчик занятий: $e');
+        debugPrint('[PaymentService] ⚠️ Не удалось обновить счётчик занятия: $e');
         // Не критично — платёж уже создан
       }
 
@@ -263,7 +263,7 @@ class PaymentService extends ChangeNotifier {
 
   /// Создать платёж за оплату вне приложения (наличные / перевод)
   ///
-  /// Использует реальный slotId и статус 'completed_external'
+  /// Использует реальный slotId и статус 'completed'
   Future<Payment?> createExternalPayment({
     required String studentId,
     required String tutorId,
@@ -278,7 +278,7 @@ class PaymentService extends ChangeNotifier {
         'tutorId': tutorId,
         'slotId': slotId,
         'amount': amount,
-        'status': 'completed_external',
+        'status': 'completed',
       });
 
       debugPrint('[PaymentService] ✅ Внешний платёж создан: ${record.id}');

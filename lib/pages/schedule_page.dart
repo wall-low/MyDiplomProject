@@ -170,6 +170,9 @@ class _SchedulePageState extends State<SchedulePage> {
   /// Получить текст статуса слота
   String _getSlotStatusText(ScheduleSlot slot) {
     if (_isTutor) {
+      if (slot.isPast && slot.isBooked) {
+        return slot.isPaid ? 'Оплачено' : 'Ожидает оплаты';
+      }
       if (slot.isBooked) return 'Забронировано';
       if (slot.isPast) return 'Прошло';
       return 'Свободно';
@@ -762,7 +765,9 @@ class _SchedulePageState extends State<SchedulePage> {
                             height: 8,
                             width: 8,
                             decoration: BoxDecoration(
-                              color: slotColor,
+                              color: (_isTutor && slot.isPast && slot.isBooked && !slot.isPaid) 
+                                  ? Colors.orange 
+                                  : slotColor,
                               shape: BoxShape.circle,
                             ),
                           ),
@@ -772,7 +777,9 @@ class _SchedulePageState extends State<SchedulePage> {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
-                              color: colorScheme.onSurfaceVariant,
+                              color: (_isTutor && slot.isPast && slot.isBooked && !slot.isPaid)
+                                  ? Colors.orange[800]
+                                  : colorScheme.onSurfaceVariant,
                               letterSpacing: 1.2,
                             ),
                           ),
@@ -830,6 +837,13 @@ class _SchedulePageState extends State<SchedulePage> {
                   color: colorScheme.error,
                   onPressed: () => _deleteSlot(slot.id),
                   tooltip: 'Удалить',
+                )
+              else if (_isTutor && slot.isBooked && !slot.isPast)
+                _buildActionButton(
+                  icon: Icons.person_remove_outlined,
+                  color: colorScheme.error,
+                  onPressed: () => _cancelStudentBooking(slot),
+                  tooltip: 'Отменить запись',
                 )
               else if (!_isTutor && slot.isBooked && !slot.isPast)
                 _buildActionButton(
@@ -902,7 +916,7 @@ class _SchedulePageState extends State<SchedulePage> {
         borderRadius: BorderRadius.circular(16),
       ),
       child: SizedBox(
-        height: 170, // Та же высота, что и передняя карточка
+        height: 180, // Увеличили высоту для кнопок
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: FutureBuilder(
@@ -967,33 +981,50 @@ class _SchedulePageState extends State<SchedulePage> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  // Кнопка "Написать"
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ChatPage(
-                              receiverName: otherUser.name,
-                              receiverID: otherUserId,
+                  const SizedBox(height: 16),
+                  // Кнопки действий
+                  Row(
+                    children: [
+                      // Кнопка "Написать"
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => ChatPage(
+                                  receiverName: otherUser.name,
+                                  receiverID: otherUserId,
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                          label: const Text('Написать'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: colorScheme.primary,
+                            foregroundColor: colorScheme.onPrimary,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                        );
-                      },
-                      icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                      label: const Text('Написать'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: colorScheme.primary,
-                        foregroundColor: colorScheme.onPrimary,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                    ),
+                      if (_isTutor && !slot.isPast) ...[
+                        const SizedBox(width: 12),
+                        IconButton.filledTonal(
+                          onPressed: () => _cancelStudentBooking(slot),
+                          icon: const Icon(Icons.person_remove_outlined),
+                          tooltip: 'Отменить запись',
+                          style: IconButton.styleFrom(
+                            backgroundColor: colorScheme.errorContainer,
+                            foregroundColor: colorScheme.error,
+                            padding: const EdgeInsets.all(12),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               );
@@ -1183,6 +1214,63 @@ class _SchedulePageState extends State<SchedulePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Ошибка удаления слота'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Отменить запись ученика (для репетитора)
+  Future<void> _cancelStudentBooking(ScheduleSlot slot) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Отменить запись ученика?'),
+        content: Text(
+          'Вы уверены, что хотите отменить запись на ${slot.startTime} - ${slot.endTime}?\n'
+          'Слот станет снова доступным для бронирования.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Назад'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Отменить запись'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _scheduleService.cancelStudentBooking(slot.id);
+
+      if (mounted) {
+        setState(() {
+          _flippedCards.remove(slot.id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Запись отменена'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('❌ Ошибка отмены: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

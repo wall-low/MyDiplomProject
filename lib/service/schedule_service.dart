@@ -593,6 +593,9 @@ class ScheduleService extends ChangeNotifier {
           'bookingStatus': 'free',
           'isBooked': false,
           'studentId': null,
+          'isRecurring': false,
+          'recurringGroupId': null,
+          'subject': null,
         },
       );
 
@@ -600,6 +603,30 @@ class ScheduleService extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       debugPrint('[ScheduleService] ❌ Ошибка отклонения запроса: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> cancelStudentBooking(String slotId) async {
+    try {
+      debugPrint('[ScheduleService] 🔴 Отмена подтверждённой записи репетитором: $slotId');
+
+      await _pb.collection('slots').update(
+        slotId,
+        body: {
+          'bookingStatus': 'free',
+          'isBooked': false,
+          'studentId': null,
+          'isRecurring': false,
+          'recurringGroupId': null,
+          'subject': null,
+        },
+      );
+
+      debugPrint('[ScheduleService] ✅ Запись отменена репетитором: $slotId');
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[ScheduleService] ❌ Ошибка отмены записи репетитором: $e');
       rethrow;
     }
   }

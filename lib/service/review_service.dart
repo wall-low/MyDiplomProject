@@ -98,7 +98,7 @@ class ReviewService extends ChangeNotifier {
   Future<int> _countTotalPaidLessons(String tutorId) async {
     try {
       final result = await _pb.collection('payments').getList(
-        filter: 'tutorId="$tutorId" && status="completed"',
+        filter: 'tutorId="$tutorId" && (status="completed" || status="completed_external")',
         perPage: 1,
       );
       return result.totalItems;
@@ -112,7 +112,7 @@ class ReviewService extends ChangeNotifier {
     try {
       final result = await _pb.collection('payments').getList(
         filter:
-            'studentId="$studentId" && tutorId="$tutorId" && status="completed"',
+            'studentId="$studentId" && tutorId="$tutorId" && (status="completed" || status="completed_external")',
         perPage: 200,
       );
       return result.totalItems;
