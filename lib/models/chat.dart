@@ -68,6 +68,10 @@ class Chat {
         return '📷 Фото';
       case 'audio':
         return '🎵 Аудио';
+      case 'file':
+        if (lastMessage == null) return '📄 Файл';
+        if (lastMessage!.startsWith('📄')) return lastMessage!;
+        return '📄 $lastMessage';
       default:
         return '';
     }
