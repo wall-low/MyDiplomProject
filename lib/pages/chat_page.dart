@@ -60,6 +60,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   String? _lastSeenText;
   bool _isOnline = false;
 
+  // Блокировка: 'blocker' / 'blocked_by' / null
+  String? _blockStatus;
+
   late final Stream<List<Message>> _messagesStream;
 
   @override
@@ -78,6 +81,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     _markMessagesAsRead();
     _initializeRecorder();
     _startPresenceCheck();
+    _checkBlockStatus();
   }
 
   void _onScroll() {
@@ -121,6 +125,11 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _markMessagesAsRead();
     }
+  }
+
+  Future<void> _checkBlockStatus() async {
+    final status = await _chatService.getBlockStatus(widget.receiverID);
+    if (mounted) setState(() => _blockStatus = status);
   }
 
   void _startPresenceCheck() {
@@ -632,6 +641,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                 if (confirmed == true) {
                   await _chatService.blockUser(widget.receiverID);
                   if (!mounted) return;
+                  setState(() => _blockStatus = 'blocker');
                   nav.pop();
                   messenger.showSnackBar(
                     const SnackBar(
@@ -905,8 +915,49 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
               },
             ),
           ),
-          _buildMessageInput(),
+          if (_blockStatus != null)
+            _buildBlockBanner()
+          else
+            _buildMessageInput(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBlockBanner() {
+    final cs = Theme.of(context).colorScheme;
+    final isBlocker = _blockStatus == 'blocker';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(
+          top: BorderSide(color: cs.primaryContainer, width: 0.5),
+        ),
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Icon(Icons.block, color: Colors.red, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                isBlocker
+                    ? 'Вы заблокировали этого пользователя'
+                    : 'Вы не можете писать этому пользователю',
+                style: TextStyle(color: cs.onSurface.withValues(alpha: 0.6)),
+              ),
+            ),
+            if (isBlocker)
+              TextButton(
+                onPressed: () async {
+                  await _chatService.unblockUser(widget.receiverID);
+                  await _checkBlockStatus();
+                },
+                child: const Text('Разблокировать', style: TextStyle(color: Colors.red)),
+              ),
+          ],
+        ),
       ),
     );
   }

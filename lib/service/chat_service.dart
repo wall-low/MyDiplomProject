@@ -216,8 +216,25 @@ class ChatService extends ChangeNotifier {
     }
   }
 
+  Future<bool> _isBlockedByReceiver(String receiverID) async {
+    try {
+      final currentUserId = Auth().getCurrentUid();
+      final result = await _pb.collection('blocked_users').getList(
+        filter: 'userId="$receiverID" && blockedUserId="$currentUserId"',
+        perPage: 1,
+      );
+      return result.items.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<void> sendMessage(String receiverID, String message,
       {String type = 'text'}) async {
+    if (await _isBlockedByReceiver(receiverID)) {
+      debugPrint('[ChatService] ❌ Отправка заблокирована — получатель заблокировал отправителя');
+      return;
+    }
     try {
       final currentUserId = Auth().getCurrentUid();
       final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
@@ -268,6 +285,10 @@ class ChatService extends ChangeNotifier {
     required String receiverId,
     required String filePath,
   }) async {
+    if (await _isBlockedByReceiver(receiverId)) {
+      debugPrint('[ChatService] ❌ Отправка изображения заблокирована');
+      return;
+    }
     try {
       final currentUserId = Auth().getCurrentUid();
       final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
@@ -342,6 +363,10 @@ class ChatService extends ChangeNotifier {
     required String receiverId,
     required String filePath,
   }) async {
+    if (await _isBlockedByReceiver(receiverId)) {
+      debugPrint('[ChatService] ❌ Отправка аудио заблокирована');
+      return;
+    }
     try {
       final currentUserId = Auth().getCurrentUid();
       final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
@@ -437,6 +462,10 @@ class ChatService extends ChangeNotifier {
     required String fileName,
     required int fileSize,
   }) async {
+    if (await _isBlockedByReceiver(receiverId)) {
+      debugPrint('[ChatService] ❌ Отправка файла заблокирована');
+      return;
+    }
     try {
       final currentUserId = Auth().getCurrentUid();
       final currentUserEmail = Auth().getCurrentUser()?.data['email'] ?? '';
@@ -802,6 +831,22 @@ class ChatService extends ChangeNotifier {
       debugPrint('[ChatService] Жалоба отправлена на пользователя: $userID');
     } catch (e) {
       debugPrint('[ChatService] Ошибка отправки жалобы: $e');
+    }
+  }
+
+  /// Возвращает: 'blocker' — я заблокировал, 'blocked_by' — меня заблокировали, null — нет блокировки
+  Future<String?> getBlockStatus(String otherUserId) async {
+    try {
+      final currentUserId = Auth().getCurrentUid();
+      final result = await _pb.collection('blocked_users').getList(
+        filter: '(userId="$currentUserId" && blockedUserId="$otherUserId") || (userId="$otherUserId" && blockedUserId="$currentUserId")',
+        perPage: 1,
+      );
+      if (result.items.isEmpty) return null;
+      final record = result.items.first;
+      return record.data['userId'] == currentUserId ? 'blocker' : 'blocked_by';
+    } catch (e) {
+      return null;
     }
   }
 
