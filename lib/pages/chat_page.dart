@@ -541,6 +541,132 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
           ),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          PopupMenuButton<String>(
+            icon: Icon(
+              Icons.more_vert,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+            onSelected: (value) async {
+              final cs = Theme.of(context).colorScheme;
+              final messenger = ScaffoldMessenger.of(context);
+              final nav = Navigator.of(context);
+              if (value == 'report') {
+                final reasonController = TextEditingController();
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: Text(
+                      'Пожаловаться на пользователя',
+                      style: TextStyle(color: cs.onSurface),
+                    ),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Опишите причину жалобы:',
+                          style: TextStyle(color: cs.onSurface),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: reasonController,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText: 'Например: оскорбления, мошенничество...',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text('Отмена', style: TextStyle(color: cs.secondary)),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Пожаловаться', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+                );
+                final reason = reasonController.text.trim();
+                reasonController.dispose();
+                if (confirmed == true) {
+                  await _chatService.reportUser('', widget.receiverID, reason: reason);
+                  if (!mounted) return;
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: const Text('Жалоба отправлена'),
+                      backgroundColor: cs.primary,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } else if (value == 'block') {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (_) => AlertDialog(
+                    title: Text(
+                      'Заблокировать пользователя',
+                      style: TextStyle(color: cs.onSurface),
+                    ),
+                    content: Text(
+                      'Вы уверены, что хотите заблокировать этого пользователя? Вы больше не сможете получать от него сообщения.',
+                      style: TextStyle(color: cs.onSurface),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, false),
+                        child: Text('Отмена', style: TextStyle(color: cs.secondary)),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Заблокировать', style: TextStyle(color: Colors.red)),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed == true) {
+                  await _chatService.blockUser(widget.receiverID);
+                  if (!mounted) return;
+                  nav.pop();
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Пользователь заблокирован'),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'report',
+                child: Row(
+                  children: [
+                    Icon(Icons.flag_outlined, color: Colors.orange),
+                    SizedBox(width: 12),
+                    Text('Пожаловаться'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'block',
+                child: Row(
+                  children: [
+                    Icon(Icons.block_outlined, color: Colors.red),
+                    SizedBox(width: 12),
+                    Text('Заблокировать', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: Column(
         children: [

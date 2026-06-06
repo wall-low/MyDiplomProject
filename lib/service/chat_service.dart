@@ -786,15 +786,16 @@ class ChatService extends ChangeNotifier {
     }
   }
 
-  Future<void> reportUser(String messageID, String userID) async {
+  Future<void> reportUser(String messageID, String userID, {String reason = ''}) async {
     try {
       final currentUserId = Auth().getCurrentUid();
 
-      final report = {
+      final report = <String, dynamic>{
         'reportedBy': currentUserId,
-        'messageId': messageID,
         'messageOwnerId': userID,
       };
+      if (messageID.isNotEmpty) report['messageId'] = messageID;
+      if (reason.isNotEmpty) report['reason'] = reason;
 
       await _pb.collection('reports').create(body: report);
 

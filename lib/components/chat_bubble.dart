@@ -53,24 +53,12 @@ class ChatBubble extends StatelessWidget {
               ListTile(
                 leading: Icon(Icons.flag_outlined, color: cs.primary),
                 title: Text(
-                  'Пожаловаться',
+                  'Пожаловаться на сообщение',
                   style: TextStyle(color: cs.onSurface),
                 ),
                 onTap: () async {
                   Navigator.pop(sheetCtx);
                   _reportDialog(pageCtx);
-                },
-              ),
-              ListTile(
-                leading: Icon(Icons.block_outlined, color: Colors.red),
-                title: Text(
-                  'Заблокировать',
-                  style: TextStyle(color: cs.onSurface),
-                ),
-                onTap: () async {
-                  final confirmed = await _blockDialog(pageCtx);
-                  Navigator.pop(sheetCtx);
-                  if (confirmed == true) Navigator.pop(pageCtx);
                 },
               ),
               const Divider(height: 20),
@@ -91,6 +79,7 @@ class ChatBubble extends StatelessWidget {
 
   void _reportDialog(BuildContext ctx) {
     final cs = Theme.of(ctx).colorScheme;
+    final reasonController = TextEditingController();
 
     showDialog(
       context: ctx,
@@ -99,21 +88,39 @@ class ChatBubble extends StatelessWidget {
           'Пожаловаться на сообщение',
           style: TextStyle(color: cs.onSurface),
         ),
-        content: Text(
-          'Вы уверены, что хотите пожаловаться на это сообщение?',
-          style: TextStyle(color: cs.onSurface),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Опишите причину жалобы:',
+              style: TextStyle(color: cs.onSurface),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Например: оскорбления, спам...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Отмена',
-              style: TextStyle(color: cs.secondary),
-            ),
+            onPressed: () {
+              reasonController.dispose();
+              Navigator.pop(ctx);
+            },
+            child: Text('Отмена', style: TextStyle(color: cs.secondary)),
           ),
           TextButton(
             onPressed: () {
-              ChatService().reportUser(messageID, userID);
+              final reason = reasonController.text.trim();
+              reasonController.dispose();
+              ChatService().reportUser(messageID, userID, reason: reason);
               Navigator.pop(ctx);
               ScaffoldMessenger.of(ctx).showSnackBar(
                 SnackBar(
@@ -123,56 +130,7 @@ class ChatBubble extends StatelessWidget {
                 ),
               );
             },
-            child: Text(
-              'Пожаловаться',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<bool?> _blockDialog(BuildContext ctx) {
-    final cs = Theme.of(ctx).colorScheme;
-
-    return showDialog<bool>(
-      context: ctx,
-      builder: (_) => AlertDialog(
-        title: Text(
-          'Заблокировать пользователя',
-          style: TextStyle(color: cs.onSurface),
-        ),
-        content: Text(
-          'Вы уверены, что хотите заблокировать этого пользователя? Вы больше не сможете получать от него сообщения.',
-          style: TextStyle(color: cs.onSurface),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(
-              'Отмена',
-              style: TextStyle(color: cs.secondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () async {
-              final nav = Navigator.of(ctx);
-              final messenger = ScaffoldMessenger.of(ctx);
-              await ChatService().blockUser(userID);
-              nav.pop(true);
-              messenger.showSnackBar(
-                SnackBar(
-                  content: const Text('Пользователь заблокирован'),
-                  backgroundColor: Colors.red,
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
-            child: const Text(
-              'Заблокировать',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Пожаловаться', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
