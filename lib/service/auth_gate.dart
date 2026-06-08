@@ -64,7 +64,6 @@ class AuthGate extends StatelessWidget {
 
           if (profileSnapshot.hasData && profileSnapshot.data != null) {
             debugPrint('[AuthGate] Профиль найден: ${profileSnapshot.data?.name}');
-            // Запускаем уведомления
             NotificationService().startPolling(userId);
             return const MainNavigation();
           }

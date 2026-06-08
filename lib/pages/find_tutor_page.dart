@@ -10,7 +10,6 @@ import 'package:p7/models/tutor_profile.dart';
 import 'tutor_profile_page.dart';
 import 'package:p7/service/pocketbase_service.dart';
 
-/// Комбинированные данные: профиль репетитора + базовые данные пользователя
 class TutorWithUserData {
   final TutorProfile tutorProfile;
   final UserProfile userProfile;
@@ -35,20 +34,17 @@ class _FindTutorPageState extends State<FindTutorPage> {
   final _reviewService = ReviewService();
   final _pb = PocketBaseService().client;
 
-  // Контроллеры для полей
   final TextEditingController _searchController = TextEditingController();
   final TextEditingController _priceMinController = TextEditingController();
   final TextEditingController _priceMaxController = TextEditingController();
 
-  // Фильтры
   String _searchQuery = '';
   String? _selectedCity;
   List<String> _cities = [];
   List<String> _selectedSubjects = [];
-  String? _selectedLessonFormat; // 'online', 'offline', или null (любой)
+  String? _selectedLessonFormat;
   int? _minExperience;
 
-  // Список всех доступных предметов (такой же, как в tutor_profile_setup_page)
   final List<String> _availableSubjects = [
     'Математика',
     'Физика',
@@ -65,7 +61,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
     'Программирование',
   ];
 
-  // Ключ для принудительного обновления FutureBuilder
   int _refreshKey = 0;
 
   @override
@@ -90,14 +85,12 @@ class _FindTutorPageState extends State<FindTutorPage> {
     });
   }
 
-  /// Применить фильтры и обновить список (автоматически)
   void _applyFilters() {
     setState(() {
-      _refreshKey++; // Принудительно обновляем FutureBuilder
+      _refreshKey++;
     });
   }
 
-  /// Применить фильтры с небольшой задержкой (для поиска)
   Timer? _debounceTimer;
   void _applyFiltersDebounced() {
     _debounceTimer?.cancel();
@@ -106,20 +99,16 @@ class _FindTutorPageState extends State<FindTutorPage> {
     });
   }
 
-  /// Загрузка репетиторов с фильтрацией
   Future<List<TutorWithUserData>> _loadTutors() async {
     try {
-      // Строим фильтр для PocketBase
       List<String> filters = [];
 
-      // Фильтр по предметам
       if (_selectedSubjects.isNotEmpty) {
         final subjectFilters =
             _selectedSubjects.map((s) => 'subjects ?~ "$s"').toList();
         filters.add('(${subjectFilters.join(' || ')})');
       }
 
-      // Фильтр по цене
       final priceMin = _priceMinController.text.isNotEmpty
           ? double.tryParse(_priceMinController.text)
           : null;
@@ -128,44 +117,38 @@ class _FindTutorPageState extends State<FindTutorPage> {
           : null;
 
       if (priceMin != null) {
-        filters.add('priceMax >= $priceMin'); // Макс цена репетитора >= мин фильтра
+        filters.add('priceMax >= $priceMin');
       }
       if (priceMax != null) {
-        filters.add('priceMin <= $priceMax'); // Мин цена репетитора <= макс фильтра
+        filters.add('priceMin <= $priceMax');
       }
 
-      // Фильтр по формату занятий
       if (_selectedLessonFormat != null) {
         filters.add('lessonFormat ?~ "$_selectedLessonFormat"');
       }
 
-      // Фильтр по опыту
       if (_minExperience != null && _minExperience! > 0) {
         filters.add('experience >= $_minExperience');
       }
 
-      // Объединяем фильтры
       final filterStr = filters.isNotEmpty ? filters.join(' && ') : '';
 
       debugPrint('[FindTutor] 🔍 Фильтр: $filterStr');
 
-      // Загружаем tutor_profiles с expand для userId
       final result = await _pb.collection('tutor_profiles').getList(
             filter: filterStr,
-            expand: 'userId', // Загружаем данные пользователя
+            expand: 'userId',
             sort: '-rating,+priceMin',
             perPage: 100,
           );
 
       debugPrint('[FindTutor] ✅ Найдено профилей: ${result.totalItems}');
 
-      // Преобразуем в список TutorWithUserData
       List<TutorWithUserData> tutors = [];
 
       for (var record in result.items) {
         final tutorProfile = TutorProfile.fromRecord(record);
 
-        // Получаем расширенные данные пользователя из expand
         final expandedData = record.expand;
         if (expandedData.containsKey('userId')) {
           final userRecordsRaw = expandedData['userId'];
@@ -173,7 +156,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
             final userRecordRaw = userRecordsRaw.first;
             final userProfile = UserProfile.fromRecord(userRecordRaw);
 
-            // Генерируем полный URL аватара
             String? fullAvatarUrl;
             final avatar = userRecordRaw.data['avatar'] as String?;
             if (avatar != null && avatar.isNotEmpty) {
@@ -186,15 +168,12 @@ class _FindTutorPageState extends State<FindTutorPage> {
 
             final userProfileWithAvatar = userProfile.copyWith(avatarUrl: fullAvatarUrl);
 
-            // Исключаем текущего пользователя
             if (userProfileWithAvatar.uid == _auth.getCurrentUid()) continue;
 
-            // Фильтр по городу
             if (_selectedCity != null && userProfileWithAvatar.city != _selectedCity) {
               continue;
             }
 
-            // Фильтр по имени
             if (_searchQuery.isNotEmpty) {
               if (!userProfileWithAvatar.name.toLowerCase().contains(_searchQuery) &&
                   !userProfileWithAvatar.username.toLowerCase().contains(_searchQuery)) {
@@ -210,18 +189,14 @@ class _FindTutorPageState extends State<FindTutorPage> {
         }
       }
 
-      debugPrint('[FindTutor] ✅ После фильтрации: ${tutors.length} репетиторов');
+      debugPrint('[FindTutor] После фильтрации: ${tutors.length} репетиторов');
 
-      // Пересчитываем рейтинги всех найденных репетиторов в фоне
-      // Это гарантирует актуальность рейтинга даже если он изменился недавно
       if (tutors.isNotEmpty) {
         try {
-          // Пересчёт рейтингов параллельно
           await Future.wait(
             tutors.map((t) => _reviewService.refreshTutorRating(t.userProfile.uid)),
           );
 
-          // Перечитываем обновлённые профили для отображения свежих данных
           for (int i = 0; i < tutors.length; i++) {
             final updated = await _tutorProfileService
                 .getTutorProfileByUserId(tutors[i].userProfile.uid);
@@ -233,14 +208,14 @@ class _FindTutorPageState extends State<FindTutorPage> {
             }
           }
         } catch (e) {
-          debugPrint('[FindTutor] ⚠️ Ошибка фонового обновления рейтингов: $e');
+          debugPrint('[FindTutor] Ошибка фонового обновления рейтингов: $e');
           // Продолжаем работу с тем, что есть
         }
       }
 
       return tutors;
     } catch (e, stackTrace) {
-      debugPrint('[FindTutor] ❌ Ошибка загрузки репетиторов:');
+      debugPrint('[FindTutor] Ошибка загрузки репетиторов:');
       debugPrint('  Error: $e');
       debugPrint('  StackTrace: $stackTrace');
       return [];
@@ -259,7 +234,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
       ),
       body: Column(
         children: [
-          // Поисковая строка (как на скриншоте)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
             child: TextField(
@@ -288,7 +262,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
             ),
           ),
 
-          // Фильтр-чипы (как на скриншоте)
           SizedBox(
             height: 48,
             child: ListView(
@@ -316,14 +289,12 @@ class _FindTutorPageState extends State<FindTutorPage> {
 
           const SizedBox(height: 8),
 
-          // Список репетиторов
           Expanded(child: _buildTutorList()),
         ],
       ),
     );
   }
 
-  /// Простой чип фильтра (как на скриншоте)
   Widget _buildSimpleFilterChip(String label, bool isActive, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -347,7 +318,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
     );
   }
 
-  /// Диалог выбора предметов
   void _showSubjectFilterDialog() {
     showDialog(
       context: context,
@@ -403,7 +373,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
     );
   }
 
-  /// Диалог выбора города
   void _showCityFilterDialog() {
     showDialog(
       context: context,
@@ -454,7 +423,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
     );
   }
 
-  /// Диалог фильтра цены
   void _showPriceFilterDialog() {
     showDialog(
       context: context,
@@ -513,7 +481,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
     );
   }
 
-  /// Диалог фильтра опыта/рейтинга
   void _showExperienceFilterDialog() {
     showDialog(
       context: context,
@@ -747,7 +714,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
                 ),
                 const SizedBox(width: 16),
 
-                // Имя, предметы, цена, рейтинг
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -762,7 +728,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
                       ),
                       const SizedBox(height: 8),
 
-                      // Предметы (чипы)
                       if (tutor.subjects.isNotEmpty)
                         Wrap(
                           spacing: 6,
@@ -800,7 +765,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
                       ),
                       const SizedBox(height: 4),
 
-                      // Рейтинг + Город
                       Row(
                         children: [
                           const Icon(Icons.star, color: Colors.orange, size: 16),
@@ -831,7 +795,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
 
             const SizedBox(height: 16),
 
-            // Кнопка "Подробнее" (как на скриншоте)
             SizedBox(
               width: double.infinity,
               height: 48,
@@ -846,7 +809,6 @@ class _FindTutorPageState extends State<FindTutorPage> {
                       ),
                     ),
                   );
-                  // Обновляем список после возврата (рейтинг мог пересчитаться)
                   _applyFilters();
                 },
                 style: OutlinedButton.styleFrom(

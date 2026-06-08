@@ -419,7 +419,7 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Запрос подтверждён'),
+            content: Text('Запрос подтверждён'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -431,7 +431,7 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка: $e'),
+            content: Text('Ошибка: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -472,7 +472,7 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Запрос отклонён, слот освобождён'),
+            content: Text('Запрос отклонён, слот освобождён'),
             backgroundColor: Colors.orange,
             behavior: SnackBarBehavior.floating,
           ),
@@ -484,7 +484,7 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка: $e'),
+            content: Text('Ошибка: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -526,7 +526,7 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Подтверждено постоянное расписание ($count занятий)'),
+            content: Text('Подтверждено постоянное расписание ($count занятий)'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
@@ -537,7 +537,7 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка: $e'),
+            content: Text('Ошибка: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -578,7 +578,7 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Отклонено постоянное расписание ($count занятий)'),
+            content: Text('Отклонено постоянное расписание ($count занятий)'),
             backgroundColor: Colors.orange,
             behavior: SnackBarBehavior.floating,
           ),
@@ -589,7 +589,7 @@ class _BookingRequestsPageState extends State<BookingRequestsPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка: $e'),
+            content: Text('Ошибка: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

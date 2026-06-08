@@ -35,8 +35,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   bool _loading = true;
 
-  // Статистика
-  double _totalEarnings = 0; // Для репетитора
+  double _totalEarnings = 0;
   int _totalReviews = 0;
 
   @override
@@ -54,7 +53,6 @@ class _ProfilePageState extends State<ProfilePage> {
     super.dispose();
   }
 
-  /// Выбрать фото из галереи и загрузить в PocketBase
   Future<void> _pickAndUploadAvatar() async {
     try {
       final ImagePicker picker = ImagePicker();
@@ -67,7 +65,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (image == null) return;
 
-      // Показываем индикатор загрузки
       if (!mounted) return;
       showDialog(
         context: context,
@@ -77,32 +74,26 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       );
 
-      // Загружаем в PocketBase
       final userId = Auth().getCurrentUid();
       await PocketBaseService().uploadAvatar(
         userId: userId,
         filePath: image.path,
       );
 
-      // Закрываем индикатор
       if (!mounted) return;
       Navigator.pop(context);
 
-      // Перезагружаем профиль
       await _loadUser();
 
-      // Показываем успешное сообщение
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Фото профиля обновлено!')),
       );
     } catch (e) {
-      // Закрываем индикатор если есть
       if (mounted && Navigator.canPop(context)) {
         Navigator.pop(context);
       }
 
-      // Показываем ошибку
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Ошибка загрузки фото: $e')),
@@ -113,7 +104,6 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _loadUser() async {
     final u = await _databaseProvider.userProfile(widget.uid);
 
-    // Если пользователь - репетитор, загружаем его профиль и статистику
     TutorProfile? tutorProf;
     double earnings = 0;
     int reviewCount = 0;
@@ -138,7 +128,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  /* ---------- BIO ----------- */
 
   void _showBioEditor() {
     _bioCtrl.text = _user?.bio ?? '';
@@ -239,12 +228,11 @@ class _ProfilePageState extends State<ProfilePage> {
               onRefresh: _loadUser,
               child: CustomScrollView(
               slivers: [
-                // Gradient Header с аватаром
                 SliverAppBar(
                   expandedHeight: 280,
                   pinned: true,
                   backgroundColor: colorScheme.primary,
-                  stretch: true, // ✨ Включаем эффект растяжения
+                  stretch: true,
                   actions: [
                     IconButton(
                       icon: const Icon(Icons.settings, color: Colors.white),
@@ -259,18 +247,17 @@ class _ProfilePageState extends State<ProfilePage> {
                   ],
                   flexibleSpace: FlexibleSpaceBar(
                     stretchModes: const [
-                      StretchMode.zoomBackground, // Увеличивает фон при растяжении
+                      StretchMode.zoomBackground,
                     ],
                     background: GestureDetector(
-                      onTap: _pickAndUploadAvatar, // При нажатии на фото - открываем галерею
+                      onTap: _pickAndUploadAvatar,
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
-                        // Фото на весь фон (всегда)
                         (_user?.avatarUrl?.isNotEmpty ?? false)
                             ? Image.network(
                                 _user!.avatarUrl!,
-                                fit: BoxFit.cover, // Заполняет всю область
+                                fit: BoxFit.cover,
                                 alignment: Alignment.center,
                                 errorBuilder: (context, error, stackTrace) {
                                   return Container(
@@ -310,7 +297,6 @@ class _ProfilePageState extends State<ProfilePage> {
                                 ),
                               ),
 
-                        // Градиент затемнения снизу для читаемости текста
                         Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -324,14 +310,12 @@ class _ProfilePageState extends State<ProfilePage> {
                           ),
                         ),
 
-                        // Контент поверх
                         Positioned(
                           bottom: 24,
                           left: 0,
                           right: 0,
                           child: Column(
                             children: [
-                              // Имя
                               Text(
                                 _user!.name,
                                 style: const TextStyle(
@@ -349,7 +333,6 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                               const SizedBox(height: 12),
 
-                              // Badge роли
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
@@ -390,21 +373,17 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
 
-                // Контент
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Column(
                       children: [
-                        // Карточка "Информация"
                         _buildInfoCard(colorScheme),
                         const SizedBox(height: 16),
 
-                        // Карточка "О себе"
                         _buildBioCard(colorScheme),
                         const SizedBox(height: 16),
 
-                        // Карточка "Профиль репетитора" (только для репетиторов)
                         if (isTutor) _buildTutorProfileCard(colorScheme),
                       ],
                     ),
@@ -416,7 +395,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Карточка с информацией
   Widget _buildInfoCard(ColorScheme colorScheme) {
     return Card(
       elevation: 2,
@@ -455,7 +433,6 @@ class _ProfilePageState extends State<ProfilePage> {
             const Divider(height: 1),
             const SizedBox(height: 16),
 
-            // Возраст
             _buildInfoRow(
               icon: Icons.cake,
               label: 'Возраст',
@@ -464,7 +441,6 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             const SizedBox(height: 12),
 
-            // Город
             _buildInfoRow(
               icon: Icons.location_city,
               label: 'Город',
@@ -473,7 +449,6 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             const SizedBox(height: 12),
 
-            // Email
             _buildInfoRow(
               icon: Icons.email_outlined,
               label: 'Email',
@@ -486,7 +461,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Строка информации
   Widget _buildInfoRow({
     required IconData icon,
     required String label,
@@ -531,7 +505,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Карточка "О себе"
   Widget _buildBioCard(ColorScheme colorScheme) {
     return Card(
       elevation: 2,
@@ -585,9 +558,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Карточка профиля репетитора
   Widget _buildTutorProfileCard(ColorScheme colorScheme) {
-    // Если профиль репетитора не заполнен, показываем кнопку создания
     if (_tutorProfile == null) {
       return Card(
         elevation: 2,
@@ -909,7 +880,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Секция информации репетитора
   Widget _buildTutorInfoSection({
     required IconData icon,
     required String title,
@@ -931,7 +901,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // Строка информации репетитора
+
   Widget _buildTutorInfoRow({
     required IconData icon,
     required String label,

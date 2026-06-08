@@ -9,7 +9,7 @@ class UserTile extends StatelessWidget {
   final DateTime? lastMessageTime;
   final int? unreadCount;
   final bool isOnline;
-  final bool hasDebt; // Флаг неоплаченного занятия
+  final bool hasDebt;
   final void Function()? onTap;
 
   const UserTile({
@@ -59,7 +59,6 @@ class UserTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 12),
           child: Row(
             children: [
-              // Аватар с индикатором онлайн
               Stack(
                 children: [
                   UserAvatar(
@@ -87,12 +86,10 @@ class UserTile extends StatelessWidget {
               ),
               const SizedBox(width: 16),
 
-              // Текстовая часть
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Имя и время
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -133,7 +130,6 @@ class UserTile extends StatelessWidget {
 
                     const SizedBox(height: 3),
 
-                    // Последнее сообщение или subtitle
                     Row(
                       children: [
                         Expanded(

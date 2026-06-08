@@ -23,11 +23,9 @@ class _PaymentHistoryPageState extends State<PaymentHistoryPage> {
   double _totalAmount = 0;
   bool _isTutor = false;
 
-  // Статистика текущего месяца (только для репетиторов)
   double _thisMonthEarnings = 0;
   int _thisMonthCount = 0;
 
-  // Кэш имён пользователей
   final Map<String, String> _nameCache = {};
 
   @override
@@ -73,7 +71,6 @@ class _PaymentHistoryPageState extends State<PaymentHistoryPage> {
     if (mounted) setState(() => _isLoading = false);
   }
 
-  /// Группирует платежи по месяцу: "Март 2026" → [payments]
   Map<String, List<Payment>> _groupByMonth(List<Payment> payments) {
     final grouped = <String, List<Payment>>{};
     for (final p in payments) {
@@ -249,7 +246,6 @@ class _PaymentHistoryPageState extends State<PaymentHistoryPage> {
                       ),
                     ),
 
-                    // Карточки текущего месяца (только для репетитора)
                     if (_isTutor) ...[
                       const SizedBox(height: 12),
                       Padding(
@@ -291,7 +287,6 @@ class _PaymentHistoryPageState extends State<PaymentHistoryPage> {
 
                     const SizedBox(height: 12),
 
-                    // Список, сгруппированный по месяцам
                     Expanded(
                       child: _buildGroupedList(colorScheme),
                     ),
@@ -359,7 +354,6 @@ class _PaymentHistoryPageState extends State<PaymentHistoryPage> {
         final item = items[index];
 
         if (item is Map && item.containsKey('header')) {
-          // Заголовок месяца
           return Padding(
             padding: const EdgeInsets.only(top: 8, bottom: 6),
             child: Row(
@@ -387,7 +381,6 @@ class _PaymentHistoryPageState extends State<PaymentHistoryPage> {
           );
         }
 
-        // Карточка платежа
         final payment = item as Payment;
         final isManual = payment.isManual;
         final isExternal = payment.isExternal;

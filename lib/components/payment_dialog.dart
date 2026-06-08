@@ -133,7 +133,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
         await _processExternalPayment();
       }
     } catch (e) {
-      debugPrint('[PaymentDialog] ❌ Ошибка оплаты: $e');
+      debugPrint('[PaymentDialog] Ошибка оплаты: $e');
       _showError('Ошибка оплаты: $e');
       setState(() => _isProcessing = false);
     }
@@ -154,7 +154,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
     if (month < 1 || month > 12) return 'Некорректный месяц срока действия';
     final now = DateTime.now();
     final expDate =
-        DateTime(2000 + year, month + 1); // первый день следующего месяца
+        DateTime(2000 + year, month + 1);
     if (expDate.isBefore(now)) return 'Срок действия карты истёк';
 
     if (_cvvController.text.length < 3) return 'Введите CVV (3 цифры)';
@@ -190,7 +190,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
 
     if (mounted) {
       Navigator.of(context).pop('app');
-      _showSuccess('Оплата прошла успешно! 🎉');
+      _showSuccess('Оплата прошла успешно!');
     }
   }
 
@@ -208,7 +208,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
 
       if (mounted) {
         Navigator.of(context).pop('external');
-        _showSuccess('Занятие помечено как оплаченное ✅');
+        _showSuccess('Занятие помечено как оплаченное');
       }
     } catch (e) {
       rethrow;
@@ -932,7 +932,6 @@ class _PaymentDialogState extends State<PaymentDialog> {
     );
   }
 
-  /// Иконка/бейдж платёжной сети
   Widget _cardNetworkIcon(String network) {
     switch (network) {
       case 'visa':

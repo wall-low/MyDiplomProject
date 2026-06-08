@@ -42,7 +42,6 @@ class SettingPage extends StatelessWidget {
 
           const Divider(),
 
-          // Переключатель сервера
           ListenableBuilder(
             listenable: PocketBaseService(),
             builder: (context, _) {
@@ -90,7 +89,6 @@ class SettingPage extends StatelessWidget {
                       },
                     ),
                   ),
-                  // Кнопка редактирования URL
                   Padding(
                     padding: const EdgeInsets.only(left: 56, right: 16, bottom: 8),
                     child: Row(
@@ -156,7 +154,6 @@ class SettingPage extends StatelessWidget {
 
           const Divider(),
 
-          // Пункт для смены пароля
           ListTile(
             title: Text(
               "Сменить пароль",
@@ -172,7 +169,6 @@ class SettingPage extends StatelessWidget {
 
           const Divider(),
 
-          // Удаление аккаунта
           ListTile(
             title: Text(
               "Удалить аккаунт",
@@ -190,7 +186,6 @@ class SettingPage extends StatelessWidget {
 
           const Divider(),
 
-          // Logout кнопка
           ListTile(
             title: Text(
               "Выйти",
@@ -211,9 +206,7 @@ class SettingPage extends StatelessWidget {
     );
   }
 
-  // Logout функция
   void _logout(BuildContext context) async {
-    // Показываем диалог подтверждения
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -237,14 +230,12 @@ class SettingPage extends StatelessWidget {
     );
 
     if (confirm == true && context.mounted) {
-      // Выполняем logout
       await Auth().logout();
 
-      // Переходим на AuthGate (который покажет LoginOrRegister)
       if (context.mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const AuthGate()),
-          (route) => false, // Удаляем весь стек навигации
+          (route) => false,
         );
       }
     }
@@ -349,7 +340,6 @@ class SettingPage extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Текущий пароль
               TextFormField(
                 controller: _currentPwCtrl,
                 decoration: const InputDecoration(labelText: "Текущий пароль"),
@@ -361,7 +351,6 @@ class SettingPage extends StatelessWidget {
                 },
               ),
 
-              // Новый пароль
               TextFormField(
                 controller: _newPwCtrl,
                 decoration: const InputDecoration(labelText: "Новый пароль"),
@@ -388,8 +377,7 @@ class SettingPage extends StatelessWidget {
               final nav = Navigator.of(context);
               final messenger = ScaffoldMessenger.of(context);
 
-              Navigator.of(ctx).pop(); // закрываем диалог
-              // Показываем индикатор в основном контексте
+              Navigator.of(ctx).pop();
               showDialog(
                 context: context,
                 barrierDismissible: false,
@@ -401,7 +389,7 @@ class SettingPage extends StatelessWidget {
                   currentPassword: _currentPwCtrl.text,
                   newPassword: _newPwCtrl.text,
                 );
-                nav.pop(); // закрыть индикатор
+                nav.pop();
                 messenger.showSnackBar(
                   const SnackBar(content: Text('Пароль успешно обновлён')),
                 );

@@ -17,7 +17,6 @@ class NotificationService {
   bool _initialized = false;
   String? _currentUserId;
 
-  // Callback для навигации при нажатии на уведомление
   static void Function(String? payload)? onNotificationTap;
 
   Future<void> init() async {
@@ -44,7 +43,6 @@ class NotificationService {
       },
     );
 
-    // Запрашиваем разрешение на Android 13+
     await _notifications
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>()
@@ -54,12 +52,10 @@ class NotificationService {
     debugPrint('[Notifications] Initialized');
   }
 
-  /// Запустить polling для текущего пользователя
   void startPolling(String userId) {
     _currentUserId = userId;
     stopPolling();
 
-    // Polling каждые 10 секунд
     _pollingTimer = Timer.periodic(
       const Duration(seconds: 5),
       (_) => _checkForUpdates(),
@@ -68,14 +64,12 @@ class NotificationService {
     debugPrint('[Notifications] Polling started for user: $userId');
   }
 
-  /// Остановить polling
   void stopPolling() {
     _pollingTimer?.cancel();
     _pollingTimer = null;
     debugPrint('[Notifications] Polling stopped');
   }
 
-  /// Проверить наличие новых сообщений и бронирований
   Future<void> _checkForUpdates() async {
     if (_currentUserId == null) return;
 
@@ -90,8 +84,6 @@ class NotificationService {
         _updateLastSeen(pb),
       ];
 
-      // Проверяем уведомления только если есть такая коллекция
-      // Чтобы не плодить ошибки 404 в логах
       futures.add(_checkNotifications(pb));
 
       await Future.wait(futures);
@@ -100,7 +92,6 @@ class NotificationService {
     }
   }
 
-  /// Проверить новые непрочитанные сообщения
   Future<void> _checkNewMessages(PocketBase pb) async {
     final prefs = await SharedPreferences.getInstance();
     final lastCheckKey = 'last_message_check_$_currentUserId';
@@ -120,11 +111,9 @@ class NotificationService {
           );
 
       if (result.items.isNotEmpty) {
-        // Сохраняем время последней проверки
         await prefs.setString(
             lastCheckKey, result.items.first.get<String>('created'));
 
-        // Группируем по отправителю
         final senderIds = <String>{};
         for (final msg in result.items) {
           senderIds.add(msg.data['senderId'] as String);
@@ -135,7 +124,6 @@ class NotificationService {
               .where((m) => m.data['senderId'] == senderId)
               .toList();
 
-          // Получаем имя отправителя
           String senderName = 'Новое сообщение';
           try {
             final sender =
@@ -172,13 +160,11 @@ class NotificationService {
     }
   }
 
-  /// Проверить новые бронирования
   Future<void> _checkNewBookings(PocketBase pb) async {
     final prefs = await SharedPreferences.getInstance();
     final lastCheckKey = 'last_booking_check_$_currentUserId';
     final lastCheck = prefs.getString(lastCheckKey) ?? '';
 
-    // Проверяем слоты где текущий пользователь — репетитор и статус pending
     String filter =
         '(tutorId="$_currentUserId" && bookingStatus="pending")';
     if (lastCheck.isNotEmpty) {
@@ -212,7 +198,6 @@ class NotificationService {
     }
   }
 
-  /// Обновить lastSeen текущего пользователя
   Future<void> _updateLastSeen(PocketBase pb) async {
     try {
       await pb.collection('users').update(
@@ -224,7 +209,6 @@ class NotificationService {
     }
   }
 
-  /// Проверить приближающиеся занятия (за 30 минут)
   Future<void> _checkUpcomingLessons(PocketBase pb) async {
     final prefs = await SharedPreferences.getInstance();
     final notifiedKey = 'notified_lessons_$_currentUserId';
@@ -234,7 +218,6 @@ class NotificationService {
       final now = DateTime.now();
       final todayStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
 
-      // Ищем подтверждённые занятия на сегодня
       final result = await pb.collection('slots').getList(
         filter: '(tutorId="$_currentUserId" || studentId="$_currentUserId") '
             '&& bookingStatus="confirmed" && date="$todayStr"',
@@ -258,7 +241,6 @@ class NotificationService {
 
         final diff = slotStart.difference(now).inMinutes;
 
-        // Уведомляем если до занятия 5-30 минут
         if (diff > 0 && diff <= 30) {
           final endTime = slot.data['endTime'] as String? ?? '';
 
@@ -278,7 +260,6 @@ class NotificationService {
     }
   }
 
-  /// Проверить новые системные уведомления (отмена, перенос и т.д.)
   Future<void> _checkNotifications(PocketBase pb) async {
     final prefs = await SharedPreferences.getInstance();
     final lastCheckKey = 'last_system_notif_check_$_currentUserId';
@@ -314,7 +295,6 @@ class NotificationService {
     }
   }
 
-  /// Показать уведомление
   Future<void> _showNotification({
     required int id,
     required String title,
@@ -344,7 +324,6 @@ class NotificationService {
     await _notifications.show(id, title, body, details, payload: payload);
   }
 
-  /// Сбросить счётчик проверок (при логауте)
   Future<void> reset() async {
     stopPolling();
     _currentUserId = null;

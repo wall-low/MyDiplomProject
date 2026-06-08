@@ -3,29 +3,9 @@ import '../models/payment.dart';
 import 'pocketbase_service.dart';
 import 'tutor_profile_service.dart';
 
-/// Сервис для работы с платежами (имитация для диплома)
-///
-/// Работает с коллекцией payments в PocketBase
-/// Управляет mock-оплатой занятий
 class PaymentService extends ChangeNotifier {
   final _pb = PocketBaseService().client;
 
-  /// Создать платёж (имитация оплаты)
-  ///
-  /// ВАЖНО: Это mock-оплата для диплома, без реальных денег!
-  ///
-  /// Параметры:
-  /// - studentId: ID ученика (кто платит)
-  /// - tutorId: ID репетитора (кому платят)
-  /// - slotId: ID слота (за какое занятие)
-  /// - amount: сумма в рублях
-  ///
-  /// Возвращает: созданный Payment или null при ошибке
-  ///
-  /// Процесс:
-  /// 1. Создаём запись в payments со статусом "pending"
-  /// 2. Сразу обновляем статус на "completed" (имитация успешной оплаты)
-  /// 3. Обновляем slot.isPaid = true (делается в вызывающем коде)
   Future<Payment?> createPayment({
     required String studentId,
     required String tutorId,
@@ -33,211 +13,161 @@ class PaymentService extends ChangeNotifier {
     required double amount,
   }) async {
     try {
-      debugPrint('[PaymentService] 💳 Создание платежа...');
-      debugPrint('[PaymentService] 👤 Student: $studentId');
-      debugPrint('[PaymentService] 👨‍🏫 Tutor: $tutorId');
-      debugPrint('[PaymentService] 📅 Slot: $slotId');
-      debugPrint('[PaymentService] 💰 Amount: $amount ₽');
+      debugPrint('[PaymentService] Создание платежа...');
+      debugPrint('[PaymentService] Student: $studentId');
+      debugPrint('[PaymentService] Tutor: $tutorId');
+      debugPrint('[PaymentService] Slot: $slotId');
+      debugPrint('[PaymentService] Amount: $amount ₽');
 
-      // Подготавливаем данные
       final body = {
         'studentId': studentId,
         'tutorId': tutorId,
         'slotId': slotId,
         'amount': amount,
-        'status': 'pending', // Создаём в статусе "ожидает оплаты"
+        'status': 'pending',
       };
 
-      // Создаём запись в PocketBase
       final record = await _pb.collection('payments').create(body: body);
 
-      debugPrint('[PaymentService] ✅ Платёж создан: ${record.id}');
+      debugPrint('[PaymentService] Платёж создан: ${record.id}');
 
-      // ИМИТАЦИЯ: сразу же "оплачиваем" (меняем статус на completed)
-      // В реальном приложении здесь был бы вызов платёжного API
       final completedRecord = await _pb.collection('payments').update(
             record.id,
             body: {'status': 'completed'},
           );
 
-      debugPrint('[PaymentService] ✅ Платёж успешно "оплачен" (mock)');
+      debugPrint('[PaymentService] Платёж успешно "оплачен" (mock)');
 
-      // Обновляем счётчик оплаченных занятий и убираем бейдж "Новичок"
-      // Делается только для оплаты через приложение (не external)
       try {
         final tutorProfileService = TutorProfileService();
         final profile = await tutorProfileService.getTutorProfileByUserId(tutorId);
         if (profile != null) {
           await tutorProfileService.incrementPaidLessons(profile.id);
-          debugPrint('[PaymentService] ✅ totalPaidLessons увеличен для репетитора: $tutorId');
+          debugPrint('[PaymentService] totalPaidLessons увеличен для репетитора: $tutorId');
         }
       } catch (e) {
-        debugPrint('[PaymentService] ⚠️ Не удалось обновить счётчик занятия: $e');
-        // Не критично — платёж уже создан
+        debugPrint('[PaymentService] Не удалось обновить счётчик занятия: $e');
       }
 
-      // Уведомляем слушателей
       notifyListeners();
 
       return Payment.fromRecord(completedRecord);
     } catch (e) {
-      debugPrint('[PaymentService] ❌ Ошибка создания платежа: $e');
+      debugPrint('[PaymentService] Ошибка создания платежа: $e');
       return null;
     }
   }
 
-  /// Получить платёж по ID
-  ///
-  /// paymentId - ID записи в коллекции payments
-  ///
-  /// Возвращает: Payment или null, если не найден
   Future<Payment?> getPaymentById(String paymentId) async {
     try {
       final record = await _pb.collection('payments').getOne(paymentId);
       return Payment.fromRecord(record);
     } catch (e) {
-      debugPrint('[PaymentService] ❌ Ошибка получения платежа: $e');
+      debugPrint('[PaymentService] Ошибка получения платежа: $e');
       return null;
     }
   }
 
-  /// Получить все платежи ученика
-  ///
-  /// studentId - ID ученика в коллекции users
-  ///
-  /// Возвращает: список Payment, отсортированный по дате (новые сначала)
   Future<List<Payment>> getPaymentsByStudent(String studentId) async {
     try {
-      debugPrint('[PaymentService] 🔍 Получение платежей ученика: $studentId');
+      debugPrint('[PaymentService] Получение платежей ученика: $studentId');
 
-      // Запрос с фильтром и сортировкой
       final result = await _pb.collection('payments').getList(
             filter: 'studentId="$studentId"',
-            sort: '-created', // Сортировка по дате (новые сначала)
-            perPage: 100, // Лимит на 100 записей
+            sort: '-created',
+            perPage: 100,
           );
 
       final payments = result.items.map((r) => Payment.fromRecord(r)).toList();
 
-      debugPrint('[PaymentService] ✅ Найдено платежей: ${payments.length}');
+      debugPrint('[PaymentService] Найдено платежей: ${payments.length}');
 
       return payments;
     } catch (e) {
-      debugPrint('[PaymentService] ❌ Ошибка получения платежей ученика: $e');
+      debugPrint('[PaymentService] Ошибка получения платежей ученика: $e');
       return [];
     }
   }
 
-  /// Получить все платежи репетитора
-  ///
-  /// tutorId - ID репетитора в коллекции users
-  ///
-  /// Возвращает: список Payment, отсортированный по дате (новые сначала)
   Future<List<Payment>> getPaymentsByTutor(String tutorId) async {
     try {
-      debugPrint('[PaymentService] 🔍 Получение платежей репетитора: $tutorId');
+      debugPrint('[PaymentService] Получение платежей репетитора: $tutorId');
 
-      // Запрос с фильтром и сортировкой
       final result = await _pb.collection('payments').getList(
             filter: 'tutorId="$tutorId"',
-            sort: '-created', // Сортировка по дате (новые сначала)
-            perPage: 100, // Лимит на 100 записей
+            sort: '-created',
+            perPage: 100,
           );
 
       final payments = result.items.map((r) => Payment.fromRecord(r)).toList();
 
-      debugPrint('[PaymentService] ✅ Найдено платежей: ${payments.length}');
+      debugPrint('[PaymentService] Найдено платежей: ${payments.length}');
 
       return payments;
     } catch (e) {
-      debugPrint('[PaymentService] ❌ Ошибка получения платежей репетитора: $e');
+      debugPrint('[PaymentService] Ошибка получения платежей репетитора: $e');
       return [];
     }
   }
 
-  /// Получить платёж по slotId
-  ///
-  /// slotId - ID слота в коллекции slots
-  ///
-  /// Возвращает: Payment или null, если платёж не найден
-  ///
-  /// Используется для проверки, оплачен ли конкретный слот
   Future<Payment?> getPaymentBySlot(String slotId) async {
     try {
-      debugPrint('[PaymentService] 🔍 Поиск платежа для слота: $slotId');
+      debugPrint('[PaymentService] Поиск платежа для слота: $slotId');
 
-      // Запрос с фильтром
       final result = await _pb.collection('payments').getList(
             filter: 'slotId="$slotId"',
-            perPage: 1, // Ожидаем только 1 платёж на слот
+            perPage: 1,
           );
 
       if (result.items.isEmpty) {
-        debugPrint('[PaymentService] ℹ️ Платёж для слота не найден');
+        debugPrint('[PaymentService] Платёж для слота не найден');
         return null;
       }
 
       final payment = Payment.fromRecord(result.items.first);
-      debugPrint('[PaymentService] ✅ Платёж найден: ${payment.id}');
+      debugPrint('[PaymentService] Платёж найден: ${payment.id}');
 
       return payment;
     } catch (e) {
-      debugPrint('[PaymentService] ❌ Ошибка поиска платежа по слоту: $e');
+      debugPrint('[PaymentService] Ошибка поиска платежа по слоту: $e');
       return null;
     }
   }
 
-  /// Получить общую сумму заработка репетитора
-  ///
-  /// tutorId - ID репетитора
-  ///
-  /// Возвращает: сумму всех completed платежей
   Future<double> getTutorTotalEarnings(String tutorId) async {
     try {
       final payments = await getPaymentsByTutor(tutorId);
 
-      // Суммируем только completed платежи
       final total = payments
           .where((p) => p.isCompleted)
           .fold<double>(0.0, (sum, p) => sum + p.amount);
 
-      debugPrint('[PaymentService] 💰 Общий заработок репетитора: $total ₽');
+      debugPrint('[PaymentService] Общий заработок репетитора: $total ₽');
 
       return total;
     } catch (e) {
-      debugPrint('[PaymentService] ❌ Ошибка расчёта заработка: $e');
+      debugPrint('[PaymentService] Ошибка расчёта заработка: $e');
       return 0.0;
     }
   }
 
-  /// Получить общую сумму расходов ученика
-  ///
-  /// studentId - ID ученика
-  ///
-  /// Возвращает: сумму всех completed платежей
   Future<double> getStudentTotalSpending(String studentId) async {
     try {
       final payments = await getPaymentsByStudent(studentId);
 
-      // Суммируем только completed платежи
       final total = payments
           .where((p) => p.isCompleted)
           .fold<double>(0.0, (sum, p) => sum + p.amount);
 
-      debugPrint('[PaymentService] 💸 Общие расходы ученика: $total ₽');
+      debugPrint('[PaymentService] Общие расходы ученика: $total ₽');
 
       return total;
     } catch (e) {
-      debugPrint('[PaymentService] ❌ Ошибка расчёта расходов: $e');
+      debugPrint('[PaymentService] Ошибка расчёта расходов: $e');
       return 0.0;
     }
   }
 
-  /// Получить статистику платежей репетитора
-  ///
-  /// Возвращает: Map с количеством платежей по статусам
-  ///
-  /// Пример: {"completed": 10, "pending": 2, "failed": 1}
   Future<Map<String, int>> getTutorPaymentStats(String tutorId) async {
     try {
       final payments = await getPaymentsByTutor(tutorId);
@@ -252,18 +182,15 @@ class PaymentService extends ChangeNotifier {
         stats[payment.status] = (stats[payment.status] ?? 0) + 1;
       }
 
-      debugPrint('[PaymentService] 📊 Статистика платежей: $stats');
+      debugPrint('[PaymentService] Статистика платежей: $stats');
 
       return stats;
     } catch (e) {
-      debugPrint('[PaymentService] ❌ Ошибка получения статистики: $e');
+      debugPrint('[PaymentService] Ошибка получения статистики: $e');
       return {'completed': 0, 'pending': 0, 'failed': 0};
     }
   }
 
-  /// Создать платёж за оплату вне приложения (наличные / перевод)
-  ///
-  /// Использует реальный slotId и статус 'completed'
   Future<Payment?> createExternalPayment({
     required String studentId,
     required String tutorId,
@@ -271,7 +198,7 @@ class PaymentService extends ChangeNotifier {
     required double amount,
   }) async {
     try {
-      debugPrint('[PaymentService] 💵 Создание внешнего платежа...');
+      debugPrint('[PaymentService] Создание внешнего платежа...');
 
       final record = await _pb.collection('payments').create(body: {
         'studentId': studentId,
@@ -283,7 +210,6 @@ class PaymentService extends ChangeNotifier {
 
       debugPrint('[PaymentService] ✅ Внешний платёж создан: ${record.id}');
 
-      // Обновляем счётчик оплаченных занятий
       try {
         final tutorProfileService = TutorProfileService();
         final profile = await tutorProfileService.getTutorProfileByUserId(tutorId);
@@ -291,22 +217,17 @@ class PaymentService extends ChangeNotifier {
           await tutorProfileService.incrementPaidLessons(profile.id);
         }
       } catch (e) {
-        debugPrint('[PaymentService] ⚠️ Не удалось обновить счётчик: $e');
+        debugPrint('[PaymentService] Не удалось обновить счётчик: $e');
       }
 
       notifyListeners();
       return Payment.fromRecord(record);
     } catch (e) {
-      debugPrint('[PaymentService] ❌ Ошибка создания внешнего платежа: $e');
+      debugPrint('[PaymentService] Ошибка создания внешнего платежа: $e');
       return null;
     }
   }
 
-  /// Добавить оплату вручную (не через приложение — наличные, перевод и т.д.)
-  ///
-  /// tutorId - кому заплатили
-  /// amount - сумма
-  /// note - описание (например имя ученика)
   Future<Payment?> createManualPayment({
     required String tutorId,
     required double amount,
@@ -314,23 +235,20 @@ class PaymentService extends ChangeNotifier {
   }) async {
     try {
       final record = await _pb.collection('payments').create(body: {
-        'studentId': note, // используем поле для описания
+        'studentId': note,
         'tutorId': tutorId,
-        'slotId': 'manual', // маркер ручной оплаты
+        'slotId': 'manual',
         'amount': amount,
         'status': 'completed',
       });
       notifyListeners();
       return Payment.fromRecord(record);
     } catch (e) {
-      debugPrint('[PaymentService] ❌ Ошибка создания ручного платежа: $e');
+      debugPrint('[PaymentService] Ошибка создания ручного платежа: $e');
       return null;
     }
   }
 
-  /// Получить статистику репетитора за текущий месяц
-  ///
-  /// Возвращает: Map с ключами 'earnings' (double) и 'count' (int)
   Future<Map<String, dynamic>> getTutorThisMonthStats(String tutorId) async {
     try {
       final payments = await getPaymentsByTutor(tutorId);
@@ -346,11 +264,6 @@ class PaymentService extends ChangeNotifier {
     }
   }
 
-  /// Проверить, оплачен ли слот
-  ///
-  /// slotId - ID слота
-  ///
-  /// Возвращает: true если существует completed платёж для этого слота
   Future<bool> isSlotPaid(String slotId) async {
     final payment = await getPaymentBySlot(slotId);
     return payment != null && payment.isCompleted;

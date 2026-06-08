@@ -142,7 +142,6 @@ class _ReviewDialogState extends State<ReviewDialog> {
             const SizedBox(height: 16),
 
             if (widget.isVerified) ...[
-              // Звёзды
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(5, (index) {

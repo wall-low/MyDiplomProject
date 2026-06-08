@@ -21,7 +21,6 @@ class Auth {
       );
 
       debugPrint('[Auth] Успешный вход: ${authData.record.data['email']}');
-      // Запускаем polling уведомлений
       NotificationService().startPolling(authData.record.id);
       return authData;
     } on ClientException catch (e) {
@@ -58,7 +57,6 @@ class Auth {
       );
 
       debugPrint('[Auth] Успешная регистрация: ${authData.record.data['email']}');
-      // Запускаем polling уведомлений
       NotificationService().startPolling(authData.record.id);
       return authData;
     } on ClientException catch (e) {

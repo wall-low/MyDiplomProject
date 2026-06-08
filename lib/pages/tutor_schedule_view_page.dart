@@ -6,12 +6,6 @@ import '../service/auth.dart';
 import '../service/schedule_service.dart';
 import '../service/tutor_profile_service.dart';
 
-/// Страница просмотра расписания репетитора (для ученика)
-///
-/// Функции:
-/// - Просмотр доступных слотов репетитора
-/// - Бронирование свободных слотов
-/// - Выбор даты через календарь
 class TutorScheduleViewPage extends StatefulWidget {
   final String tutorId;
   final String tutorName;
@@ -100,14 +94,12 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
     );
   }
 
-  /// Селектор даты с кнопками навигации
   Widget _buildDateSelector(ColorScheme colorScheme) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Кнопка "Назад" (предыдущий день)
           IconButton(
             icon: Icon(Icons.chevron_left, color: colorScheme.primary),
             onPressed: () {
@@ -117,7 +109,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
             },
           ),
 
-          // Кнопка выбора даты из календаря
           InkWell(
             onTap: () => _selectDate(context),
             borderRadius: BorderRadius.circular(12),
@@ -149,7 +140,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
             ),
           ),
 
-          // Кнопка "Вперед" (следующий день)
           IconButton(
             icon: Icon(Icons.chevron_right, color: colorScheme.primary),
             onPressed: () {
@@ -163,7 +153,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
     );
   }
 
-  /// Список слотов на выбранную дату
   Widget _buildScheduleList(ColorScheme colorScheme) {
     return FutureBuilder<List<ScheduleSlot>>(
       key: ValueKey('${widget.tutorId}_${_selectedDate.toString()}_$_refreshKey'),
@@ -253,13 +242,11 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
     );
   }
 
-  /// Карточка слота с кнопкой бронирования
   Widget _buildSlotCard(ScheduleSlot slot, ColorScheme colorScheme) {
-    // Определяем, забронирован ли слот текущим учеником
     final currentUserId = _auth.getCurrentUid();
     final isMyBooking = slot.isBooked && slot.studentId == currentUserId;
 
-    // Определяем цвет и текст статуса
+
     Color statusColor;
     String statusText;
 
@@ -290,7 +277,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            // Цветная полоска слева (индикатор статуса)
             Container(
               width: 4,
               height: 60,
@@ -301,12 +287,10 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
             ),
             const SizedBox(width: 16),
 
-            // Информация о времени
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Время начала и конца
                   Row(
                     children: [
                       Icon(
@@ -338,7 +322,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
                   ],
                   const SizedBox(height: 8),
 
-                  // Статус слота (бейдж)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -361,7 +344,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
               ),
             ),
 
-            // Кнопка действия (Забронировать / Отменить)
             if (!slot.isPast)
               _buildActionButton(slot, isMyBooking, colorScheme),
           ],
@@ -370,14 +352,11 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
     );
   }
 
-  /// Кнопка действия (Забронировать или Отменить бронирование)
   Widget _buildActionButton(
       ScheduleSlot slot, bool isMyBooking, ColorScheme colorScheme) {
 
-    // Если слот забронирован/запрошен текущим учеником
     if (isMyBooking) {
       if (slot.isPending) {
-        // Запрос на подтверждении → "Отменить запрос"
         return ElevatedButton(
           onPressed: () => _cancelBooking(slot),
           style: ElevatedButton.styleFrom(
@@ -391,7 +370,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
           child: const Text('Отменить запрос'),
         );
       } else if (slot.isConfirmed) {
-        // Подтверждено → "Отменить"
         return ElevatedButton(
           onPressed: () => _cancelBooking(slot),
           style: ElevatedButton.styleFrom(
@@ -407,7 +385,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
       }
     }
 
-    // Если слот занят другим учеником
     if (slot.isBooked && !isMyBooking) {
       return ElevatedButton(
         onPressed: null,
@@ -423,7 +400,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
       );
     }
 
-    // Если свободен → кнопка "Забронировать"
     return ElevatedButton(
       onPressed: () => _bookSlot(slot),
       style: ElevatedButton.styleFrom(
@@ -438,7 +414,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
     );
   }
 
-  /// Открыть календарь для выбора даты
   Future<void> _selectDate(BuildContext context) async {
     final picked = await showDatePicker(
       context: context,
@@ -455,10 +430,8 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
     }
   }
 
-  /// Забронировать слот
   Future<void> _bookSlot(ScheduleSlot slot) async {
     try {
-      // Загружаем предметы и цены репетитора
       List<String> tutorSubjects = [];
       Map<String, double> subjectPrices = {};
       try {
@@ -472,7 +445,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
 
       if (!mounted) return;
 
-      // Вычисляем длительность слота в часах
       final startParts = slot.startTime.split(':');
       final endParts = slot.endTime.split(':');
       final startMinutes = int.parse(startParts[0]) * 60 + int.parse(startParts[1]);
@@ -621,7 +593,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
       final isRecurringBooking = result['isRecurring'] as bool;
       final bookedSubject = result['subject'] as String?;
 
-      // Записываем предмет в слот, если выбран
       if (bookedSubject != null && bookedSubject.isNotEmpty) {
         await _scheduleService.updateSlotFields(slot.id, {'subject': bookedSubject});
       }
@@ -640,8 +611,8 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
             SnackBar(
               content: Text(
                 errors.isEmpty
-                    ? '✅ Постоянное расписание создано!\nЗабронировано $totalBooked занятий'
-                    : '⚠️ Забронировано $totalBooked занятий\nНекоторые слоты недоступны',
+                    ? 'Постоянное расписание создано!\nЗабронировано $totalBooked занятий'
+                    : '⚠Забронировано $totalBooked занятий\nНекоторые слоты недоступны',
               ),
               backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
               behavior: SnackBarBehavior.floating,
@@ -651,13 +622,12 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
           _refreshSlots();
         }
       } else {
-        // Одноразовое бронирование
         await _scheduleService.bookSlot(slot.id, _auth.getCurrentUid());
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('⏳ Запрос отправлен!\nОжидайте подтверждения репетитора'),
+              content: Text('Запрос отправлен!\nОжидайте подтверждения репетитора'),
               backgroundColor: Colors.orange,
               behavior: SnackBarBehavior.floating,
               duration: Duration(seconds: 4),
@@ -668,13 +638,11 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
       }
     } catch (e) {
       if (mounted) {
-        // Извлекаем понятное сообщение об ошибке
         String errorMessage = e.toString();
         if (errorMessage.contains('Exception:')) {
           errorMessage = errorMessage.replaceAll('Exception: ', '');
         }
 
-        // Показываем диалог с ошибкой и кнопкой обновления
         showDialog(
           context: context,
           builder: (context) => AlertDialog(
@@ -720,20 +688,17 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
     }
   }
 
-  /// Отменить бронирование
   Future<void> _cancelBooking(ScheduleSlot slot) async {
     try {
-      // Определяем текст в зависимости от статуса
       final isPending = slot.isPending;
       final title = isPending ? 'Отменить запрос?' : 'Отмена бронирования';
       final content = isPending
           ? 'Отменить запрос на занятие ${DateFormat('d MMMM', 'ru').format(slot.date)} с ${slot.startTime} до ${slot.endTime}?'
           : 'Отменить занятие на ${DateFormat('d MMMM', 'ru').format(slot.date)} с ${slot.startTime} до ${slot.endTime}?';
       final successMessage = isPending
-          ? '✅ Запрос отменён'
-          : '✅ Бронирование отменено';
+          ? 'Запрос отменён'
+          : 'Бронирование отменено';
 
-      // Показываем диалог подтверждения
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -757,7 +722,6 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
 
       if (confirmed != true) return;
 
-      // Выполняем отмену бронирования
       await _scheduleService.cancelBooking(slot.id);
 
       if (mounted) {
@@ -769,14 +733,13 @@ class _TutorScheduleViewPageState extends State<TutorScheduleViewPage> {
           ),
         );
 
-        // Обновляем список слотов
         _refreshSlots();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка отмены: $e'),
+            content: Text('Ошибка отмены: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

@@ -7,7 +7,6 @@ import 'package:p7/service/tutor_profile_service.dart';
 import 'package:p7/service/auth.dart';
 import 'package:p7/service/card_storage_service.dart';
 
-/// Форматирует ввод номера карты: XXXX XXXX XXXX XXXX
 class _CardNumberFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
@@ -27,12 +26,9 @@ class _CardNumberFormatter extends TextInputFormatter {
   }
 }
 
-/// Страница заполнения расширенного профиля репетитора
-///
-/// Открывается для репетиторов, которые ещё не заполнили свой профиль
-/// Собирает: предметы, цены, опыт, образование, формат занятий
+
 class TutorProfileSetupPage extends StatefulWidget {
-  final bool isEditing; // true = редактирование, false = первичное заполнение
+  final bool isEditing;
 
   const TutorProfileSetupPage({
     super.key,
@@ -48,13 +44,11 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
   final _auth = Auth();
   final _formKey = GlobalKey<FormState>();
 
-  // Контроллеры для текстовых полей
   final Map<String, TextEditingController> _subjectPriceControllers = {};
   final TextEditingController _experienceController = TextEditingController();
   final TextEditingController _educationController = TextEditingController();
   final TextEditingController _payoutCardController = TextEditingController();
 
-  // Список всех доступных предметов
   final List<String> _availableSubjects = [
     'Математика',
     'Физика',
@@ -71,15 +65,13 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
     'Программирование',
   ];
 
-  // Выбранные предметы
   List<String> _selectedSubjects = [];
 
-  // Формат занятий
   bool _isOnline = false;
   bool _isOffline = false;
 
   bool _isLoading = false;
-  String? _existingProfileId; // ID записи в tutor_profiles (для обновления)
+  String? _existingProfileId;
 
   @override
   void initState() {
@@ -166,19 +158,16 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
       return;
     }
 
-    // Валидация предметов
     if (_selectedSubjects.isEmpty) {
       _showSnackBar('Выберите хотя бы один предмет', isError: true);
       return;
     }
 
-    // Валидация формата занятий
     if (!_isOnline && !_isOffline) {
       _showSnackBar('Выберите хотя бы один формат занятий', isError: true);
       return;
     }
 
-    // Собираем цены по предметам
     final Map<String, double> subjectPrices = {};
     for (final subject in _selectedSubjects) {
       final controller = _subjectPriceControllers[subject];
@@ -207,24 +196,20 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
         throw Exception('Пользователь не авторизован');
       }
 
-      // Формируем список форматов занятий
       List<String> lessonFormats = [];
       if (_isOnline) lessonFormats.add('online');
       if (_isOffline) lessonFormats.add('offline');
 
-      // Парсим опыт
       final experience = _experienceController.text.isNotEmpty
           ? int.tryParse(_experienceController.text)
           : null;
 
-      debugPrint('[TutorProfileSetup] 📝 Данные для создания:');
+      debugPrint('[TutorProfileSetup] Данные для создания:');
       debugPrint('  - subjects: $_selectedSubjects');
       debugPrint('  - subjectPrices: $subjectPrices');
       debugPrint('  - experience: $experience');
       debugPrint('  - lessonFormats: $lessonFormats');
 
-      // Извлекаем последние 4 цифры карты для выплат
-      // (если поле изменилось — содержит 16 цифр; если загружено из профиля — пропускаем)
       String? payoutCardLast4;
       final rawCard = _payoutCardController.text.replaceAll(RegExp(r'\D'), '');
       if (rawCard.length == 16) {
@@ -238,7 +223,6 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
       TutorProfile? profile;
 
       if (widget.isEditing && _existingProfileId != null) {
-        // Обновляем существующий профиль
         final prices = subjectPrices.values.toList();
         final updates = <String, dynamic>{
           'subjects': _selectedSubjects,
@@ -253,7 +237,6 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
         profile = await _tutorProfileService.updateTutorProfile(
             _existingProfileId!, updates);
       } else {
-        // Создаём новый профиль
         profile = await _tutorProfileService.createTutorProfile(
           userId: userId,
           subjects: _selectedSubjects,
@@ -283,7 +266,7 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
         }
       }
     } catch (e, stackTrace) {
-      debugPrint('[TutorProfileSetup] ❌ ОШИБКА сохранения профиля:');
+      debugPrint('[TutorProfileSetup] ОШИБКА сохранения профиля:');
       debugPrint('  Error: $e');
       debugPrint('  StackTrace: $stackTrace');
 
@@ -318,7 +301,6 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Приветственный текст
                 if (!widget.isEditing) ...[
                   const Text(
                     'Расскажите о себе',
@@ -338,13 +320,11 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
                   const SizedBox(height: 24),
                 ],
 
-                // Предметы преподавания
                 _buildSectionTitle('Предметы преподавания *'),
                 const SizedBox(height: 12),
                 _buildSubjectsSelector(),
                 const SizedBox(height: 24),
 
-                // Стоимость занятий по предметам
                 _buildSectionTitle('Стоимость занятий (₽/час) *'),
                 const SizedBox(height: 4),
                 if (_selectedSubjects.isEmpty)
@@ -395,7 +375,6 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
                   }),
                 const SizedBox(height: 24),
 
-                // Опыт работы
                 _buildSectionTitle('Опыт работы (лет)'),
                 const SizedBox(height: 12),
                 TextField(
@@ -426,7 +405,6 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
                 ),
                 const SizedBox(height: 24),
 
-                // Образование
                 _buildSectionTitle('Образование'),
                 const SizedBox(height: 12),
                 TextField(
@@ -455,13 +433,11 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
                 ),
                 const SizedBox(height: 24),
 
-                // Формат занятий
                 _buildSectionTitle('Формат занятий *'),
                 const SizedBox(height: 12),
                 _buildLessonFormatSelector(),
                 const SizedBox(height: 24),
 
-                // Карта для выплат
                 _buildSectionTitle('Карта для получения оплаты'),
                 const SizedBox(height: 4),
                 Text(
@@ -472,7 +448,6 @@ class _TutorProfileSetupPageState extends State<TutorProfileSetupPage> {
                 _buildPayoutCardField(),
                 const SizedBox(height: 32),
 
-                // Кнопка сохранения
                 MyButton(
                   text: widget.isEditing ? 'Сохранить изменения' : 'Создать профиль',
                   onTap: _isLoading ? () {} : _saveProfile,

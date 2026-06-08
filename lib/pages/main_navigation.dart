@@ -5,15 +5,6 @@ import 'package:p7/pages/profile_page.dart';
 import 'package:p7/pages/schedule_page.dart';
 import '../service/auth.dart';
 
-/// Главная навигация приложения с Bottom Navigation Bar
-///
-/// 4 основных раздела:
-/// - Чаты (HomePage) - список активных чатов
-/// - Поиск (FindTutorPage) - поиск репетиторов
-/// - График (SchedulePage) - расписание (для репетиторов и учеников)
-/// - Профиль (ProfilePage) - профиль пользователя
-///
-/// Дополнительно: Settings доступен через AppBar (иконка ⚙️)
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
 
@@ -25,13 +16,11 @@ class _MainNavigationState extends State<MainNavigation> {
   final Auth _auth = Auth();
   int _currentIndex = 0;
 
-  // Список страниц для каждого таба
   late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
-    // Инициализируем страницы с текущим UID
     _pages = [
       const HomePage(),
       FindTutorPage(),
@@ -45,17 +34,13 @@ class _MainNavigationState extends State<MainNavigation> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      // Показываем текущую страницу
       body: IndexedStack(
         index: _currentIndex,
         children: _pages,
       ),
 
-      // AppBar только для страниц где он нужен
-      // (HomePage, FindTutorPage уже имеют свой AppBar)
       appBar: _buildAppBar(colorScheme),
 
-      // Bottom Navigation Bar
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
@@ -63,7 +48,7 @@ class _MainNavigationState extends State<MainNavigation> {
             _currentIndex = index;
           });
         },
-        type: BottomNavigationBarType.fixed, // Всегда показывать labels
+        type: BottomNavigationBarType.fixed,
         selectedItemColor: colorScheme.primary,
         unselectedItemColor: colorScheme.secondary.withValues(alpha: 0.6),
         backgroundColor: colorScheme.surface,
@@ -96,10 +81,8 @@ class _MainNavigationState extends State<MainNavigation> {
     );
   }
 
-  /// AppBar с иконкой настроек (только для некоторых страниц)
   PreferredSizeWidget? _buildAppBar(ColorScheme colorScheme) {
-    // HomePage, FindTutorPage, SchedulePage, ProfilePage имеют свой AppBar
-    // Поэтому возвращаем null, чтобы не было двух AppBar
+
     return null;
   }
 }

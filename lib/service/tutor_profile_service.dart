@@ -19,7 +19,7 @@ class TutorProfileService extends ChangeNotifier {
     try {
       final exists = await checkIfTutorProfileExists(userId);
       if (exists) {
-        debugPrint('[TutorProfileService] ❌ Профиль для userId=$userId уже существует');
+        debugPrint('[TutorProfileService] Профиль для userId=$userId уже существует');
         return null;
       }
 
@@ -46,17 +46,17 @@ class TutorProfileService extends ChangeNotifier {
           'payoutCardLast4': payoutCardLast4,
       };
 
-      debugPrint('[TutorProfileService] 📝 Создание профиля: $body');
+      debugPrint('[TutorProfileService] Создание профиля: $body');
 
       final record = await _pb.collection('tutor_profiles').create(body: body);
 
-      debugPrint('[TutorProfileService] ✅ Профиль создан: ${record.id}');
+      debugPrint('[TutorProfileService] Профиль создан: ${record.id}');
 
       notifyListeners();
 
       return TutorProfile.fromRecord(record);
     } catch (e) {
-      debugPrint('[TutorProfileService] ❌ Ошибка создания профиля: $e');
+      debugPrint('[TutorProfileService] Ошибка создания профиля: $e');
       return null;
     }
   }
@@ -69,16 +69,16 @@ class TutorProfileService extends ChangeNotifier {
           );
 
       if (result.items.isEmpty) {
-        debugPrint('[TutorProfileService] ℹ️ Профиль для userId=$userId не найден');
+        debugPrint('[TutorProfileService] Профиль для userId=$userId не найден');
         return null;
       }
 
       final profile = TutorProfile.fromRecord(result.items.first);
-      debugPrint('[TutorProfileService] ✅ Профиль найден: ${profile.id}');
+      debugPrint('[TutorProfileService] Профиль найден: ${profile.id}');
 
       return profile;
     } catch (e) {
-      debugPrint('[TutorProfileService] ❌ Ошибка получения профиля: $e');
+      debugPrint('[TutorProfileService] Ошибка получения профиля: $e');
       return null;
     }
   }
@@ -88,7 +88,7 @@ class TutorProfileService extends ChangeNotifier {
       final record = await _pb.collection('tutor_profiles').getOne(profileId);
       return TutorProfile.fromRecord(record);
     } catch (e) {
-      debugPrint('[TutorProfileService] ❌ Ошибка получения профиля по ID: $e');
+      debugPrint('[TutorProfileService] Ошибка получения профиля по ID: $e');
       return null;
     }
   }
@@ -98,20 +98,20 @@ class TutorProfileService extends ChangeNotifier {
     Map<String, dynamic> updates,
   ) async {
     try {
-      debugPrint('[TutorProfileService] 📝 Обновление профиля $profileId: $updates');
+      debugPrint('[TutorProfileService] Обновление профиля $profileId: $updates');
 
       final record = await _pb.collection('tutor_profiles').update(
             profileId,
             body: updates,
           );
 
-      debugPrint('[TutorProfileService] ✅ Профиль обновлён');
+      debugPrint('[TutorProfileService] Профиль обновлён');
 
       notifyListeners();
 
       return TutorProfile.fromRecord(record);
     } catch (e) {
-      debugPrint('[TutorProfileService] ❌ Ошибка обновления профиля: $e');
+      debugPrint('[TutorProfileService] Ошибка обновления профиля: $e');
       return null;
     }
   }
@@ -120,13 +120,13 @@ class TutorProfileService extends ChangeNotifier {
     try {
       await _pb.collection('tutor_profiles').delete(profileId);
 
-      debugPrint('[TutorProfileService] ✅ Профиль удалён: $profileId');
+      debugPrint('[TutorProfileService] Профиль удалён: $profileId');
 
       notifyListeners();
 
       return true;
     } catch (e) {
-      debugPrint('[TutorProfileService] ❌ Ошибка удаления профиля: $e');
+      debugPrint('[TutorProfileService] Ошибка удаления профиля: $e');
       return false;
     }
   }
@@ -140,7 +140,7 @@ class TutorProfileService extends ChangeNotifier {
 
       return result.items.isNotEmpty;
     } catch (e) {
-      debugPrint('[TutorProfileService] ❌ Ошибка проверки существования: $e');
+      debugPrint('[TutorProfileService] Ошибка проверки существования: $e');
       return false;
     }
   }
@@ -162,12 +162,12 @@ class TutorProfileService extends ChangeNotifier {
       );
 
       debugPrint(
-          '[TutorProfileService] ✅ Рейтинг: $newRating, занятий: $totalPaidLessons, новичок: $isNewbie');
+          '[TutorProfileService] Рейтинг: $newRating, занятий: $totalPaidLessons, новичок: $isNewbie');
 
       notifyListeners();
       return true;
     } catch (e) {
-      debugPrint('[TutorProfileService] ❌ Ошибка обновления рейтинга: $e');
+      debugPrint('[TutorProfileService] Ошибка обновления рейтинга: $e');
       return false;
     }
   }
@@ -188,12 +188,12 @@ class TutorProfileService extends ChangeNotifier {
         },
       );
 
-      debugPrint('[TutorProfileService] ✅ Счётчик занятий увеличен: $newTotal');
+      debugPrint('[TutorProfileService] Счётчик занятий увеличен: $newTotal');
 
       notifyListeners();
       return true;
     } catch (e) {
-      debugPrint('[TutorProfileService] ❌ Ошибка увеличения счётчика: $e');
+      debugPrint('[TutorProfileService] Ошибка увеличения счётчика: $e');
       return false;
     }
   }
@@ -240,13 +240,13 @@ class TutorProfileService extends ChangeNotifier {
             expand: 'userId',
           );
 
-      debugPrint('[TutorProfileService] ✅ Найдено репетиторов: ${result.totalItems}');
+      debugPrint('[TutorProfileService] Найдено репетиторов: ${result.totalItems}');
 
       return result.items
           .map((record) => TutorProfile.fromRecord(record))
           .toList();
     } catch (e) {
-      debugPrint('[TutorProfileService] ❌ Ошибка поиска репетиторов: $e');
+      debugPrint('[TutorProfileService] Ошибка поиска репетиторов: $e');
       return [];
     }
   }

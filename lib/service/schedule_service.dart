@@ -31,7 +31,7 @@ class ScheduleService extends ChangeNotifier {
     try {
       final targetDate = DateTime(date.year, date.month, date.day);
 
-      debugPrint('📅 Target date: $targetDate');
+      debugPrint('Target date: $targetDate');
 
       final dateStr = targetDate.toIso8601String().split('T')[0];
       final nextDayStr =
@@ -47,7 +47,7 @@ class ScheduleService extends ChangeNotifier {
 
       final slots = result.items.map((record) => ScheduleSlot.fromRecord(record)).toList();
 
-      debugPrint('✅ Filtered slots: ${slots.length}');
+      debugPrint('Filtered slots: ${slots.length}');
 
       return slots;
     } catch (e) {
@@ -65,13 +65,13 @@ class ScheduleService extends ChangeNotifier {
   }) async {
     try {
       debugPrint('[ScheduleService] ========== СОЗДАНИЕ СЛОТА ==========');
-      debugPrint('[ScheduleService] 👤 TutorID: $tutorId');
-      debugPrint('[ScheduleService] 📅 Date: $date');
-      debugPrint('[ScheduleService] ⏰ Time: $startTime - $endTime');
-      if (subject != null) debugPrint('[ScheduleService] 📚 Subject: $subject');
+      debugPrint('[ScheduleService] TutorID: $tutorId');
+      debugPrint('[ScheduleService] Date: $date');
+      debugPrint('[ScheduleService] Time: $startTime - $endTime');
+      if (subject != null) debugPrint('[ScheduleService] Subject: $subject');
 
       final dateOnly = DateTime(date.year, date.month, date.day);
-      debugPrint('[ScheduleService] 📅 Date normalized: $dateOnly');
+      debugPrint('[ScheduleService] Date normalized: $dateOnly');
 
       final slot = ScheduleSlot(
         id: '',
@@ -85,22 +85,22 @@ class ScheduleService extends ChangeNotifier {
       );
 
       final slotMap = slot.toMap();
-      debugPrint('[ScheduleService] 📦 Slot data to send: $slotMap');
-      debugPrint('[ScheduleService] 🌐 PocketBase URL: ${_pb.baseUrl}');
-      debugPrint('[ScheduleService] 🔑 Auth valid: ${_pb.authStore.isValid}');
+      debugPrint('[ScheduleService] Slot data to send: $slotMap');
+      debugPrint('[ScheduleService] PocketBase URL: ${_pb.baseUrl}');
+      debugPrint('[ScheduleService] Auth valid: ${_pb.authStore.isValid}');
 
-      debugPrint('[ScheduleService] 🚀 Sending create request...');
+      debugPrint('[ScheduleService] Sending create request...');
       final record = await _pb.collection('slots').create(body: slotMap);
 
-      debugPrint('[ScheduleService] ✅ Слот создан успешно!');
-      debugPrint('[ScheduleService] 🆔 Record ID: ${record.id}');
-      debugPrint('[ScheduleService] 📄 Record data: ${record.data}');
+      debugPrint('[ScheduleService] Слот создан успешно!');
+      debugPrint('[ScheduleService] Record ID: ${record.id}');
+      debugPrint('[ScheduleService] Record data: ${record.data}');
       debugPrint('[ScheduleService] ==========================================');
 
       notifyListeners();
     } catch (e, stackTrace) {
-      debugPrint('[ScheduleService] ❌ ОШИБКА добавления слота: $e');
-      debugPrint('[ScheduleService] 📋 StackTrace: $stackTrace');
+      debugPrint('[ScheduleService] ОШИБКА добавления слота: $e');
+      debugPrint('[ScheduleService] StackTrace: $stackTrace');
       rethrow;
     }
   }
@@ -164,20 +164,20 @@ class ScheduleService extends ChangeNotifier {
 
   Future<ScheduleSlot?> getSlotById(String slotId) async {
     try {
-      debugPrint('[ScheduleService] 🔍 Запрос слота: $slotId');
-      debugPrint('[ScheduleService] 👤 Текущий пользователь: ${_pb.authStore.model?.id}');
+      debugPrint('[ScheduleService] Запрос слота: $slotId');
+      debugPrint('[ScheduleService] Текущий пользователь: ${_pb.authStore.model?.id}');
 
       final record = await _pb.collection('slots').getOne(slotId);
 
-      debugPrint('[ScheduleService] ✅ Слот получен: ${record.id}');
-      debugPrint('[ScheduleService] 📋 Данные: tutorId=${record.data['tutorId']}, studentId=${record.data['studentId']}');
+      debugPrint('[ScheduleService] Слот получен: ${record.id}');
+      debugPrint('[ScheduleService] Данные: tutorId=${record.data['tutorId']}, studentId=${record.data['studentId']}');
 
       return ScheduleSlot.fromRecord(record);
     } catch (e, stackTrace) {
-      debugPrint('[ScheduleService] ❌ Ошибка получения слота $slotId');
-      debugPrint('[ScheduleService] 🔥 Тип ошибки: ${e.runtimeType}');
-      debugPrint('[ScheduleService] 📝 Сообщение: $e');
-      debugPrint('[ScheduleService] 📚 StackTrace: ${stackTrace.toString().substring(0, 500)}');
+      debugPrint('[ScheduleService] Ошибка получения слота $slotId');
+      debugPrint('[ScheduleService] Тип ошибки: ${e.runtimeType}');
+      debugPrint('[ScheduleService] Сообщение: $e');
+      debugPrint('[ScheduleService] StackTrace: ${stackTrace.toString().substring(0, 500)}');
       return null;
     }
   }
@@ -244,13 +244,13 @@ class ScheduleService extends ChangeNotifier {
     try {
       final groupId = 'recurring_${DateTime.now().millisecondsSinceEpoch}_${studentId.substring(0, 8)}';
 
-      debugPrint('[ScheduleService] 🔄 Постоянное расписание');
-      debugPrint('[ScheduleService] 🆔 Group ID: $groupId');
-      debugPrint('[ScheduleService] 📅 Начальная дата: ${initialSlot.date}');
-      debugPrint('[ScheduleService] ⏰ Время: ${initialSlot.startTime} - ${initialSlot.endTime}');
+      debugPrint('[ScheduleService] Постоянное расписание');
+      debugPrint('[ScheduleService] Group ID: $groupId');
+      debugPrint('[ScheduleService] Начальная дата: ${initialSlot.date}');
+      debugPrint('[ScheduleService] Время: ${initialSlot.startTime} - ${initialSlot.endTime}');
 
       final weekday = initialSlot.date.weekday;
-      debugPrint('[ScheduleService] 📆 День недели: $weekday');
+      debugPrint('[ScheduleService] День недели: $weekday');
 
       final endDate = DateTime.now().add(const Duration(days: 90));
 
@@ -266,7 +266,7 @@ class ScheduleService extends ChangeNotifier {
                slot.date.isAfter(DateTime.now().subtract(const Duration(days: 1)));
       }).toList();
 
-      debugPrint('[ScheduleService] 🎯 Найдено подходящих слотов: ${matchingSlots.length}');
+      debugPrint('[ScheduleService] Найдено подходящих слотов: ${matchingSlots.length}');
 
       for (final slot in matchingSlots) {
         try {
@@ -281,14 +281,14 @@ class ScheduleService extends ChangeNotifier {
             },
           );
           successCount++;
-          debugPrint('[ScheduleService] ✅ Забронирован: ${slot.date.toString().split(' ')[0]}');
+          debugPrint('[ScheduleService] Забронирован: ${slot.date.toString().split(' ')[0]}');
         } catch (e) {
-          debugPrint('[ScheduleService] ❌ Ошибка бронирования ${slot.date}: $e');
+          debugPrint('[ScheduleService] Ошибка бронирования ${slot.date}: $e');
           errors.add('${slot.date.toString().split(' ')[0]}: ${e.toString()}');
         }
       }
 
-      debugPrint('[ScheduleService] 📊 Результат: $successCount забронировано');
+      debugPrint('[ScheduleService] Результат: $successCount забронировано');
 
       notifyListeners();
 
@@ -298,14 +298,14 @@ class ScheduleService extends ChangeNotifier {
         'errors': errors,
       };
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Критическая ошибка постоянного расписания: $e');
+      debugPrint('[ScheduleService] Критическая ошибка постоянного расписания: $e');
       rethrow;
     }
   }
 
   Future<int> cancelRecurringGroup(String recurringGroupId) async {
     try {
-      debugPrint('[ScheduleService] 🗑️ Отмена группы: $recurringGroupId');
+      debugPrint('[ScheduleService] Отмена группы: $recurringGroupId');
 
       final result = await _pb.collection('slots').getList(
         filter: 'recurringGroupId="$recurringGroupId"',
@@ -328,23 +328,23 @@ class ScheduleService extends ChangeNotifier {
           );
           cancelledCount++;
         } catch (e) {
-          debugPrint('[ScheduleService] ❌ Ошибка отмены слота ${record.id}: $e');
+          debugPrint('[ScheduleService] Ошибка отмены слота ${record.id}: $e');
         }
       }
 
-      debugPrint('[ScheduleService] ✅ Отменено $cancelledCount слотов');
+      debugPrint('[ScheduleService] Отменено $cancelledCount слотов');
       notifyListeners();
 
       return cancelledCount;
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка отмены группы: $e');
+      debugPrint('[ScheduleService] Ошибка отмены группы: $e');
       rethrow;
     }
   }
 
   Future<int> approveRecurringGroup(String recurringGroupId) async {
     try {
-      debugPrint('[ScheduleService] ✅ Подтверждение группы: $recurringGroupId');
+      debugPrint('[ScheduleService] Подтверждение группы: $recurringGroupId');
 
       final result = await _pb.collection('slots').getList(
         filter: 'recurringGroupId="$recurringGroupId" && bookingStatus="pending"',
@@ -363,23 +363,23 @@ class ScheduleService extends ChangeNotifier {
           );
           approvedCount++;
         } catch (e) {
-          debugPrint('[ScheduleService] ❌ Ошибка подтверждения слота ${record.id}: $e');
+          debugPrint('[ScheduleService] Ошибка подтверждения слота ${record.id}: $e');
         }
       }
 
-      debugPrint('[ScheduleService] ✅ Подтверждено $approvedCount слотов');
+      debugPrint('[ScheduleService] Подтверждено $approvedCount слотов');
       notifyListeners();
 
       return approvedCount;
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка подтверждения группы: $e');
+      debugPrint('[ScheduleService] Ошибка подтверждения группы: $e');
       rethrow;
     }
   }
 
   Future<int> rejectRecurringGroup(String recurringGroupId) async {
     try {
-      debugPrint('[ScheduleService] ❌ Отклонение группы: $recurringGroupId');
+      debugPrint('[ScheduleService] Отклонение группы: $recurringGroupId');
 
       final result = await _pb.collection('slots').getList(
         filter: 'recurringGroupId="$recurringGroupId" && bookingStatus="pending"',
@@ -402,16 +402,16 @@ class ScheduleService extends ChangeNotifier {
           );
           rejectedCount++;
         } catch (e) {
-          debugPrint('[ScheduleService] ❌ Ошибка отклонения слота ${record.id}: $e');
+          debugPrint('[ScheduleService] Ошибка отклонения слота ${record.id}: $e');
         }
       }
 
-      debugPrint('[ScheduleService] ✅ Отклонено $rejectedCount слотов');
+      debugPrint('[ScheduleService] Отклонено $rejectedCount слотов');
       notifyListeners();
 
       return rejectedCount;
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка отклонения группы: $e');
+      debugPrint('[ScheduleService] Ошибка отклонения группы: $e');
       rethrow;
     }
   }
@@ -466,7 +466,7 @@ class ScheduleService extends ChangeNotifier {
 
   Stream<int> getPendingRequestsCountStream(String tutorId) async* {
     try {
-      debugPrint('[ScheduleService] 🔔 Подписка на pending запросы репетитора: $tutorId');
+      debugPrint('[ScheduleService] Подписка на pending запросы репетитора: $tutorId');
 
       int currentCount = await _getCount('tutorId="$tutorId" && bookingStatus="pending"');
       yield currentCount;
@@ -476,7 +476,7 @@ class ScheduleService extends ChangeNotifier {
       final unsubscribe = await _pb.collection('slots').subscribe(
         '*',
         (e) async {
-          debugPrint('[ScheduleService] 🔔 Событие: ${e.action} для слота ${e.record?.id}');
+          debugPrint('[ScheduleService] Событие: ${e.action} для слота ${e.record?.id}');
 
           if (e.record != null) {
             final slotTutorId = e.record!.data['tutorId'] as String?;
@@ -487,7 +487,7 @@ class ScheduleService extends ChangeNotifier {
 
             if (slotTutorId == tutorId) {
               final count = await _getCount('tutorId="$tutorId" && bookingStatus="pending"');
-              debugPrint('[ScheduleService] 🔔 Новый счётчик: $count');
+              debugPrint('[ScheduleService] Новый счётчик: $count');
               controller.add(count);
             }
           }
@@ -499,14 +499,14 @@ class ScheduleService extends ChangeNotifier {
       await unsubscribe();
       await controller.close();
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка подписки на pending (tutor): $e');
+      debugPrint('[ScheduleService] Ошибка подписки на pending (tutor): $e');
       yield 0;
     }
   }
 
   Stream<int> getStudentPendingCountStream(String studentId) async* {
     try {
-      debugPrint('[ScheduleService] 🔔 Подписка на pending запросы ученика: $studentId');
+      debugPrint('[ScheduleService] Подписка на pending запросы ученика: $studentId');
 
       int currentCount = await _getCount('studentId="$studentId" && bookingStatus="pending"');
       yield currentCount;
@@ -516,7 +516,7 @@ class ScheduleService extends ChangeNotifier {
       final unsubscribe = await _pb.collection('slots').subscribe(
         '*',
         (e) async {
-          debugPrint('[ScheduleService] 🔔 Событие: ${e.action} для слота ${e.record?.id}');
+          debugPrint('[ScheduleService] Событие: ${e.action} для слота ${e.record?.id}');
 
           if (e.record != null) {
             final slotStudentId = e.record!.data['studentId'] as String?;
@@ -527,7 +527,7 @@ class ScheduleService extends ChangeNotifier {
 
             if (slotStudentId == studentId) {
               final count = await _getCount('studentId="$studentId" && bookingStatus="pending"');
-              debugPrint('[ScheduleService] 🔔 Новый счётчик: $count');
+              debugPrint('[ScheduleService] Новый счётчик: $count');
               controller.add(count);
             }
           }
@@ -539,7 +539,7 @@ class ScheduleService extends ChangeNotifier {
       await unsubscribe();
       await controller.close();
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка подписки на pending (student): $e');
+      debugPrint('[ScheduleService] Ошибка подписки на pending (student): $e');
       yield 0;
     }
   }
@@ -552,7 +552,7 @@ class ScheduleService extends ChangeNotifier {
       );
       return result.totalItems;
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка подсчёта: $e');
+      debugPrint('[ScheduleService] Ошибка подсчёта: $e');
       return 0;
     }
   }
@@ -560,15 +560,15 @@ class ScheduleService extends ChangeNotifier {
   Future<void> unsubscribeFromSlots() async {
     try {
       await _pb.collection('slots').unsubscribe();
-      debugPrint('[ScheduleService] ✅ Отписались от slots subscriptions');
+      debugPrint('[ScheduleService] Отписались от slots subscriptions');
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка отписки: $e');
+      debugPrint('[ScheduleService] Ошибка отписки: $e');
     }
   }
 
   Future<void> approveBooking(String slotId) async {
     try {
-      debugPrint('[ScheduleService] 🟢 Подтверждение запроса на слот: $slotId');
+      debugPrint('[ScheduleService] Подтверждение запроса на слот: $slotId');
 
       await _pb.collection('slots').update(
         slotId,
@@ -577,17 +577,17 @@ class ScheduleService extends ChangeNotifier {
         },
       );
 
-      debugPrint('[ScheduleService] ✅ Запрос подтверждён: $slotId');
+      debugPrint('[ScheduleService] Запрос подтверждён: $slotId');
       notifyListeners();
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка подтверждения запроса: $e');
+      debugPrint('[ScheduleService] Ошибка подтверждения запроса: $e');
       rethrow;
     }
   }
 
   Future<void> rejectBooking(String slotId) async {
     try {
-      debugPrint('[ScheduleService] 🔴 Отклонение запроса на слот: $slotId');
+      debugPrint('[ScheduleService] Отклонение запроса на слот: $slotId');
 
       await _pb.collection('slots').update(
         slotId,
@@ -601,17 +601,17 @@ class ScheduleService extends ChangeNotifier {
         },
       );
 
-      debugPrint('[ScheduleService] ✅ Запрос отклонён, слот освобождён: $slotId');
+      debugPrint('[ScheduleService] Запрос отклонён, слот освобождён: $slotId');
       notifyListeners();
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка отклонения запроса: $e');
+      debugPrint('[ScheduleService] Ошибка отклонения запроса: $e');
       rethrow;
     }
   }
 
   Future<void> cancelStudentBooking(String slotId) async {
     try {
-      debugPrint('[ScheduleService] 🔴 Отмена подтверждённой записи репетитором: $slotId');
+      debugPrint('[ScheduleService] Отмена подтверждённой записи репетитором: $slotId');
 
       await _pb.collection('slots').update(
         slotId,
@@ -625,9 +625,8 @@ class ScheduleService extends ChangeNotifier {
         },
       );
 
-      debugPrint('[ScheduleService] ✅ Запись отменена репетитором: $slotId');
-      
-      // Отправляем сообщение в чат ученику
+      debugPrint('[ScheduleService] Запись отменена репетитором: $slotId');
+
       final slotRecord = await _pb.collection('slots').getOne(slotId);
       final studentId = slotRecord.data['studentId'];
       
@@ -643,18 +642,17 @@ class ScheduleService extends ChangeNotifier {
 
       notifyListeners();
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка отмены записи репетитором: $e');
+      debugPrint('[ScheduleService] Ошибка отмены записи репетитором: $e');
       rethrow;
     }
   }
 
   Future<int> terminateCollaboration(String tutorId, String studentId) async {
     try {
-      debugPrint('[ScheduleService] 🔴 Прекращение сотрудничества: tutor=$tutorId, student=$studentId');
+      debugPrint('[ScheduleService] Прекращение сотрудничества: tutor=$tutorId, student=$studentId');
 
       final todayStr = _formatDate(DateTime.now());
 
-      // Находим все будущие забронированные слоты этого ученика у этого репетитора
       final result = await _pb.collection('slots').getFullList(
         filter: 'tutorId="$tutorId" && studentId="$studentId" && date >= "$todayStr"',
       );
@@ -672,24 +670,23 @@ class ScheduleService extends ChangeNotifier {
           });
           count++;
         } catch (e) {
-          debugPrint('[ScheduleService] ❌ Ошибка освобождения слота ${record.id}: $e');
+          debugPrint('[ScheduleService] Ошибка освобождения слота ${record.id}: $e');
         }
       }
 
-      debugPrint('[ScheduleService] ✅ Сотрудничество прекращено. Освобождено $count слотов');
+      debugPrint('[ScheduleService] Сотрудничество прекращено. Освобождено $count слотов');
 
-      // Отправляем сообщение в чат об отмене всех занятий
       if (count > 0) {
         await _chatService.sendMessage(
           studentId,
-          '❌ Репетитор прекратил сотрудничество. Все ваши будущие записи были отменены.',
+          'Репетитор прекратил сотрудничество. Все ваши будущие записи были отменены.',
         );
       }
 
       notifyListeners();
       return count;
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка прекращения сотрудничества: $e');
+      debugPrint('[ScheduleService] Ошибка прекращения сотрудничества: $e');
       rethrow;
     }
   }
@@ -701,7 +698,7 @@ class ScheduleService extends ChangeNotifier {
     required String newEndTime,
   }) async {
     try {
-      debugPrint('[ScheduleService] 🔄 Перенос слота $slotId на $newDate $newStartTime-$newEndTime');
+      debugPrint('[ScheduleService] Перенос слота $slotId на $newDate $newStartTime-$newEndTime');
 
       final dateStr = _formatDate(newDate);
 
@@ -711,27 +708,26 @@ class ScheduleService extends ChangeNotifier {
           'date': dateStr,
           'startTime': newStartTime,
           'endTime': newEndTime,
-          'isRecurring': false, // Делаем разовым при переносе
+          'isRecurring': false,
           'recurringGroupId': null,
         },
       );
 
-      debugPrint('[ScheduleService] ✅ Слот успешно перенесен');
+      debugPrint('[ScheduleService] Слот успешно перенесен');
 
-      // Отправляем сообщение в чат о переносе
       final slotRecord = await _pb.collection('slots').getOne(slotId);
       final studentId = slotRecord.data['studentId'];
 
       if (studentId != null) {
         await _chatService.sendMessage(
           studentId,
-          '📅 Внимание: Занятие было перенесено. Новое время: $dateStr с $newStartTime до $newEndTime',
+          'Внимание: Занятие было перенесено. Новое время: $dateStr с $newStartTime до $newEndTime',
         );
       }
 
       notifyListeners();
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка переноса слота: $e');
+      debugPrint('[ScheduleService] Ошибка переноса слота: $e');
       rethrow;
     }
   }
@@ -777,18 +773,18 @@ class ScheduleService extends ChangeNotifier {
     int createdCount = 0;
 
     try {
-      debugPrint('[ScheduleService] 🔄 Начало генерации слотов на $daysAhead дней');
+      debugPrint('[ScheduleService] Начало генерации слотов на $daysAhead дней');
 
       final templatesResult = await _pb.collection('weekly_templates').getFullList(
             filter: 'tutorId="$tutorId" && isActive=true',
           );
 
       if (templatesResult.isEmpty) {
-        debugPrint('[ScheduleService] ⚠️ Шаблон не настроен');
+        debugPrint('[ScheduleService] Шаблон не настроен');
         return 0;
       }
 
-      debugPrint('[ScheduleService] ✅ Загружено ${templatesResult.length} шаблонов');
+      debugPrint('[ScheduleService] Загружено ${templatesResult.length} шаблонов');
 
       Map<int, List<WeeklyTemplate>> templatesByDay = {};
       for (var record in templatesResult) {
@@ -804,14 +800,12 @@ class ScheduleService extends ChangeNotifier {
       final todayStr = _formatDate(todayOnly);
       final endDateStr = _formatDate(endDate.add(const Duration(days: 1)));
 
-      // Предварительно загружаем ВСЕ существующие слоты за этот период,
-      // чтобы избежать N*M запросов и ошибок сравнения дат в фильтре PocketBase
       final existingSlotsResult = await _pb.collection('slots').getFullList(
             filter: 'tutorId="$tutorId" && date >= "$todayStr" && date < "$endDateStr"',
           );
       
       final existingSlots = existingSlotsResult.map((e) => ScheduleSlot.fromRecord(e)).toList();
-      debugPrint('[ScheduleService] 📦 Найдено ${existingSlots.length} существующих слотов в периоде');
+      debugPrint('[ScheduleService] Найдено ${existingSlots.length} существующих слотов в периоде');
 
       for (int i = 0; i <= daysAhead; i++) {
         final date = today.add(Duration(days: i));
@@ -821,7 +815,6 @@ class ScheduleService extends ChangeNotifier {
         if (!templatesByDay.containsKey(dayOfWeek)) continue;
 
         for (var template in templatesByDay[dayOfWeek]!) {
-          // Проверяем наличие слота локально
           final bool exists = existingSlots.any((slot) =>
               slot.date.year == dateOnly.year &&
               slot.date.month == dateOnly.month &&
@@ -845,9 +838,8 @@ class ScheduleService extends ChangeNotifier {
 
             createdCount++;
             debugPrint(
-                '[ScheduleService] ✅ Создан слот: $dateStr ${template.startTime}-${template.endTime}');
-            
-            // Добавляем в локальный список, чтобы не создать дубликат в этом же цикле
+                '[ScheduleService] Создан слот: $dateStr ${template.startTime}-${template.endTime}');
+
             existingSlots.add(ScheduleSlot(
               id: 'temp',
               tutorId: tutorId,
@@ -860,12 +852,12 @@ class ScheduleService extends ChangeNotifier {
         }
       }
 
-      debugPrint('[ScheduleService] ✅ Генерация завершена: создано $createdCount слотов');
+      debugPrint('[ScheduleService] Генерация завершена: создано $createdCount слотов');
 
       notifyListeners();
       return createdCount;
     } catch (e, stackTrace) {
-      debugPrint('[ScheduleService] ❌ Ошибка генерации слотов:');
+      debugPrint('[ScheduleService] Ошибка генерации слотов:');
       debugPrint('  Error: $e');
       debugPrint('  StackTrace: $stackTrace');
       return createdCount;
@@ -878,7 +870,7 @@ class ScheduleService extends ChangeNotifier {
     int daysToGenerate = 28,
   }) async {
     try {
-      debugPrint('[ScheduleService] 🔍 Проверка необходимости генерации слотов');
+      debugPrint('[ScheduleService] Проверка необходимости генерации слотов');
 
       final farthestSlotResult = await _pb.collection('slots').getList(
             filter: 'tutorId="$tutorId"',
@@ -887,7 +879,7 @@ class ScheduleService extends ChangeNotifier {
           );
 
       if (farthestSlotResult.items.isEmpty) {
-        debugPrint('[ScheduleService] ⚠️ Слотов нет, генерируем на $daysToGenerate дней');
+        debugPrint('[ScheduleService] Слотов нет, генерируем на $daysToGenerate дней');
         await generateSlotsFromTemplate(
             tutorId: tutorId, daysAhead: daysToGenerate);
         return true;
@@ -897,20 +889,20 @@ class ScheduleService extends ChangeNotifier {
       final today = DateTime.now();
       final daysAhead = farthestDate.difference(today).inDays;
 
-      debugPrint('[ScheduleService] 📊 Слоты есть на $daysAhead дней вперед');
+      debugPrint('[ScheduleService] Слоты есть на $daysAhead дней вперед');
 
       if (daysAhead < minDaysAhead) {
         debugPrint(
-            '[ScheduleService] ⚠️ Слотов мало (<$minDaysAhead дней), генерируем еще на $daysToGenerate дней');
+            '[ScheduleService] Слотов мало (<$minDaysAhead дней), генерируем еще на $daysToGenerate дней');
         await generateSlotsFromTemplate(
             tutorId: tutorId, daysAhead: daysToGenerate);
         return true;
       } else {
-        debugPrint('[ScheduleService] ✅ Слотов достаточно');
+        debugPrint('[ScheduleService] Слотов достаточно');
         return false;
       }
     } catch (e, stackTrace) {
-      debugPrint('[ScheduleService] ❌ Ошибка проверки слотов:');
+      debugPrint('[ScheduleService] Ошибка проверки слотов:');
       debugPrint('  Error: $e');
       debugPrint('  StackTrace: $stackTrace');
       return false;
@@ -921,30 +913,29 @@ class ScheduleService extends ChangeNotifier {
     int deletedCount = 0;
 
     try {
-      debugPrint('[ScheduleService] 🗑️ Очистка сгенерированных свободных слотов');
+      debugPrint('[ScheduleService] Очистка сгенерированных свободных слотов');
 
       final today = DateTime.now();
       final todayOnly = DateTime(today.year, today.month, today.day);
       final todayStr = _formatDate(todayOnly);
 
-      // Используем getFullList, чтобы получить ВСЕ слоты, а не только первые 500
       final records = await _pb.collection('slots').getFullList(
             filter:
                 'tutorId="$tutorId" && generatedFromTemplate=true && isBooked=false && date>="$todayStr"',
           );
 
-      debugPrint('[ScheduleService] 🔍 Найдено ${records.length} слотов для удаления');
+      debugPrint('[ScheduleService] Найдено ${records.length} слотов для удаления');
 
       for (var record in records) {
         try {
           await _pb.collection('slots').delete(record.id);
           deletedCount++;
         } catch (e) {
-          debugPrint('[ScheduleService] ❌ Ошибка удаления слота ${record.id}: $e');
+          debugPrint('[ScheduleService] Ошибка удаления слота ${record.id}: $e');
         }
       }
 
-      debugPrint('[ScheduleService] ✅ Удалено $deletedCount слотов');
+      debugPrint('[ScheduleService] Удалено $deletedCount слотов');
 
       notifyListeners();
       return deletedCount;
@@ -970,7 +961,7 @@ class ScheduleService extends ChangeNotifier {
 
       return result.items.map((record) => ScheduleSlot.fromRecord(record)).toList();
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка получения забронированных слотов: $e');
+      debugPrint('[ScheduleService] Ошибка получения забронированных слотов: $e');
       return [];
     }
   }
@@ -987,11 +978,10 @@ class ScheduleService extends ChangeNotifier {
             perPage: 500,
           );
 
-      // Фильтруем те, что действительно прошли по времени (endTime)
       final slots = result.items.map((record) => ScheduleSlot.fromRecord(record)).toList();
       return slots.where((slot) => slot.isPast).toList();
     } catch (e) {
-      debugPrint('[ScheduleService] ❌ Ошибка получения неоплаченных слотов: $e');
+      debugPrint('[ScheduleService] Ошибка получения неоплаченных слотов: $e');
       return [];
     }
   }

@@ -14,7 +14,6 @@ class PocketBaseService extends ChangeNotifier {
   bool _initialized = false;
   ServerMode _serverMode = ServerMode.local;
 
-  // Дефолтные URL берутся из server_config.dart (файл в .gitignore)
   static const String _defaultLocalUrl = ServerConfig.localUrl;
   static const String _defaultVpsUrl = ServerConfig.vpsUrl;
 
@@ -35,7 +34,6 @@ class PocketBaseService extends ChangeNotifier {
   Future<void> init() async {
     if (_initialized) return;
 
-    // Загружаем сохранённые настройки
     final prefs = await SharedPreferences.getInstance();
     final savedMode = prefs.getString('server_mode');
     if (savedMode == 'vps') {
@@ -76,17 +74,14 @@ class PocketBaseService extends ChangeNotifier {
     debugPrint('[PocketBase] Auth token loaded: ${_pb.authStore.isValid}');
   }
 
-  /// Переключить сервер (локальный ↔ VPS)
   Future<void> switchServer(ServerMode mode) async {
     if (_serverMode == mode) return;
 
     _serverMode = mode;
 
-    // Сохраняем выбор
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('server_mode', mode == ServerMode.vps ? 'vps' : 'local');
 
-    // Пересоздаём PocketBase клиент с новым URL, сохраняя auth store
     final oldStore = _pb.authStore;
     _pb = PocketBase(currentUrl, authStore: oldStore);
 
@@ -94,7 +89,6 @@ class PocketBaseService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Обновить URL сервера
   Future<void> updateUrl(ServerMode mode, String url) async {
     final trimmed = url.trim();
     if (trimmed.isEmpty) return;
@@ -108,7 +102,6 @@ class PocketBaseService extends ChangeNotifier {
       await prefs.setString('vps_url', trimmed);
     }
 
-    // Если изменили URL активного сервера — пересоздаём клиент
     if (_serverMode == mode) {
       final oldStore = _pb.authStore;
       _pb = PocketBase(currentUrl, authStore: oldStore);
@@ -154,9 +147,9 @@ class PocketBaseService extends ChangeNotifier {
     required String filePath,
   }) async {
     try {
-      debugPrint('[PocketBase] 📤 uploadAvatar START');
-      debugPrint('[PocketBase] 👤 User ID: $userId');
-      debugPrint('[PocketBase] 📁 File path: $filePath');
+      debugPrint('[PocketBase] uploadAvatar START');
+      debugPrint('[PocketBase] User ID: $userId');
+      debugPrint('[PocketBase] File path: $filePath');
 
       final file = File(filePath);
       if (!await file.exists()) {
@@ -164,28 +157,28 @@ class PocketBaseService extends ChangeNotifier {
       }
 
       final fileSize = await file.length();
-      debugPrint('[PocketBase] 📦 File size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+      debugPrint('[PocketBase] File size: ${(fileSize / 1024).toStringAsFixed(2)} KB');
 
-      debugPrint('[PocketBase] 🔨 Creating MultipartFile...');
+      debugPrint('[PocketBase] Creating MultipartFile...');
       final multipartFile = await http.MultipartFile.fromPath('avatar', filePath);
-      debugPrint('[PocketBase] ✅ MultipartFile created: ${multipartFile.filename}');
+      debugPrint('[PocketBase] MultipartFile created: ${multipartFile.filename}');
 
-      debugPrint('[PocketBase] 🚀 Sending update request to PocketBase...');
-      debugPrint('[PocketBase] 🌐 URL: ${_pb.baseUrl}/api/collections/users/records/$userId');
+      debugPrint('[PocketBase] Sending update request to PocketBase...');
+      debugPrint('[PocketBase] URL: ${_pb.baseUrl}/api/collections/users/records/$userId');
 
       final record = await _pb.collection('users').update(
         userId,
         files: [multipartFile],
       );
 
-      debugPrint('[PocketBase] ✅ Avatar uploaded successfully!');
-      debugPrint('[PocketBase] 📄 Record ID: ${record.id}');
-      debugPrint('[PocketBase] 📄 Avatar filename: ${record.data['avatar']}');
+      debugPrint('[PocketBase] Avatar uploaded successfully!');
+      debugPrint('[PocketBase] Record ID: ${record.id}');
+      debugPrint('[PocketBase] Avatar filename: ${record.data['avatar']}');
 
       return record;
     } catch (e, stackTrace) {
-      debugPrint('[PocketBase] ❌ ERROR uploading avatar: $e');
-      debugPrint('[PocketBase] 📋 Stack trace: $stackTrace');
+      debugPrint('[PocketBase] ERROR uploading avatar: $e');
+      debugPrint('[PocketBase] Stack trace: $stackTrace');
       rethrow;
     }
   }

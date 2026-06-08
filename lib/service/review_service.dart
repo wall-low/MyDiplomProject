@@ -32,7 +32,7 @@ class ReviewService extends ChangeNotifier {
           },
         );
         review = Review.fromRecord(record);
-        debugPrint('[ReviewService] ✅ Отзыв обновлён: ${record.id}');
+        debugPrint('[ReviewService] Отзыв обновлён: ${record.id}');
       } else {
         final record = await _pb.collection('reviews').create(
           body: {
@@ -46,7 +46,7 @@ class ReviewService extends ChangeNotifier {
           },
         );
         review = Review.fromRecord(record);
-        debugPrint('[ReviewService] ✅ Отзыв создан: ${record.id}');
+        debugPrint('[ReviewService] Отзыв создан: ${record.id}');
       }
 
       await _recalculateTutorRating(tutorId);
@@ -54,7 +54,7 @@ class ReviewService extends ChangeNotifier {
       notifyListeners();
       return review;
     } catch (e) {
-      debugPrint('[ReviewService] ❌ Ошибка создания отзыва: $e');
+      debugPrint('[ReviewService] Ошибка создания отзыва: $e');
       return null;
     }
   }
@@ -68,7 +68,7 @@ class ReviewService extends ChangeNotifier {
       );
       return result.items.map(Review.fromRecord).toList();
     } catch (e) {
-      debugPrint('[ReviewService] ❌ Ошибка получения отзывов: $e');
+      debugPrint('[ReviewService] Ошибка получения отзывов: $e');
       return [];
     }
   }
@@ -123,9 +123,8 @@ class ReviewService extends ChangeNotifier {
 
   Future<void> _recalculateTutorRating(String tutorId) async {
     try {
-      debugPrint('[ReviewService] 🔄 Начало пересчёта рейтинга для: $tutorId');
+      debugPrint('[ReviewService] Начало пересчёта рейтинга для: $tutorId');
 
-      // 1. Получаем ВСЕ проверенные отзывы репетитора (без лимита в 180 дней)
       final reviewsResult = await _pb.collection('reviews').getFullList(
         filter: 'tutorId="$tutorId" && isVerified=true',
         sort: '-created',
@@ -134,7 +133,7 @@ class ReviewService extends ChangeNotifier {
       final reviews = reviewsResult.map(Review.fromRecord).toList();
 
       if (reviews.isEmpty) {
-        debugPrint('[ReviewService] ℹ️ Отзывов нет, проверяем только оплаты');
+        debugPrint('[ReviewService] Отзывов нет, проверяем только оплаты');
         final paidLessonsCount = await _countTotalPaidLessons(tutorId);
         final profile = await _tutorProfileService.getTutorProfileByUserId(tutorId);
         if (profile != null) {
@@ -148,12 +147,10 @@ class ReviewService extends ChangeNotifier {
         return;
       }
 
-      // 2. Получаем ВСЕ оплаты этого репетитора, чтобы посчитать веса учеников за один раз
       final paymentsResult = await _pb.collection('payments').getFullList(
         filter: 'tutorId="$tutorId" && (status="completed" || status="completed_external")',
       );
-      
-      // Группируем оплаты по ученикам для быстрого доступа
+
       final Map<String, int> studentPaymentsCount = {};
       for (final p in paymentsResult) {
         final sId = p.data['studentId'] as String? ?? '';
@@ -162,7 +159,6 @@ class ReviewService extends ChangeNotifier {
         }
       }
 
-      // 3. Группируем оценки по ученикам
       final Map<String, List<int>> studentRatings = {};
       for (final r in reviews) {
         if (r.rating != null) {
@@ -171,7 +167,6 @@ class ReviewService extends ChangeNotifier {
         }
       }
 
-      // 4. Считаем средневзвешенный рейтинг
       double weightedSum = 0;
       double weightSum = 0;
       
@@ -180,8 +175,7 @@ class ReviewService extends ChangeNotifier {
         final ratings = entry.value;
         
         final avgRating = ratings.reduce((a, b) => a + b) / ratings.length;
-        
-        // Вес зависит от количества оплаченных занятий (от 1 до 20)
+
         final paidLessons = studentPaymentsCount[studentId] ?? 1;
         final weight = paidLessons.clamp(1, 20).toDouble();
         
@@ -192,21 +186,20 @@ class ReviewService extends ChangeNotifier {
       final newRating = weightSum > 0 ? weightedSum / weightSum : 0.0;
       final totalPaidLessons = paymentsResult.length;
 
-      // 5. Обновляем профиль
       final profile = await _tutorProfileService.getTutorProfileByUserId(tutorId);
       if (profile != null) {
         await _tutorProfileService.updateRating(
           profileId: profile.id,
           newRating: double.parse(newRating.toStringAsFixed(1)),
           totalPaidLessons: totalPaidLessons,
-          isNewbie: false, // Раз есть отзывы/оплаты, уже не новичок
+          isNewbie: false,
         );
       }
 
       debugPrint(
-          '[ReviewService] ✅ Рейтинг пересчитан: $newRating, Оплат всего: $totalPaidLessons');
+          '[ReviewService] Рейтинг пересчитан: $newRating, Оплат всего: $totalPaidLessons');
     } catch (e, stack) {
-      debugPrint('[ReviewService] ❌ Ошибка пересчёта рейтинга: $e');
+      debugPrint('[ReviewService] Ошибка пересчёта рейтинга: $e');
       debugPrint(stack.toString());
     }
   }

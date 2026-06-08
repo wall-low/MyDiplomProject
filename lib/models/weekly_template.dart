@@ -2,12 +2,12 @@ import 'package:pocketbase/pocketbase.dart';
 
 
 class WeeklyTemplate {
-  final String id; // ID записи в weekly_templates
-  final String tutorId; // Relation → users.id
-  final int dayOfWeek; // 1=Понедельник, 2=Вторник, ..., 7=Воскресенье
-  final String startTime; // Время начала в формате HH:mm (например, "10:00")
-  final String endTime; // Время окончания в формате HH:mm (например, "12:00")
-  final bool isActive; // Активен ли этот слот шаблона
+  final String id;
+  final String tutorId;
+  final int dayOfWeek;
+  final String startTime;
+  final String endTime;
+  final bool isActive;
 
   WeeklyTemplate({
     required this.id,

@@ -36,7 +36,7 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
   void initState() {
     super.initState();
 
-    debugPrint('[AudioPlayer] 🎬 initState для URL: ${widget.url}');
+    debugPrint('[AudioPlayer] initState для URL: ${widget.url}');
 
     _rippleController = AnimationController(
       vsync: this,
@@ -85,38 +85,38 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
     });
 
     _completeSub = _player.onPlayerComplete.listen((event) {
-      debugPrint('[AudioPlayer] ✅ Воспроизведение завершено');
+      debugPrint('[AudioPlayer] Воспроизведение завершено');
     });
 
     _logSub = _player.onLog.listen((msg) {
-      debugPrint('[AudioPlayer] 📋 Log: $msg');
+      debugPrint('[AudioPlayer] Log: $msg');
     });
   }
 
   Future<void> _loadAudioDuration() async {
     try {
-      debugPrint('[AudioPlayer] 📥 Загрузка метаданных аудио...');
+      debugPrint('[AudioPlayer] Загрузка метаданных аудио...');
       await _player.setSource(
         UrlSource(widget.url, mimeType: 'audio/mp4'),
       );
-      debugPrint('[AudioPlayer] ✅ Метаданные загружены');
+      debugPrint('[AudioPlayer] Метаданные загружены');
     } catch (e) {
-      debugPrint('[AudioPlayer] ❌ Ошибка загрузки метаданных: $e');
+      debugPrint('[AudioPlayer] Ошибка загрузки метаданных: $e');
     }
   }
 
   void _togglePlay() async {
     try {
       if (_isPlaying) {
-        debugPrint('[AudioPlayer] ⏸️ Пауза');
+        debugPrint('[AudioPlayer] Пауза');
         await _player.pause();
       } else {
-        debugPrint('[AudioPlayer] ▶️ Попытка воспроизведения: ${widget.url}');
+        debugPrint('[AudioPlayer] Попытка воспроизведения: ${widget.url}');
         await _player.play(UrlSource(widget.url, mimeType: 'audio/mp4'));
-        debugPrint('[AudioPlayer] ✅ play() вызван успешно');
+        debugPrint('[AudioPlayer] play() вызван успешно');
       }
     } catch (e) {
-      debugPrint('[AudioPlayer] ❌ ОШИБКА воспроизведения: $e');
+      debugPrint('[AudioPlayer] ОШИБКА воспроизведения: $e');
     }
   }
 
@@ -286,7 +286,6 @@ class _ChatAudioPlayerState extends State<ChatAudioPlayer> with SingleTickerProv
                         child: SizedBox(
                           height: 3,
                           child: LinearProgressIndicator(
-                            // ✅ ЗАЩИТА: Проверяем на null, zero и infinity
                             value: _duration.inSeconds > 0 && _position.inSeconds >= 0
                                 ? (_position.inSeconds / _duration.inSeconds).clamp(0.0, 1.0)
                                 : 0.0,
@@ -353,7 +352,6 @@ class RipplePainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
-    // Рисуем 2 пульсирующих круга с разной задержкой
     for (int i = 0; i < 2; i++) {
       final progress = (animation.value + (i * 0.5)) % 1.0;
       final radius = 20 + (progress * 15);

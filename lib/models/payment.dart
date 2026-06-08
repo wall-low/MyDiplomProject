@@ -2,13 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:pocketbase/pocketbase.dart';
 
 class Payment {
-  final String id; // ID записи в payments
-  final String studentId; // Relation → users.id (кто платит)
-  final String tutorId; // Relation → users.id (кому платят)
-  final String slotId; // Relation → slots.id (за какое занятие)
-  final double amount; // Сумма оплаты в рублях
-  final String status; // "pending" | "completed" | "failed"
-  final DateTime created; // Дата создания платежа
+  final String id;
+  final String studentId;
+  final String tutorId;
+  final String slotId;
+  final double amount;
+  final String status;
+  final DateTime created;
 
   Payment({
     required this.id,
@@ -89,10 +89,8 @@ class Payment {
 
   bool get isCompleted => status == 'completed' || status == 'completed_external';
 
-  /// Платёж добавлен репетитором вручную (не через приложение)
   bool get isManual => slotId == 'manual';
 
-  /// Платёж произведён вне приложения (наличные / перевод)
   bool get isExternal => status == 'completed_external';
 
   bool get isPending => status == 'pending';

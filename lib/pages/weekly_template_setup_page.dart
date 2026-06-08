@@ -4,12 +4,7 @@ import 'package:p7/service/weekly_template_service.dart';
 import 'package:p7/service/schedule_service.dart';
 import 'package:p7/service/auth.dart';
 
-/// Страница настройки недельного шаблона расписания репетитора
-///
-/// Позволяет:
-/// - Настроить рабочие дни и время для каждого дня недели
-/// - Скопировать понедельник на все будни
-/// - Применить изменения (генерирует слоты на 4 недели вперед)
+
 class WeeklyTemplateSetupPage extends StatefulWidget {
   const WeeklyTemplateSetupPage({super.key});
 
@@ -23,7 +18,6 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
   final _scheduleService = ScheduleService();
   final _auth = Auth();
 
-  // Хранилище шаблонов по дням недели
   Map<int, List<WeeklyTemplate>> _templatesByDay = {};
 
   bool _isLoading = false;
@@ -35,7 +29,6 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
     _loadTemplates();
   }
 
-  /// Загрузка существующих шаблонов
   Future<void> _loadTemplates() async {
     setState(() => _isLoading = true);
 
@@ -50,25 +43,22 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
         _isLoading = false;
       });
 
-      debugPrint('[WeeklyTemplateSetup] ✅ Загружено ${templates.length} дней с шаблонами');
+      debugPrint('[WeeklyTemplateSetup] Загружено ${templates.length} дней с шаблонами');
     } catch (e) {
-      debugPrint('[WeeklyTemplateSetup] ❌ Ошибка загрузки: $e');
+      debugPrint('[WeeklyTemplateSetup] Ошибка загрузки: $e');
       setState(() => _isLoading = false);
     }
   }
 
-  /// Добавить новый временной слот для дня
   Future<void> _addTimeSlot(int dayOfWeek) async {
     final tutorId = _auth.getCurrentUid();
     if (tutorId.isEmpty) return;
 
-    // Показываем диалог выбора времени
     final timeSlot = await _showTimePickerDialog(dayOfWeek);
     if (timeSlot == null) return;
 
-    // Создаем шаблон в БД
     final template = WeeklyTemplate(
-      id: '', // Будет создан PocketBase
+      id: '',
       tutorId: tutorId,
       dayOfWeek: dayOfWeek,
       startTime: timeSlot['start']!,
@@ -79,18 +69,16 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
     final created = await _templateService.createTemplate(template);
 
     if (created != null) {
-      // Обновляем локальное состояние
       setState(() {
         _templatesByDay[dayOfWeek] = _templatesByDay[dayOfWeek] ?? [];
         _templatesByDay[dayOfWeek]!.add(created);
-        // Сортируем по времени начала
         _templatesByDay[dayOfWeek]!.sort((a, b) => a.startTime.compareTo(b.startTime));
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Слот добавлен: ${timeSlot['start']} - ${timeSlot['end']}'),
+            content: Text('Слот добавлен: ${timeSlot['start']} - ${timeSlot['end']}'),
             backgroundColor: Colors.green,
           ),
         );
@@ -99,7 +87,7 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('❌ Ошибка: слот пересекается с существующим'),
+            content: Text('Ошибка: слот пересекается с существующим'),
             backgroundColor: Colors.red,
           ),
         );
@@ -107,7 +95,6 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
     }
   }
 
-  /// Удалить временной слот
   Future<void> _deleteTimeSlot(int dayOfWeek, WeeklyTemplate template) async {
     // Подтверждение
     final confirm = await showDialog<bool>(
@@ -131,11 +118,9 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
 
     if (confirm != true) return;
 
-    // Удаляем из БД
     final success = await _templateService.deleteTemplate(template.id);
 
     if (success) {
-      // Обновляем локальное состояние
       setState(() {
         _templatesByDay[dayOfWeek]?.remove(template);
       });
@@ -143,7 +128,7 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Слот удален'),
+            content: Text('Слот удален'),
             backgroundColor: Colors.green,
           ),
         );
@@ -151,24 +136,21 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
     }
   }
 
-  /// Скопировать понедельник на все будни
   Future<void> _copyMondayToWeekdays() async {
     final tutorId = _auth.getCurrentUid();
     if (tutorId.isEmpty) return;
 
-    // Проверяем, есть ли слоты в понедельник
     final mondaySlots = _templatesByDay[1] ?? [];
     if (mondaySlots.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('⚠️ Понедельник пустой, нечего копировать'),
+          content: Text('Понедельник пустой, нечего копировать'),
           backgroundColor: Colors.orange,
         ),
       );
       return;
     }
 
-    // Подтверждение
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -192,20 +174,17 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
 
     if (confirm != true) return;
 
-    // Показываем загрузку
     setState(() => _isSaving = true);
 
-    // Копируем
     final success = await _templateService.copyMondayToWeekdays(tutorId);
 
     if (success) {
-      // Перезагружаем шаблоны
       await _loadTemplates();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Понедельник скопирован на Вт-Пт'),
+            content: Text('Понедельник скопирован на Вт-Пт'),
             backgroundColor: Colors.green,
           ),
         );
@@ -215,12 +194,10 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
     setState(() => _isSaving = false);
   }
 
-  /// Применить изменения (генерация слотов)
   Future<void> _applyChanges() async {
     final tutorId = _auth.getCurrentUid();
     if (tutorId.isEmpty) return;
 
-    // Подтверждение
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -244,16 +221,13 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
 
     if (confirm != true) return;
 
-    // Показываем загрузку
     setState(() => _isSaving = true);
 
     try {
-      // 1. Удаляем старые сгенерированные свободные слоты
-      debugPrint('[WeeklyTemplateSetup] 🗑️ Удаление старых слотов...');
+      debugPrint('[WeeklyTemplateSetup] Удаление старых слотов...');
       await _scheduleService.clearGeneratedFreeSlots(tutorId);
 
-      // 2. Генерируем новые слоты на 28 дней
-      debugPrint('[WeeklyTemplateSetup] 🔄 Генерация новых слотов...');
+      debugPrint('[WeeklyTemplateSetup] Генерация новых слотов...');
       final createdCount = await _scheduleService.generateSlotsFromTemplate(
         tutorId: tutorId,
         daysAhead: 28,
@@ -262,22 +236,21 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Создано $createdCount слотов на 4 недели'),
+            content: Text('Создано $createdCount слотов на 4 недели'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 3),
           ),
         );
 
-        // Возвращаемся назад
         Navigator.pop(context, true);
       }
     } catch (e) {
-      debugPrint('[WeeklyTemplateSetup] ❌ Ошибка применения: $e');
+      debugPrint('[WeeklyTemplateSetup] Ошибка применения: $e');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка: $e'),
+            content: Text('Ошибка: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -287,7 +260,6 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
     }
   }
 
-  /// Диалог выбора времени начала и конца
   Future<Map<String, String>?> _showTimePickerDialog(int dayOfWeek) async {
     TimeOfDay? startTime;
     TimeOfDay? endTime;
@@ -300,7 +272,6 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Кнопка выбора начала
               ListTile(
                 leading: const Icon(Icons.access_time),
                 title: Text(startTime != null
@@ -319,7 +290,6 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
 
               const SizedBox(height: 8),
 
-              // Кнопка выбора конца
               ListTile(
                 leading: const Icon(Icons.access_time),
                 title: Text(endTime != null
@@ -349,7 +319,6 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
             ElevatedButton(
               onPressed: startTime != null && endTime != null
                   ? () {
-                      // Валидация
                       final start = _formatTime(startTime!);
                       final end = _formatTime(endTime!);
 
@@ -402,7 +371,6 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
                 )
               : Column(
                   children: [
-                    // Кнопка "Скопировать Пн на все будни"
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: ElevatedButton.icon(
@@ -417,7 +385,6 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
                       ),
                     ),
 
-                    // Список дней недели
                     Expanded(
                       child: ListView.builder(
                         itemCount: 7,
@@ -441,7 +408,6 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
     );
   }
 
-  /// Карточка дня недели
   Widget _buildDayCard(int dayOfWeek) {
     final templates = _templatesByDay[dayOfWeek] ?? [];
     final dayName = _getDayName(dayOfWeek);
@@ -471,7 +437,6 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
           ),
         ),
         children: [
-          // Список слотов
           if (templates.isNotEmpty)
             ...templates.map((template) => ListTile(
                   leading: const Icon(Icons.access_time, size: 20),
@@ -482,7 +447,6 @@ class _WeeklyTemplateSetupPageState extends State<WeeklyTemplateSetupPage> {
                   ),
                 )),
 
-          // Кнопка добавления
           Padding(
             padding: const EdgeInsets.all(8),
             child: OutlinedButton.icon(

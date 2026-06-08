@@ -49,7 +49,7 @@ class _AvatarPickerState extends State<AvatarPicker> {
   }
 
   Future<void> _pickAndUpload() async {
-    debugPrint('[AvatarPicker] 🖼️ Начало выбора изображения...');
+    debugPrint('[AvatarPicker] Начало выбора изображения...');
 
     final picked = await _picker.pickImage(
       source: ImageSource.gallery,
@@ -58,13 +58,12 @@ class _AvatarPickerState extends State<AvatarPicker> {
     );
 
     if (picked == null) {
-      debugPrint('[AvatarPicker] ❌ Изображение не выбрано');
+      debugPrint('[AvatarPicker] Изображение не выбрано');
       return;
     }
 
-    debugPrint('[AvatarPicker] ✅ Изображение выбрано: ${picked.path}');
+    debugPrint('[AvatarPicker] Изображение выбрано: ${picked.path}');
 
-    // Показываем индикатор загрузки
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -86,28 +85,28 @@ class _AvatarPickerState extends State<AvatarPicker> {
 
     try {
       final uid = Auth().getCurrentUid();
-      debugPrint('[AvatarPicker] 👤 User ID: $uid');
+      debugPrint('[AvatarPicker] User ID: $uid');
 
       final fileSize = await picked.length();
-      debugPrint('[AvatarPicker] 📦 Размер файла: ${(fileSize / 1024).toStringAsFixed(2)} KB');
+      debugPrint('[AvatarPicker] Размер файла: ${(fileSize / 1024).toStringAsFixed(2)} KB');
 
       if (fileSize > 5 * 1024 * 1024) {
         throw Exception('Файл слишком большой (макс. 5 МБ)');
       }
 
-      debugPrint('[AvatarPicker] 🚀 Начало загрузки в PocketBase...');
+      debugPrint('[AvatarPicker] Начало загрузки в PocketBase...');
 
       final record = await _pbService.uploadAvatar(
         userId: uid,
         filePath: picked.path,
       );
 
-      debugPrint('[AvatarPicker] ✅ Аватар загружен в PocketBase');
-      debugPrint('[AvatarPicker] 📄 Record ID: ${record.id}');
-      debugPrint('[AvatarPicker] 📄 Avatar field: ${record.data['avatar']}');
+      debugPrint('[AvatarPicker] Аватар загружен в PocketBase');
+      debugPrint('[AvatarPicker] Record ID: ${record.id}');
+      debugPrint('[AvatarPicker] Avatar field: ${record.data['avatar']}');
 
       final url = _pbService.getUserAvatarUrl(record);
-      debugPrint('[AvatarPicker] 🌐 Generated URL: $url');
+      debugPrint('[AvatarPicker] Generated URL: $url');
 
       if (!mounted) return;
 
@@ -117,20 +116,20 @@ class _AvatarPickerState extends State<AvatarPicker> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('✅ Аватар успешно обновлён!'),
+          content: Text('Аватар успешно обновлён!'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 2),
         ),
       );
     } catch (e, stackTrace) {
-      debugPrint('[AvatarPicker] ❌ ОШИБКА загрузки аватара: $e');
-      debugPrint('[AvatarPicker] 📋 Stack trace: $stackTrace');
+      debugPrint('[AvatarPicker] ОШИБКА загрузки аватара: $e');
+      debugPrint('[AvatarPicker] Stack trace: $stackTrace');
 
       if (mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка загрузки: ${e.toString()}'),
+            content: Text('Ошибка загрузки: ${e.toString()}'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 5),
           ),

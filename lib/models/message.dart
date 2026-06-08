@@ -5,15 +5,15 @@ class Message {
   final String senderID;
   final String senderEmail;
   final String receiverID;
-  final String message; // Текст сообщения (только для type=text)
+  final String message;
   final DateTime timestamp;
-  final String type; // "text" | "image" | "audio" | "file"
-  final String? file; // Имя файла в PocketBase Storage (для image/audio/file)
-  final String? fileName; // Оригинальное имя файла (опционально)
-  final int? fileSize; // Размер файла в байтах
-  final Duration? duration; // Длительность аудио
+  final String type;
+  final String? file;
+  final String? fileName;
+  final int? fileSize;
+  final Duration? duration;
   final bool isRead;
-  final String? fileUrl; // Полный URL файла (вычисляется в fromRecord)
+  final String? fileUrl;
 
   Message({
     required this.senderID,
@@ -42,7 +42,7 @@ class Message {
       'fileSize': fileSize,
       'duration': duration?.inSeconds,
       'isRead': isRead,
-      // chatRoomId будет добавлен в chat_service.dart при отправке
+
     };
   }
 
@@ -112,11 +112,11 @@ class Message {
           debugPrint('  - recordId: ${record.id}');
         }
       } catch (e) {
-        debugPrint('[Message] ❌ Ошибка построения URL файла: $e');
+        debugPrint('[Message] Ошибка построения URL файла: $e');
       }
     } else {
       if (data['type'] == 'audio' || data['type'] == 'image') {
-        debugPrint('[Message] ⚠️ Нет файла для ${data['type']}!');
+        debugPrint('[Message] Нет файла для ${data['type']}!');
         debugPrint('  - fileName: $fileName');
         debugPrint('  - pb: ${pb != null ? "OK" : "NULL"}');
       }
@@ -130,11 +130,9 @@ class Message {
       timestamp: parsedTimestamp,
       type: data['type'] as String? ?? 'text',
       file: fileName,
-      // Улучшенная логика получения имени
       fileName: data['fileName'] as String? ?? 
                 (data['type'] == 'file' ? data['message'] as String? : null) ?? 
                 fileName,
-      // Улучшенная логика получения размера (обрабатываем int, double и String)
       fileSize: _parseFileSize(data['fileSize']),
       duration: parsedDuration,
       isRead: data['isRead'] as bool? ?? false,

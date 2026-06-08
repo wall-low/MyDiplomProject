@@ -5,12 +5,6 @@ import '../service/auth.dart';
 import '../service/databases.dart';
 import '../service/schedule_service.dart';
 
-/// Страница запросов ученика на бронирование
-///
-/// Функции:
-/// - Просмотр своих pending запросов (ожидают подтверждения)
-/// - Просмотр confirmed запросов (подтверждены репетитором)
-/// - Отмена pending запросов
 class StudentBookingRequestsPage extends StatefulWidget {
   const StudentBookingRequestsPage({super.key});
 
@@ -70,7 +64,6 @@ class _StudentBookingRequestsPageState
     );
   }
 
-  /// Список запросов
   Widget _buildRequestsList(ColorScheme colorScheme) {
     return FutureBuilder<List<ScheduleSlot>>(
       key: ValueKey(_refreshKey),
@@ -146,7 +139,6 @@ class _StudentBookingRequestsPageState
           );
         }
 
-        // Разделяем на pending и confirmed
         final pendingRequests =
             requests.where((slot) => slot.isPending).toList();
         final confirmedRequests =
@@ -155,10 +147,9 @@ class _StudentBookingRequestsPageState
         return ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // Pending запросы
             if (pendingRequests.isNotEmpty) ...[
               Text(
-                '⏳ Ожидают подтверждения',
+                'Ожидают подтверждения',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -173,14 +164,12 @@ class _StudentBookingRequestsPageState
                   )),
             ],
 
-            // Разделитель
             if (pendingRequests.isNotEmpty && confirmedRequests.isNotEmpty)
               const SizedBox(height: 24),
 
-            // Confirmed запросы
             if (confirmedRequests.isNotEmpty) ...[
               Text(
-                '✅ Подтверждены',
+                'Подтверждены',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -200,7 +189,6 @@ class _StudentBookingRequestsPageState
     );
   }
 
-  /// Карточка запроса
   Widget _buildRequestCard(
     ScheduleSlot request,
     ColorScheme colorScheme, {
@@ -220,7 +208,6 @@ class _StudentBookingRequestsPageState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Информация о репетиторе
             FutureBuilder(
               future: _db.getUserFromPocketBase(request.tutorId),
               builder: (context, userSnapshot) {
@@ -281,7 +268,6 @@ class _StudentBookingRequestsPageState
             ),
             const SizedBox(height: 16),
 
-            // Информация о слоте
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -334,7 +320,6 @@ class _StudentBookingRequestsPageState
               ),
             ),
 
-            // Кнопка отмены (только для pending)
             if (isPending) ...[
               const SizedBox(height: 16),
               SizedBox(
@@ -360,10 +345,8 @@ class _StudentBookingRequestsPageState
     );
   }
 
-  /// Отменить запрос
   Future<void> _cancelRequest(ScheduleSlot request) async {
     try {
-      // Показываем диалог подтверждения
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -389,26 +372,24 @@ class _StudentBookingRequestsPageState
 
       if (confirmed != true) return;
 
-      // Отменяем запрос
       await _scheduleService.cancelBooking(request.id);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Запрос отменён'),
+            content: Text('Запрос отменён'),
             backgroundColor: Colors.orange,
             behavior: SnackBarBehavior.floating,
           ),
         );
 
-        // Обновляем список
         _refreshList();
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка: $e'),
+            content: Text('Ошибка: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

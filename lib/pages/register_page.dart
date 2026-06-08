@@ -132,7 +132,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
         String message;
 
-        // Проверяем ответ от сервера для более точной ошибки
         final response = e.response;
         final data = response['data'];
         if (data != null && data is Map && data.isNotEmpty) {
@@ -178,7 +177,6 @@ class _RegisterPageState extends State<RegisterPage> {
                 children: [
                   const SizedBox(height: 30),
 
-                  // Логотип с анимацией
                   TweenAnimationBuilder<double>(
                     tween: Tween(begin: 0.0, end: 1.0),
                     duration: const Duration(milliseconds: 600),
@@ -215,7 +213,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   const SizedBox(height: 8),
 
-                  // Индикатор шага
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -308,7 +305,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
                   const SizedBox(height: 12),
 
-                  // Требования к паролю
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(

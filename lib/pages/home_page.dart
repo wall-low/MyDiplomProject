@@ -25,10 +25,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final ScheduleService _scheduleService = ScheduleService();
   final Databases _db = Databases();
 
-  bool _isTutor = false; // Роль пользователя
-  int _pendingRequestsCount = 0; // Количество запросов
-  int _systemNotificationsCount = 0; // Количество системных уведомлений
-  List<ScheduleSlot> _unpaidSlots = []; // Неоплаченные прошедшие слоты
+  bool _isTutor = false;
+  int _pendingRequestsCount = 0;
+  int _systemNotificationsCount = 0;
+  List<ScheduleSlot> _unpaidSlots = [];
 
   String getCurrentUser(){
     return _auth.getCurrentUid();
@@ -37,10 +37,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
-    // Добавляем observer для отслеживания жизненного цикла приложения
     WidgetsBinding.instance.addObserver(this);
 
-    // Загружаем роль пользователя и запускаем подписку на уведомления
     _loadUserRoleAndRequests();
   }
 
@@ -48,14 +46,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
 
-    // Обновляем счётчик при возврате в приложение
     if (state == AppLifecycleState.resumed) {
-      debugPrint('[HomePage] 🔄 Приложение вернулось на передний план, обновляем счётчик');
+      debugPrint('[HomePage] Приложение вернулось на передний план, обновляем счётчик');
       _loadUserRoleAndRequests();
     }
   }
 
-  /// Загрузить роль пользователя и запустить real-time подписку на запросы
   Future<void> _loadUserRoleAndRequests() async {
     try {
       final user = await _db.getUserFromPocketBase(_auth.getCurrentUid());
@@ -73,7 +69,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           }
         }
 
-        // Запускаем real-time подписку на pending запросы
         _subscribeToPendingRequests();
       }
     } catch (e) {
@@ -81,38 +76,32 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  /// Подписаться на real-time обновления pending запросов
-  ///
-  /// Использует PocketBase realtime subscriptions для автоматического обновления
-  /// счётчика колокольчика при изменении статусов бронирования
+
   void _subscribeToPendingRequests() {
     final userId = _auth.getCurrentUid();
 
     Stream<int> countStream;
 
     if (_isTutor) {
-      // Репетитор: подписываемся на запросы от учеников
-      debugPrint('[HomePage] 🔔 Подписка на запросы репетитора');
+      debugPrint('[HomePage] Подписка на запросы репетитора');
       countStream = _scheduleService.getPendingRequestsCountStream(userId);
     } else {
-      // Ученик: подписываемся на свои pending запросы
-      debugPrint('[HomePage] 🔔 Подписка на запросы ученика');
+      debugPrint('[HomePage] Подписка на запросы ученика');
       countStream = _scheduleService.getStudentPendingCountStream(userId);
     }
 
-    // Слушаем изменения и обновляем UI
     countStream.listen(
       (count) {
         if (mounted) {
-          debugPrint('[HomePage] 🔔 Обновление счётчика: $count');
+          debugPrint('[HomePage] Обновление счётчика: $count');
           setState(() {
             _pendingRequestsCount = count;
           });
-          _loadSystemNotificationsCount(); // Обновляем и системные при любых изменениях
+          _loadSystemNotificationsCount();
         }
       },
       onError: (error) {
-        debugPrint('[HomePage] ❌ Ошибка подписки: $error');
+        debugPrint('[HomePage] Ошибка подписки: $error');
       },
     );
   }
@@ -135,10 +124,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    // Убираем observer жизненного цикла
     WidgetsBinding.instance.removeObserver(this);
 
-    // Отписываемся от realtime подписок
     _chatService.unsubscribeFromChats();
     _scheduleService.unsubscribeFromSlots();
 
@@ -154,22 +141,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         title: Text("Ч А Т Ы"),
         foregroundColor: Theme.of(context).colorScheme.primary,
         actions: [
-          // Список должников (только для репетиторов)
           if (_isTutor && _unpaidSlots.isNotEmpty)
             IconButton(
               icon: Icon(Icons.money_off, color: Colors.orange),
               tooltip: 'Неоплаченные занятия',
               onPressed: () => _showUnpaidSlotsDialog(context),
             ),
-          // Колокольчик с уведомлениями о запросах (для всех пользователей)
           Stack(
             children: [
               IconButton(
                 icon: Icon(Icons.notifications_outlined),
                 onPressed: () async {
-                  // Переход на разные страницы в зависимости от роли
                   if (_isTutor) {
-                    // Репетитор → запросы от учеников
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -177,7 +160,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ),
                     );
                   } else {
-                    // Ученик → свои запросы
                     await Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -187,7 +169,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   }
                 },
               ),
-              // Бейдж с количеством запросов
               if (_pendingRequestsCount > 0)
                 Positioned(
                   right: 8,
@@ -305,19 +286,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Widget _buildChatListItem(Chat chat, BuildContext context) {
-    // Получаем ID собеседника
     final currentUserId = getCurrentUser();
     final otherUserId = chat.getOtherUserId(currentUserId);
 
-    // Получаем количество непрочитанных для текущего пользователя
     final unreadCount = chat.getUnreadCount(currentUserId);
 
-    // Загружаем данные собеседника
     return FutureBuilder(
       future: Databases().getUserFromPocketBase(otherUserId),
       builder: (context, userSnapshot) {
         if (!userSnapshot.hasData) {
-          // Показываем плейсхолдер пока грузятся данные пользователя
           return UserTile(
             text: 'Загрузка...',
             avatarUrl: null,
@@ -340,7 +317,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           isOnline: otherUser.isOnline,
           hasDebt: hasDebt,
           onTap: () async {
-            // Переходим в чат и ждём возврата
             await Navigator.push(
               context,
               MaterialPageRoute(
@@ -357,7 +333,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  /// Диалог со списком неоплаченных занятий
   void _showUnpaidSlotsDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -372,7 +347,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         content: Container(
           width: double.maxFinite,
           child: _unpaidSlots.isEmpty
-              ? Text('Все занятия оплачены 👍')
+              ? Text('Все занятия оплачены')
               : ListView.builder(
                   shrinkWrap: true,
                   itemCount: _unpaidSlots.length,

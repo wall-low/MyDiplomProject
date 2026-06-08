@@ -255,7 +255,6 @@ class _RegisterProfilePageState extends State<RegisterProfilePage> {
                 children: [
                   const SizedBox(height: 30),
 
-                  // Логотип с анимацией
                   TweenAnimationBuilder<double>(
                     tween: Tween(begin: 0.0, end: 1.0),
                     duration: const Duration(milliseconds: 600),
@@ -292,7 +291,6 @@ class _RegisterProfilePageState extends State<RegisterProfilePage> {
 
                   const SizedBox(height: 8),
 
-                  // Индикатор шага
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -314,7 +312,6 @@ class _RegisterProfilePageState extends State<RegisterProfilePage> {
 
                   const SizedBox(height: 40),
 
-                  // Имя
                   MyTextField(
                     textEditingController: nameController,
                     obscureText: false,
@@ -328,7 +325,7 @@ class _RegisterProfilePageState extends State<RegisterProfilePage> {
 
                   const SizedBox(height: 16),
 
-                  // Город
+
                   MyTextField(
                     textEditingController: cityController,
                     obscureText: false,
@@ -342,7 +339,6 @@ class _RegisterProfilePageState extends State<RegisterProfilePage> {
 
                   const SizedBox(height: 16),
 
-                  // Дата рождения
                   Material(
                     color: Colors.transparent,
                     child: InkWell(
@@ -430,7 +426,6 @@ class _RegisterProfilePageState extends State<RegisterProfilePage> {
 
                   const SizedBox(height: 16),
 
-                  // Роль
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     decoration: BoxDecoration(

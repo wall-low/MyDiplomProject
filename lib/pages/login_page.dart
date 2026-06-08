@@ -87,10 +87,8 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void login() async {
-    // Убираем фокус с полей (закрываем клавиатуру)
     FocusScope.of(context).unfocus();
 
-    // Валидация формы
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -104,7 +102,6 @@ class _LoginPageState extends State<LoginPage> {
         passwordController.text,
       );
 
-      // ВАЖНО: Закрываем диалог загрузки ПЕРЕД навигацией
       if (mounted) {
         hideLoad(context);
         setState(() => _isLoading = false);
@@ -120,7 +117,6 @@ class _LoginPageState extends State<LoginPage> {
       String message;
 
       if (e.statusCode == 400) {
-        // Неверный email или пароль
         message = 'Неверный email или пароль';
       } else if (e.statusCode == 403) {
         message = 'Доступ запрещен';
@@ -252,7 +248,6 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   const SizedBox(height: 30),
 
-                  // Логотип с анимацией
                   TweenAnimationBuilder<double>(
                     tween: Tween(begin: 0.0, end: 1.0),
                     duration: const Duration(milliseconds: 600),
@@ -395,7 +390,6 @@ class _LoginPageState extends State<LoginPage> {
 
                   const SizedBox(height: 16),
 
-                  // Переключатель сервера
                   ListenableBuilder(
                     listenable: PocketBaseService(),
                     builder: (context, _) {

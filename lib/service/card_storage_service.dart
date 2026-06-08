@@ -1,13 +1,11 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Сохранённая карта (только последние 4 цифры + срок + имя)
-/// Полный номер карты НЕ хранится
 class SavedCard {
   final String last4;
-  final String expiry; // MM/YY
+  final String expiry;
   final String holder;
-  final String network; // visa / mastercard / mir / other
+  final String network;
 
   SavedCard({
     required this.last4,
@@ -32,7 +30,6 @@ class SavedCard {
 
   String get displayName => '•••• •••• •••• $last4';
 
-  /// Определить платёжную сеть по первой цифре номера
   static String detectNetwork(String cardNumber) {
     final digits = cardNumber.replaceAll(RegExp(r'\D'), '');
     if (digits.isEmpty) return 'other';
@@ -50,13 +47,6 @@ class SavedCard {
   }
 }
 
-/// Локальное хранилище сохранённой карты (SharedPreferences)
-///
-/// Хранит только маскированные данные:
-/// - последние 4 цифры
-/// - срок действия
-/// - имя держателя
-/// Полный номер и CVV НИКОГДА не сохраняются
 class CardStorageService {
   static const _key = 'saved_payment_card';
 
@@ -67,7 +57,7 @@ class CardStorageService {
     try {
       return SavedCard.fromJson(jsonDecode(json) as Map<String, dynamic>);
     } catch (_) {
-      return null; // ignore: avoid_catches_without_on_clauses
+      return null;
     }
   }
 

@@ -50,17 +50,17 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   int _previousMessageCount = 0;
   int _newMessagesCount = 0;
 
-  // Непрочитанные сообщения
+
   int? _firstUnreadIndex;
   bool _unreadScrollDone = false;
   final GlobalKey _unreadDividerKey = GlobalKey();
 
-  // Онлайн-статус
+
   Timer? _presenceTimer;
   String? _lastSeenText;
   bool _isOnline = false;
 
-  // Блокировка: 'blocker' / 'blocked_by' / null
+
   String? _blockStatus;
 
   late final Stream<List<Message>> _messagesStream;
@@ -90,7 +90,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     final currentScroll = _scrollController.position.pixels;
     const threshold = 100.0;
 
-    // reverse: true — offset 0 = низ, offset > 0 = прокрутка вверх
+
     final wasScrolling = _isUserScrolling;
     _isUserScrolling = currentScroll > threshold;
 
@@ -105,7 +105,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   void dispose() {
     _presenceTimer?.cancel();
 
-    // Отменяем все активные загрузки
+
     _cancelledUploads.addAll(_uploadingFiles.keys);
     _uploadingFiles.clear();
 
@@ -493,7 +493,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   void _scrollToBottom({bool animate = true}) {
     if (!_scrollController.hasClients || !mounted) return;
 
-    // reverse: true — низ = offset 0
     if (_scrollController.position.pixels <= 10.0) return;
 
     if (_newMessagesCount > 0) {
@@ -754,7 +753,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                   );
                 }
 
-                // Определяем первое непрочитанное сообщение (один раз)
                 if (_isFirstLoad && !_unreadScrollDone && _firstUnreadIndex == null) {
                   for (int j = 0; j < _cachedMessages.length; j++) {
                     if (_cachedMessages[j].senderID != myId && !_cachedMessages[j].isRead) {
@@ -772,7 +770,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                     _previousMessageCount = currentMessageCount;
                     _isFirstLoad = false;
 
-                    // Скролл к непрочитанным
                     if (_firstUnreadIndex != null && !_unreadScrollDone) {
                       _unreadScrollDone = true;
                       Future.delayed(const Duration(milliseconds: 100), () {
@@ -805,25 +802,21 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
                       itemCount: _cachedMessages.length + _uploadingFiles.length,
                       itemBuilder: (_, i) {
-                        // Загружаемые файлы — внизу (index 0 в reversed = низ экрана)
                         if (i < _uploadingFiles.length) {
                           final entry = _uploadingFiles.entries.elementAt(i);
                           return _buildUploadingMessage(entry.key, entry.value);
                         }
 
-                        // Сообщения в обратном порядке
                         final msgIndex = _cachedMessages.length - 1 - (i - _uploadingFiles.length);
                         final msg = _cachedMessages[msgIndex];
                         final isMine = msg.senderID == myId;
 
-                        // Разделитель дат
                         final showDateSeparator = msgIndex == 0 ||
                             _shouldShowDateSeparator(
                               _cachedMessages[msgIndex - 1],
                               msg,
                             );
 
-                        // Разделитель непрочитанных
                         final showUnreadDivider = _firstUnreadIndex != null &&
                             msgIndex == _firstUnreadIndex;
 
@@ -1095,7 +1088,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
       // Защита от пустого URL
       if (audioUrl.isEmpty) {
-        debugPrint('[ChatPage] ⚠️ ПУСТОЙ URL для аудио! Показываем ошибку.');
+        debugPrint('[ChatPage] ПУСТОЙ URL для аудио! Показываем ошибку.');
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Align(
@@ -1127,7 +1120,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                     timestamp: msg.timestamp,
                   );
                 } catch (e, stack) {
-                  debugPrint('[ChatPage] ❌ Ошибка создания ChatAudioPlayer: $e');
+                  debugPrint('[ChatPage] Ошибка создания ChatAudioPlayer: $e');
                   debugPrint('[ChatPage] Stack: $stack');
                   return Container(
                     padding: const EdgeInsets.all(12),
@@ -1139,7 +1132,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('❌ Ошибка аудио плеера'),
+                        const Text('Ошибка аудио плеера'),
                         const SizedBox(height: 4),
                         Text(
                           '$e',
@@ -1305,7 +1298,6 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   Widget _buildFileMessage(Message msg, bool isMine) {
     String fileName = msg.fileName ?? 'Файл';
-    // Если имя файла содержит технический префикс PocketBase (15 символов + подчеркивание), убираем его для красоты
     if (fileName.contains('_') && fileName.length > 16) {
       final parts = fileName.split('_');
       if (parts.length > 1 && parts[0].length >= 10) {

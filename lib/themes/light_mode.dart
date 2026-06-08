@@ -7,31 +7,30 @@ final ThemeData lightMode = ThemeData(
     brightness: Brightness.light,
 
     // Базовые слои
-    surface: Color(0xFFF5F5F7),      // светлее, мягче для глаз
+    surface: Color(0xFFF5F5F7),
 
-    // Акцент — тонкий синий (как у вас в tertiary)
-    primary: Color(0xFF4A90E2),      // приятный синий
+    primary: Color(0xFF4A90E2),
     onPrimary: Colors.white,
 
-    // Вторичные — серые
+
     secondary: Color(0xFF8E8E93),
     onSecondary: Colors.white,
-    tertiary: Color(0xFF636366),     // темнее серый
+    tertiary: Color(0xFF636366),
     onTertiary: Colors.white,
 
-    // Ошибки
-    error: Color(0xFFFF3B30),        // более заметный красный
+
+    error: Color(0xFFFF3B30),
     onError: Colors.white,
 
-    // Текст
+
     onSurface: Color(0xFF1C1C1E),
 
-    // Контейнеры
-    primaryContainer: Color(0xFFE3F2FD),   // светло-синий
+
+    primaryContainer: Color(0xFFE3F2FD),
     secondaryContainer: Color(0xFFE5E5EA),
   ),
 
-  scaffoldBackgroundColor: const Color(0xFFFFFFFF),  // чистый белый
+  scaffoldBackgroundColor: const Color(0xFFFFFFFF),
 
   appBarTheme: const AppBarTheme(
     elevation: 0,

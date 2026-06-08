@@ -7,14 +7,6 @@ import 'package:p7/pages/tutor_schedule_view_page.dart';
 import 'package:p7/service/review_service.dart';
 import 'package:p7/service/tutor_profile_service.dart';
 
-/// Страница детального профиля репетитора
-///
-/// Показывает полную информацию о репетиторе:
-/// - Аватар, имя, рейтинг
-/// - Предметы, цена, опыт, образование
-/// - Формат занятий (онлайн/оффлайн)
-/// - Биография
-/// - Кнопки "Написать" и "Расписание"
 class TutorProfilePage extends StatefulWidget {
   final TutorProfile tutorProfile;
   final UserProfile userProfile;
@@ -36,7 +28,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
   List<Review> _reviews = [];
   bool _reviewsLoading = true;
 
-  // Актуальный профиль — может обновиться после пересчёта рейтинга
   late TutorProfile _currentProfile;
 
   UserProfile get userProfile => widget.userProfile;
@@ -49,16 +40,13 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
   }
 
   Future<void> _loadReviewsAndRefreshRating() async {
-    // Загружаем отзывы и пересчитываем рейтинг параллельно
     final results = await Future.wait([
       _reviewService.getTutorReviews(widget.userProfile.uid),
-      // Пересчёт рейтинга: отзывы старше 6 месяцев выпадают → рейтинг снижается
       _reviewService.refreshTutorRating(widget.userProfile.uid),
     ]);
 
     if (!mounted) return;
 
-    // Получаем актуальный профиль с пересчитанным рейтингом
     final updatedProfile = await _tutorProfileService
         .getTutorProfileByUserId(widget.userProfile.uid);
 
@@ -79,47 +67,39 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: CustomScrollView(
         slivers: [
-          // Шапка с градиентом и аватаром
           _buildHeader(context),
 
-          // Основной контент
           SliverToBoxAdapter(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 16),
 
-                // Рейтинг
                 _buildRatingCard(context),
 
                 const SizedBox(height: 16),
 
-                // Информация
                 _buildInfoCard(context),
 
                 const SizedBox(height: 16),
 
-                // О себе
                 if (userProfile.bio.isNotEmpty) _buildBioCard(context),
 
                 const SizedBox(height: 16),
 
-                // Отзывы
                 _buildReviewsCard(context),
 
-                const SizedBox(height: 100), // Отступ для кнопок
+                const SizedBox(height: 100),
               ],
             ),
           ),
         ],
       ),
 
-      // Кнопки внизу
       bottomNavigationBar: _buildBottomButtons(context),
     );
   }
 
-  /// Шапка с градиентом, аватаром и именем (как на макете)
   Widget _buildHeader(BuildContext context) {
     return SliverAppBar(
       expandedHeight: 280,
@@ -143,9 +123,8 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const SizedBox(height: 40), // Отступ от AppBar
+              const SizedBox(height: 40),
 
-              // Большой круглый аватар
               CircleAvatar(
                 radius: 70,
                 backgroundColor: Colors.white,
@@ -174,7 +153,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
 
               const SizedBox(height: 16),
 
-              // Имя репетитора
               Text(
                 userProfile.name,
                 style: const TextStyle(
@@ -190,7 +168,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
     );
   }
 
-  /// Карточка с рейтингом (как на макете)
   Widget _buildRatingCard(BuildContext context) {
     return Center(
       child: Container(
@@ -208,7 +185,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
         ),
         child: Column(
           children: [
-            // Звезда и рейтинг
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -228,7 +204,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
 
             const SizedBox(height: 4),
 
-            // Количество оплаченных занятий
             Text(
               _currentProfile.isReallyNewbie
                   ? 'Новичок на платформе'
@@ -244,7 +219,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
     );
   }
 
-  /// Карточка "Информация" (как на макете)
   Widget _buildInfoCard(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -263,7 +237,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Заголовок "Информация"
           const Text(
             'Информация',
             style: TextStyle(
@@ -274,7 +247,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
 
           const SizedBox(height: 16),
 
-          // Предметы (синие чипы)
           if (_currentProfile.subjects.isNotEmpty) ...[
             Wrap(
               spacing: 8,
@@ -303,7 +275,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
             const SizedBox(height: 16),
           ],
 
-          // Цена
           _buildInfoRow(
             Icons.payments_outlined,
             _currentProfile.getPriceDisplay(),
@@ -311,7 +282,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
 
           const SizedBox(height: 12),
 
-          // Опыт
           if (_currentProfile.experience != null)
             _buildInfoRow(
               Icons.school_outlined,
@@ -320,7 +290,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
 
           const SizedBox(height: 12),
 
-          // Образование
           if (_currentProfile.education != null &&
               _currentProfile.education!.isNotEmpty)
             _buildInfoRow(
@@ -330,7 +299,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
 
           const SizedBox(height: 16),
 
-          // Формат занятий (зеленые чипы)
           if (_currentProfile.lessonFormat.isNotEmpty) ...[
             Wrap(
               spacing: 8,
@@ -362,7 +330,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
     );
   }
 
-  /// Строка информации с иконкой
   Widget _buildInfoRow(IconData icon, String text) {
     return Row(
       children: [
@@ -381,7 +348,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
     );
   }
 
-  /// Карточка "О себе" (как на макете)
   Widget _buildBioCard(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -400,7 +366,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Заголовок "О себе"
           const Text(
             'О себе',
             style: TextStyle(
@@ -411,7 +376,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
 
           const SizedBox(height: 12),
 
-          // Текст биографии
           Text(
             userProfile.bio,
             style: TextStyle(
@@ -425,7 +389,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
     );
   }
 
-  /// Карточка отзывов
   Widget _buildReviewsCard(BuildContext context) {
     final verifiedReviews =
         _reviews.where((r) => r.isVerified && r.rating != null).toList();
@@ -496,10 +459,8 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
               ),
             )
           else ...[
-            // Верифицированные (со звёздами)
             ...verifiedReviews.take(5).map((r) => _buildReviewItem(r)),
 
-            // Неверифицированные
             if (unverifiedReviews.isNotEmpty) ...[
               if (verifiedReviews.isNotEmpty)
                 Divider(color: Colors.grey[200], height: 24),
@@ -529,7 +490,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
         children: [
           Row(
             children: [
-              // Звёзды (только для верифицированных)
               if (review.isVerified && review.rating != null) ...[
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -547,7 +507,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
                 ),
                 const SizedBox(width: 8),
               ],
-              // Бейдж верификации
               Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 6, vertical: 2),
@@ -591,7 +550,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
     );
   }
 
-  /// Две кнопки внизу: "Написать" и "Расписание" (как на макете)
   Widget _buildBottomButtons(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -608,7 +566,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
       child: SafeArea(
         child: Row(
           children: [
-            // Кнопка "Написать" (белая с контуром)
             Expanded(
               child: OutlinedButton(
                 onPressed: () {
@@ -645,12 +602,10 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
 
             const SizedBox(width: 12),
 
-            // Кнопка "Расписание" (синяя filled)
             Expanded(
               flex: 2,
               child: ElevatedButton(
                 onPressed: () {
-                  // Открываем расписание репетитора для просмотра и бронирования
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -684,7 +639,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
     );
   }
 
-  /// Склонение слова "занятие"
   String _getPluralLessons(int count) {
     if (count % 10 == 1 && count % 100 != 11) {
       return 'оплаченное занятие';
@@ -696,7 +650,6 @@ class _TutorProfilePageState extends State<TutorProfilePage> {
     }
   }
 
-  /// Склонение слова "год"
   String _getPluralYears(int years) {
     if (years % 10 == 1 && years % 100 != 11) {
       return 'год';

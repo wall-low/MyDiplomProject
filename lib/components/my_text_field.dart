@@ -49,7 +49,6 @@ class MyTextField extends StatelessWidget {
         fontWeight: FontWeight.w400,
       ),
       decoration: InputDecoration(
-        // Label (если есть)
         labelText: label,
         labelStyle: TextStyle(
           color: scheme.secondary,
@@ -62,18 +61,15 @@ class MyTextField extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
 
-        // Hint
         hintText: hintText,
         hintStyle: TextStyle(
           color: scheme.secondary,
           fontSize: 15,
         ),
 
-        // Иконки
         prefixIcon: prefixIcon,
         suffixIcon: suffixIcon,
 
-        // Borders - unselected
         enabledBorder: OutlineInputBorder(
           borderSide: BorderSide(
             color: scheme.secondary,
@@ -82,7 +78,6 @@ class MyTextField extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
         ),
 
-        // Borders - selected
         focusedBorder: OutlineInputBorder(
           borderSide: BorderSide(
             color: scheme.primary,
@@ -91,7 +86,6 @@ class MyTextField extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
         ),
 
-        // Borders - error
         errorBorder: OutlineInputBorder(
           borderSide: BorderSide(
             color: scheme.error,
@@ -107,18 +101,15 @@ class MyTextField extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
         ),
 
-        // Error style
         errorStyle: TextStyle(
           color: scheme.error,
           fontSize: 12,
           fontWeight: FontWeight.w500,
         ),
 
-        // Fill
         fillColor: scheme.primaryContainer.withValues(alpha: 0.3),
         filled: true,
 
-        // Content padding
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 14,

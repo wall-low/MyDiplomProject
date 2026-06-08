@@ -27,21 +27,17 @@ class _SchedulePageState extends State<SchedulePage> {
   final Auth _auth = Auth();
   final Databases _db = Databases();
   DateTime _selectedDate = DateTime.now();
-  DateTime _focusedDay = DateTime.now(); // Для календаря ученика
+  DateTime _focusedDay = DateTime.now();
   bool _isTutor = false;
   bool _isLoading = true;
   String? _loadError;
 
-  // Формат календаря (для ученика)
   CalendarFormat _calendarFormat = CalendarFormat.month;
 
-  // Отслеживание перевернутых карточек
   final Set<String> _flippedCards = {};
 
-  // Все занятия ученика (для календаря)
   List<ScheduleSlot> _allStudentSlots = [];
 
-  // Ключ для принудительного обновления FutureBuilder репетитора
   int _tutorRefreshKey = 0;
 
   @override
@@ -61,7 +57,6 @@ class _SchedulePageState extends State<SchedulePage> {
       final user = await _db.getUserFromPocketBase(_auth.getCurrentUid());
       final isTutor = user?.role == 'Репетитор';
 
-      // Для ученика загружаем все занятия сразу (для календаря)
       if (!isTutor) {
         _allStudentSlots = await _scheduleService.getStudentSlots(_auth.getCurrentUid());
       }
@@ -83,14 +78,13 @@ class _SchedulePageState extends State<SchedulePage> {
   }
 
   Future<void> _refreshSchedule() async {
-    debugPrint('[SchedulePage] 🔄 Обновление расписания');
+    debugPrint('[SchedulePage] Обновление расписания');
 
-    // Для ученика перезагружаем все занятия, для репетитора инкрементируем ключ
     if (!_isTutor) {
       try {
         _allStudentSlots = await _scheduleService.getStudentSlots(_auth.getCurrentUid());
       } catch (e) {
-        debugPrint('[SchedulePage] ❌ Ошибка обновления занятий: $e');
+        debugPrint('[SchedulePage] Ошибка обновления занятий: $e');
       }
     } else {
       _tutorRefreshKey++;
@@ -103,7 +97,7 @@ class _SchedulePageState extends State<SchedulePage> {
       // Показываем уведомление
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('✅ Расписание обновлено'),
+          content: const Text('Расписание обновлено'),
           backgroundColor: Theme.of(context).colorScheme.primary,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 1),
@@ -112,14 +106,12 @@ class _SchedulePageState extends State<SchedulePage> {
     }
   }
 
-  /// Получить занятия на конкретную дату (для календаря ученика)
   List<ScheduleSlot> _getEventsForDay(DateTime day) {
     return _allStudentSlots.where((slot) {
       return isSameDay(slot.date, day);
     }).toList();
   }
 
-  /// Проверить, можно ли отменить занятие (до занятия > 24 часа)
   bool _canCancelSlot(ScheduleSlot slot) {
     try {
       final now = DateTime.now();
@@ -134,13 +126,11 @@ class _SchedulePageState extends State<SchedulePage> {
       final difference = slotDateTime.difference(now);
       return difference.inHours >= 24;
     } catch (e) {
-      debugPrint('[SchedulePage] ❌ Ошибка проверки времени отмены: $e');
+      debugPrint('[SchedulePage] Ошибка проверки времени отмены: $e');
       return false;
     }
   }
 
-  /// Получить цвет для карточки слота (с учетом роли пользователя)
-  /// Проверка: занятие прошло >2 часа назад и не оплачено (для ученика)
   bool _isUnpaidOverdue(ScheduleSlot slot) {
     if (_isTutor) return false;
     if (!slot.isBooked) return false;
@@ -155,19 +145,18 @@ class _SchedulePageState extends State<SchedulePage> {
 
   Color _getSlotColor(ScheduleSlot slot, ColorScheme colorScheme) {
     if (_isTutor) {
-      // Репетитор: красный = забронировано, зеленый = свободно, серый = прошло
+
       if (slot.isBooked) return Colors.red;
       if (slot.isPast) return Colors.grey;
       return Colors.green;
     } else {
-      // Ученик: красный = не оплачено >2ч, синий = будущее, серый = прошедшее/оплачено
+
       if (_isUnpaidOverdue(slot)) return Colors.red;
       if (slot.isPast) return Colors.grey;
       return colorScheme.primary;
     }
   }
 
-  /// Получить текст статуса слота
   String _getSlotStatusText(ScheduleSlot slot) {
     if (_isTutor) {
       if (slot.isPast && slot.isBooked) {
@@ -241,7 +230,6 @@ class _SchedulePageState extends State<SchedulePage> {
         backgroundColor: colorScheme.surface,
         elevation: 0,
         actions: [
-          // Кнопка переключения вида календаря (только для учеников)
           if (!_isTutor)
             IconButton(
               icon: Icon(
@@ -260,7 +248,6 @@ class _SchedulePageState extends State<SchedulePage> {
                 });
               },
             ),
-          // Кнопка настройки недельного графика (только для репетиторов)
           if (_isTutor)
             IconButton(
               icon: const Icon(Icons.event_repeat),
@@ -273,7 +260,6 @@ class _SchedulePageState extends State<SchedulePage> {
                   ),
                 );
 
-                // Если шаблон был применён, обновляем список слотов
                 if (result == true && mounted) {
                   setState(() {});
                 }
@@ -375,15 +361,12 @@ class _SchedulePageState extends State<SchedulePage> {
     );
   }
 
-  /// Представление для ученика с сворачивающимся календарем
   Widget _buildStudentView(ColorScheme colorScheme) {
     final slotsForSelectedDate = _getEventsForDay(_selectedDate);
 
     return Column(
       children: [
-        // Календарь (сворачивается автоматически при скролле)
         _buildCalendar(colorScheme),
-        // Список занятий
         Expanded(
           child: RefreshIndicator(
             onRefresh: _refreshSchedule,
@@ -440,7 +423,6 @@ class _SchedulePageState extends State<SchedulePage> {
     );
   }
 
-  /// Календарь для ученика с маркерами дат
   Widget _buildCalendar(ColorScheme colorScheme) {
     return Material(
         color: colorScheme.surface,
@@ -482,7 +464,6 @@ class _SchedulePageState extends State<SchedulePage> {
               });
             },
             calendarStyle: CalendarStyle(
-          // Сегодняшняя дата
           todayDecoration: BoxDecoration(
             color: colorScheme.primary.withValues(alpha: 0.3),
             shape: BoxShape.circle,
@@ -491,7 +472,6 @@ class _SchedulePageState extends State<SchedulePage> {
             color: colorScheme.onSurface,
             fontWeight: FontWeight.bold,
           ),
-          // Выбранная дата
           selectedDecoration: BoxDecoration(
             color: colorScheme.primary,
             shape: BoxShape.circle,
@@ -500,13 +480,11 @@ class _SchedulePageState extends State<SchedulePage> {
             color: colorScheme.onPrimary,
             fontWeight: FontWeight.bold,
           ),
-          // Маркеры событий (точки под датой)
           markerDecoration: BoxDecoration(
             color: colorScheme.primary,
             shape: BoxShape.circle,
           ),
           markersMaxCount: 1,
-          // Обычные даты
           defaultTextStyle: TextStyle(color: colorScheme.onSurface),
           weekendTextStyle: TextStyle(color: colorScheme.error),
           outsideTextStyle: TextStyle(color: colorScheme.secondary.withValues(alpha: 0.5)),
@@ -521,7 +499,6 @@ class _SchedulePageState extends State<SchedulePage> {
           ),
           leftChevronIcon: Icon(Icons.chevron_left, color: colorScheme.primary),
           rightChevronIcon: Icon(Icons.chevron_right, color: colorScheme.primary),
-          // Небольшой декоративный элемент внизу header'а для подсказки
           headerMargin: const EdgeInsets.only(bottom: 4),
         ),
         daysOfWeekStyle: DaysOfWeekStyle(
@@ -540,8 +517,6 @@ class _SchedulePageState extends State<SchedulePage> {
   }
 
   Widget _buildScheduleList(ColorScheme colorScheme) {
-    // Этот метод используется только для репетиторов
-    // Для учеников используется _buildStudentView с CustomScrollView
     return RefreshIndicator(
       onRefresh: _refreshSchedule,
       child: FutureBuilder<List<ScheduleSlot>>(
@@ -630,7 +605,6 @@ class _SchedulePageState extends State<SchedulePage> {
 
     return GestureDetector(
       onTap: () {
-        // Переворачиваем карточку только если она забронирована
         if (slot.isBooked && slot.studentId != null) {
           setState(() {
             if (isFlipped) {
@@ -640,7 +614,6 @@ class _SchedulePageState extends State<SchedulePage> {
             }
           });
         } else if (!slot.isBooked && !slot.isPast) {
-          // Для свободных слотов показываем опции
           _showSlotOptions(slot);
         }
       },
@@ -671,7 +644,6 @@ class _SchedulePageState extends State<SchedulePage> {
     );
   }
 
-  /// Передняя сторона карточки (время + статус)
   Widget _buildFrontCard(ScheduleSlot slot, ColorScheme colorScheme) {
     final slotColor = _getSlotColor(slot, colorScheme);
     final unpaidOverdue = _isUnpaidOverdue(slot);
@@ -693,7 +665,6 @@ class _SchedulePageState extends State<SchedulePage> {
       child: IntrinsicHeight(
         child: Row(
           children: [
-            // Цветная полоска слева
             Container(
               width: 6,
               decoration: BoxDecoration(
@@ -704,7 +675,6 @@ class _SchedulePageState extends State<SchedulePage> {
                 ),
               ),
             ),
-            // Основной контент
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.all(16),
@@ -712,7 +682,6 @@ class _SchedulePageState extends State<SchedulePage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Время
                       Row(
                         children: [
                           Text(
@@ -758,7 +727,6 @@ class _SchedulePageState extends State<SchedulePage> {
                         ),
                       ],
                       const SizedBox(height: 12),
-                      // Статус
                       Row(
                         children: [
                           Container(
@@ -799,7 +767,6 @@ class _SchedulePageState extends State<SchedulePage> {
                           ],
                         ],
                       ),
-                      // Предупреждение для ученика: не оплачено >2ч
                       if (unpaidOverdue) ...[
                         const SizedBox(height: 10),
                         Container(
@@ -830,7 +797,6 @@ class _SchedulePageState extends State<SchedulePage> {
                   ),
                 ),
               ),
-              // Кнопка действия справа
               if (_isTutor && !slot.isBooked && !slot.isPast)
                 _buildActionButton(
                   icon: Icons.close,
@@ -873,7 +839,6 @@ class _SchedulePageState extends State<SchedulePage> {
     );
   }
 
-  /// Кнопка действия (удалить/отменить)
   Widget _buildActionButton({
     required IconData icon,
     required Color color,
@@ -900,11 +865,7 @@ class _SchedulePageState extends State<SchedulePage> {
     );
   }
 
-  /// Обратная сторона карточки (информация об ученике/репетиторе)
   Widget _buildFlippedCard(ScheduleSlot slot, ColorScheme colorScheme) {
-    // Определяем чей профиль показывать:
-    // - Репетитор видит ученика (studentId)
-    // - Ученик видит репетитора (tutorId)
     final otherUserId = _isTutor ? slot.studentId! : slot.tutorId;
     final roleLabel = _isTutor ? 'Ученик' : 'Репетитор';
 
@@ -916,7 +877,7 @@ class _SchedulePageState extends State<SchedulePage> {
         borderRadius: BorderRadius.circular(16),
       ),
       child: SizedBox(
-        height: 180, // Увеличили высоту для кнопок
+        height: 180,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: FutureBuilder(
@@ -937,13 +898,11 @@ class _SchedulePageState extends State<SchedulePage> {
                 children: [
                   Row(
                     children: [
-                      // Аватар
                       UserAvatar(
                         avatarUrl: otherUser.avatarUrl,
                         size: 56,
                       ),
                       const SizedBox(width: 16),
-                      // Информация о пользователе
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -982,10 +941,8 @@ class _SchedulePageState extends State<SchedulePage> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // Кнопки действий
                   Row(
                     children: [
-                      // Кнопка "Написать"
                       Expanded(
                         child: ElevatedButton.icon(
                           onPressed: () {
@@ -1050,7 +1007,7 @@ class _SchedulePageState extends State<SchedulePage> {
     final picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 365)), // Можно смотреть историю за год
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       locale: const Locale('ru'),
     );
@@ -1167,8 +1124,8 @@ class _SchedulePageState extends State<SchedulePage> {
       final start = '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}';
       final end = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
 
-      debugPrint('[SchedulePage] 📝 Создание слота: ${_selectedDate.toString().split(' ')[0]} $start-$end');
-      debugPrint('[SchedulePage] 👤 TutorID: ${_auth.getCurrentUid()}');
+      debugPrint('[SchedulePage] Создание слота: ${_selectedDate.toString().split(' ')[0]} $start-$end');
+      debugPrint('[SchedulePage] TutorID: ${_auth.getCurrentUid()}');
 
       await _scheduleService.addSlot(
         tutorId: _auth.getCurrentUid(),
@@ -1177,27 +1134,26 @@ class _SchedulePageState extends State<SchedulePage> {
         endTime: end,
       );
 
-      debugPrint('[SchedulePage] ✅ Слот создан успешно');
+      debugPrint('[SchedulePage] Слот создан успешно');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('✅ Слот добавлен'),
+            content: const Text('Слот добавлен'),
             backgroundColor: Theme.of(context).colorScheme.primary,
             behavior: SnackBarBehavior.floating,
           ),
         );
-        // Обновляем список слотов
         setState(() {});
       }
     } catch (e, stackTrace) {
-      debugPrint('[SchedulePage] ❌ Ошибка добавления слота: $e');
-      debugPrint('[SchedulePage] 📋 StackTrace: $stackTrace');
+      debugPrint('[SchedulePage] Ошибка добавления слота: $e');
+      debugPrint('[SchedulePage] StackTrace: $stackTrace');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка: ${e.toString()}'),
+            content: Text('Ошибка: ${e.toString()}'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 5),
@@ -1233,7 +1189,6 @@ class _SchedulePageState extends State<SchedulePage> {
     }
   }
 
-  /// Диалог разового переноса занятия
   Future<void> _showRescheduleDialog(ScheduleSlot slot) async {
     DateTime newDate = slot.date;
     TimeOfDay startTime = TimeOfDay(
@@ -1319,14 +1274,12 @@ class _SchedulePageState extends State<SchedulePage> {
       final start = '${startTime.hour.toString().padLeft(2, '0')}:${startTime.minute.toString().padLeft(2, '0')}';
       final end = '${endTime.hour.toString().padLeft(2, '0')}:${endTime.minute.toString().padLeft(2, '0')}';
 
-      // 1. Проверяем наличие других слотов на это время
       final existingSlots = await _scheduleService.getTutorScheduleByDate(_auth.getCurrentUid(), newDate);
       
       final hasOverlap = existingSlots.any((s) => 
-        s.id != slot.id && // Не проверяем тот же самый слот
-        (s.startTime == start || // Точное совпадение начала
-         s.endTime == end ||     // Точное совпадение конца
-         // Проверка пересечения интервалов: (StartA < EndB) AND (EndA > StartB)
+        s.id != slot.id &&
+        (s.startTime == start ||
+         s.endTime == end ||
          (start.compareTo(s.endTime) < 0 && end.compareTo(s.startTime) > 0))
       );
 
@@ -1346,7 +1299,6 @@ class _SchedulePageState extends State<SchedulePage> {
         return;
       }
 
-      // 2. Если наложений нет, выполняем перенос
       await _scheduleService.rescheduleSlot(
         slotId: slot.id,
         newDate: newDate,
@@ -1360,7 +1312,7 @@ class _SchedulePageState extends State<SchedulePage> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Занятие успешно перенесено'),
+            content: Text('Занятие успешно перенесено'),
             backgroundColor: Colors.blue,
             behavior: SnackBarBehavior.floating,
           ),
@@ -1370,7 +1322,7 @@ class _SchedulePageState extends State<SchedulePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка переноса: $e'),
+            content: Text('Ошибка переноса: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -1379,7 +1331,6 @@ class _SchedulePageState extends State<SchedulePage> {
     }
   }
 
-  /// Отменить запись ученика (для репетитора)
   Future<void> _cancelStudentBooking(ScheduleSlot slot) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1427,7 +1378,7 @@ class _SchedulePageState extends State<SchedulePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка отмены: $e'),
+            content: Text('Ошибка отмены: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -1436,9 +1387,7 @@ class _SchedulePageState extends State<SchedulePage> {
     }
   }
 
-  /// Прекратить сотрудничество (отменить все будущие уроки)
   Future<void> _showTerminateCollaborationDialog(String studentId) async {
-    // Сначала получим имя ученика для диалога
     final student = await _db.getUserFromPocketBase(studentId);
     final studentName = student?.name ?? 'этим учеником';
 
@@ -1476,11 +1425,11 @@ class _SchedulePageState extends State<SchedulePage> {
 
       if (mounted) {
         setState(() {
-          _flippedCards.clear(); // Закрываем все перевернутые карточки
+          _flippedCards.clear();
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ Сотрудничество прекращено. Отменено занятий: $count'),
+            content: Text('Сотрудничество прекращено. Отменено занятий: $count'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -1490,7 +1439,7 @@ class _SchedulePageState extends State<SchedulePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка: $e'),
+            content: Text('Ошибка: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -1499,9 +1448,7 @@ class _SchedulePageState extends State<SchedulePage> {
     }
   }
 
-  /// Отменить бронирование занятия (для ученика)
   Future<void> _cancelBooking(ScheduleSlot slot) async {
-    // Показываем диалог подтверждения
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1527,14 +1474,13 @@ class _SchedulePageState extends State<SchedulePage> {
     try {
       await _scheduleService.cancelBooking(slot.id);
 
-      // Обновляем список занятий ученика
       _allStudentSlots = await _scheduleService.getStudentSlots(_auth.getCurrentUid());
 
       if (mounted) {
         setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('✅ Занятие отменено'),
+            content: const Text('Занятие отменено'),
             backgroundColor: Theme.of(context).colorScheme.primary,
             behavior: SnackBarBehavior.floating,
           ),
@@ -1544,7 +1490,7 @@ class _SchedulePageState extends State<SchedulePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка: ${e.toString()}'),
+            content: Text('Ошибка: ${e.toString()}'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -1553,32 +1499,25 @@ class _SchedulePageState extends State<SchedulePage> {
     }
   }
 
-  /// Показать диалог оплаты занятия
-  ///
-  /// Вызывается для учеников после прошедшего неоплаченного занятия
   Future<void> _showPaymentDialog(ScheduleSlot slot) async {
     try {
-      // Получаем информацию о репетиторе
       final tutorUser = await _db.getUserFromPocketBase(slot.tutorId);
       if (tutorUser == null) {
         throw Exception('Не удалось загрузить данные репетитора');
       }
 
-      // Рассчитываем сумму: цена за час × длительность слота
       double amount = 0;
       try {
         final tutorProfileService = TutorProfileService();
         final tutorProfile = await tutorProfileService.getTutorProfileByUserId(slot.tutorId);
 
         if (tutorProfile != null) {
-          // Вычисляем длительность слота в часах
           final startParts = slot.startTime.split(':');
           final endParts = slot.endTime.split(':');
           final startMinutes = int.parse(startParts[0]) * 60 + int.parse(startParts[1]);
           final endMinutes = int.parse(endParts[0]) * 60 + int.parse(endParts[1]);
           final durationHours = (endMinutes - startMinutes) / 60.0;
 
-          // Берём цену за предмет слота
           double? hourlyRate;
           if (slot.subject != null && tutorProfile.subjectPrices.containsKey(slot.subject)) {
             hourlyRate = tutorProfile.subjectPrices[slot.subject!];
@@ -1593,7 +1532,7 @@ class _SchedulePageState extends State<SchedulePage> {
           }
         }
       } catch (e) {
-        debugPrint('[SchedulePage] ⚠️ Не удалось рассчитать стоимость: $e');
+        debugPrint('[SchedulePage] Не удалось рассчитать стоимость: $e');
       }
 
       if (!mounted) return;
@@ -1609,7 +1548,6 @@ class _SchedulePageState extends State<SchedulePage> {
         ),
       );
 
-      // Показываем диалог отзыва (если ещё не оставляли)
       if (result != null && mounted) {
         final isVerified = result == 'app';
         final reviewService = ReviewService();
@@ -1633,17 +1571,16 @@ class _SchedulePageState extends State<SchedulePage> {
         }
       }
 
-      // ВСЕГДА обновляем список после закрытия диалога
       if (mounted) {
         _allStudentSlots = await _scheduleService.getStudentSlots(_auth.getCurrentUid());
         setState(() {});
       }
     } catch (e) {
-      debugPrint('[SchedulePage] ❌ Ошибка открытия диалога оплаты: $e');
+      debugPrint('[SchedulePage] Ошибка открытия диалога оплаты: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Ошибка: ${e.toString()}'),
+            content: Text('Ошибка: ${e.toString()}'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
