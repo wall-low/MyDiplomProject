@@ -56,6 +56,14 @@ class ScheduleService extends ChangeNotifier {
     }
   }
 
+  /// Преобразует время "HH:mm" в количество минут от начала суток.
+  int _timeToMinutes(String time) {
+    final parts = time.split(':');
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = parts.length > 1 ? (int.tryParse(parts[1]) ?? 0) : 0;
+    return h * 60 + m;
+  }
+
   Future<void> addSlot({
     required String tutorId,
     required DateTime date,
@@ -72,6 +80,25 @@ class ScheduleService extends ChangeNotifier {
 
       final dateOnly = DateTime(date.year, date.month, date.day);
       debugPrint('[ScheduleService] Date normalized: $dateOnly');
+
+      // Проверка пересечения с уже существующими слотами в этот день
+      final existingSlots = await getTutorScheduleByDate(tutorId, dateOnly);
+      final newStart = _timeToMinutes(startTime);
+      final newEnd = _timeToMinutes(endTime);
+
+      if (newEnd <= newStart) {
+        throw Exception('Время окончания должно быть позже начала');
+      }
+
+      for (final existing in existingSlots) {
+        final exStart = _timeToMinutes(existing.startTime);
+        final exEnd = _timeToMinutes(existing.endTime);
+        // Интервалы пересекаются, если начало одного раньше конца другого
+        if (newStart < exEnd && exStart < newEnd) {
+          throw Exception(
+              'Слот пересекается с существующим: ${existing.startTime}–${existing.endTime}');
+        }
+      }
 
       final slot = ScheduleSlot(
         id: '',

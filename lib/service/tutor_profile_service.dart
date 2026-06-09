@@ -231,23 +231,47 @@ class TutorProfileService extends ChangeNotifier {
 
       final filterStr = filters.isNotEmpty ? filters.join(' && ') : '';
 
-      debugPrint('[TutorProfileService] 🔍 Поиск репетиторов: $filterStr');
+      debugPrint('[TutorProfileService] Поиск репетиторов: $filterStr');
 
       final result = await _pb.collection('tutor_profiles').getList(
             filter: filterStr,
-            sort: '-rating,+priceMin',
             perPage: 100,
             expand: 'userId',
           );
 
       debugPrint('[TutorProfileService] Найдено репетиторов: ${result.totalItems}');
 
-      return result.items
+      final tutors = result.items
           .map((record) => TutorProfile.fromRecord(record))
           .toList();
+
+      _sortByBayesianScore(tutors);
+
+      return tutors;
     } catch (e) {
       debugPrint('[TutorProfileService] Ошибка поиска репетиторов: $e');
       return [];
     }
+  }
+
+  void _sortByBayesianScore(List<TutorProfile> tutors) {
+    const double m = 5.0;
+
+    final rated = tutors.where((t) => t.rating > 0).toList();
+    final double c = rated.isEmpty
+        ? 0.0
+        : rated.map((t) => t.rating).reduce((a, b) => a + b) / rated.length;
+
+    double score(TutorProfile t) {
+      final double v = t.totalPaidLessons.toDouble();
+      return (v / (v + m)) * t.rating + (m / (v + m)) * c;
+    }
+
+    tutors.sort((a, b) {
+      final cmp = score(b).compareTo(score(a));
+      if (cmp != 0) return cmp;
+      return (a.priceMin ?? double.infinity)
+          .compareTo(b.priceMin ?? double.infinity);
+    });
   }
 }

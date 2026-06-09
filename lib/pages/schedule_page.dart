@@ -1151,9 +1151,10 @@ class _SchedulePageState extends State<SchedulePage> {
       debugPrint('[SchedulePage] StackTrace: $stackTrace');
 
       if (mounted) {
+        final msg = e.toString().replaceFirst('Exception: ', '');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Ошибка: ${e.toString()}'),
+            content: Text(msg),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 5),
