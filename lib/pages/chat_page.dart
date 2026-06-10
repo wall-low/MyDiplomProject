@@ -309,6 +309,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
 
   void _showAttachmentSheet() {
     if (!mounted) return;
+    FocusScope.of(context).unfocus();
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
