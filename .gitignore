@@ -49,3 +49,7 @@ lib/config/server_config.dart
 
 # Deploy instructions with real IPs
 DEPLOY.md
+
+# PocketBase data (БД, логи, загруженные файлы)
+pocketbase/pb_data/
+pocketbase/pb_data_backup*/
