@@ -148,7 +148,7 @@ class TutorProfileService extends ChangeNotifier {
   Future<bool> updateRating({
     required String profileId,
     required double newRating,
-    required int totalPaidLessons,
+    int? totalPaidLessons,
     required bool isNewbie,
   }) async {
     try {
@@ -156,13 +156,15 @@ class TutorProfileService extends ChangeNotifier {
         profileId,
         body: {
           'rating': newRating,
-          'totalPaidLessons': totalPaidLessons,
+          // Счётчик занятий ведёт incrementPaidLessons. Перезаписываем его
+          // здесь, только если значение передали явно.
+          if (totalPaidLessons != null) 'totalPaidLessons': totalPaidLessons,
           'isNewbie': isNewbie,
         },
       );
 
       debugPrint(
-          '[TutorProfileService] Рейтинг: $newRating, занятий: $totalPaidLessons, новичок: $isNewbie');
+          '[TutorProfileService] Рейтинг: $newRating, новичок: $isNewbie');
 
       notifyListeners();
       return true;

@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:p7/service/auth.dart';
 import 'package:p7/service/databases.dart';
-import 'package:p7/service/tutor_profile_service.dart';
-import 'package:p7/service/review_service.dart';
 import 'package:p7/models/user.dart';
 import 'package:p7/models/tutor_profile.dart';
 import 'tutor_profile_page.dart';
@@ -30,8 +28,6 @@ class FindTutorPage extends StatefulWidget {
 class _FindTutorPageState extends State<FindTutorPage> {
   final _db = Databases();
   final _auth = Auth();
-  final _tutorProfileService = TutorProfileService();
-  final _reviewService = ReviewService();
   final _pb = PocketBaseService().client;
 
   final TextEditingController _searchController = TextEditingController();
@@ -191,27 +187,14 @@ class _FindTutorPageState extends State<FindTutorPage> {
 
       debugPrint('[FindTutor] После фильтрации: ${tutors.length} репетиторов');
 
-      if (tutors.isNotEmpty) {
-        try {
-          await Future.wait(
-            tutors.map((t) => _reviewService.refreshTutorRating(t.userProfile.uid)),
-          );
+      // Рейтинг и totalPaidLessons берём из сохранённых полей tutor_profiles.
+      // Живой пересчёт здесь невозможен: правило listRule у payments отдаёт
+      // только платежи текущего пользователя, поэтому при заходе с чужого
+      // аккаунта счётчик оплат обнулялся и все репетиторы выглядели новичками.
+      // Рейтинг пересчитывается при добавлении отзыва (ReviewService.addReview).
 
-          for (int i = 0; i < tutors.length; i++) {
-            final updated = await _tutorProfileService
-                .getTutorProfileByUserId(tutors[i].userProfile.uid);
-            if (updated != null) {
-              tutors[i] = TutorWithUserData(
-                tutorProfile: updated,
-                userProfile: tutors[i].userProfile,
-              );
-            }
-          }
-        } catch (e) {
-          debugPrint('[FindTutor] Ошибка фонового обновления рейтингов: $e');
-          // Продолжаем работу с тем, что есть
-        }
-      }
+      // Ранжирование по байесовскому сглаживанию
+      _sortByBayesianScore(tutors);
 
       return tutors;
     } catch (e, stackTrace) {
@@ -220,6 +203,31 @@ class _FindTutorPageState extends State<FindTutorPage> {
       debugPrint('  StackTrace: $stackTrace');
       return [];
     }
+  }
+
+  // Ранжированный поиск: Score = v/(v+m)·R + m/(v+m)·C
+  // v — кол-во оплаченных занятий, R — рейтинг репетитора,
+  // m — сглаживающая константа, C — средний рейтинг по выборке.
+  void _sortByBayesianScore(List<TutorWithUserData> tutors) {
+    const double m = 5.0;
+
+    final rated = tutors.where((t) => t.tutorProfile.rating > 0).toList();
+    final double c = rated.isEmpty
+        ? 0.0
+        : rated.map((t) => t.tutorProfile.rating).reduce((a, b) => a + b) /
+            rated.length;
+
+    double score(TutorWithUserData t) {
+      final double v = t.tutorProfile.totalPaidLessons.toDouble();
+      return (v / (v + m)) * t.tutorProfile.rating + (m / (v + m)) * c;
+    }
+
+    tutors.sort((a, b) {
+      final cmp = score(b).compareTo(score(a));
+      if (cmp != 0) return cmp;
+      return (a.tutorProfile.priceMin ?? double.infinity)
+          .compareTo(b.tutorProfile.priceMin ?? double.infinity);
+    });
   }
 
   @override

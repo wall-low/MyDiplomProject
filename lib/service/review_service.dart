@@ -95,18 +95,6 @@ class ReviewService extends ChangeNotifier {
     }
   }
 
-  Future<int> _countTotalPaidLessons(String tutorId) async {
-    try {
-      final result = await _pb.collection('payments').getList(
-        filter: 'tutorId="$tutorId" && (status="completed" || status="completed_external")',
-        perPage: 1,
-      );
-      return result.totalItems;
-    } catch (_) {
-      return 0;
-    }
-  }
-
   Future<int> _countPaidLessonsBetween(
       String studentId, String tutorId) async {
     try {
@@ -133,15 +121,15 @@ class ReviewService extends ChangeNotifier {
       final reviews = reviewsResult.map(Review.fromRecord).toList();
 
       if (reviews.isEmpty) {
-        debugPrint('[ReviewService] Отзывов нет, проверяем только оплаты');
-        final paidLessonsCount = await _countTotalPaidLessons(tutorId);
+        debugPrint('[ReviewService] Отзывов нет, сбрасываем рейтинг');
         final profile = await _tutorProfileService.getTutorProfileByUserId(tutorId);
         if (profile != null) {
+          // Счётчик занятий не трогаем (его ведёт incrementPaidLessons).
+          // Новичок = нет оплаченных занятий по сохранённому счётчику.
           await _tutorProfileService.updateRating(
             profileId: profile.id,
             newRating: 0.0,
-            totalPaidLessons: paidLessonsCount,
-            isNewbie: paidLessonsCount == 0,
+            isNewbie: profile.totalPaidLessons == 0,
           );
         }
         return;
@@ -184,20 +172,19 @@ class ReviewService extends ChangeNotifier {
       }
 
       final newRating = weightSum > 0 ? weightedSum / weightSum : 0.0;
-      final totalPaidLessons = paymentsResult.length;
 
       final profile = await _tutorProfileService.getTutorProfileByUserId(tutorId);
       if (profile != null) {
+        // Счётчик занятий не трогаем (его ведёт incrementPaidLessons),
+        // обновляем только рейтинг. Есть верифицированные отзывы → не новичок.
         await _tutorProfileService.updateRating(
           profileId: profile.id,
           newRating: double.parse(newRating.toStringAsFixed(1)),
-          totalPaidLessons: totalPaidLessons,
           isNewbie: false,
         );
       }
 
-      debugPrint(
-          '[ReviewService] Рейтинг пересчитан: $newRating, Оплат всего: $totalPaidLessons');
+      debugPrint('[ReviewService] Рейтинг пересчитан: $newRating');
     } catch (e, stack) {
       debugPrint('[ReviewService] Ошибка пересчёта рейтинга: $e');
       debugPrint(stack.toString());
