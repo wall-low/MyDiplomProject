@@ -145,7 +145,10 @@ class _SchedulePageState extends State<SchedulePage> {
 
   Color _getSlotColor(ScheduleSlot slot, ColorScheme colorScheme) {
     if (_isTutor) {
-
+      // Прошедшее забронированное занятие: оплачено — зелёный, ждёт оплаты — красный
+      if (slot.isPast && slot.isBooked) {
+        return slot.isPaid ? Colors.green : Colors.red;
+      }
       if (slot.isBooked) return Colors.red;
       if (slot.isPast) return Colors.grey;
       return Colors.green;
