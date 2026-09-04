@@ -1,0 +1,13 @@
+# Определение языка репозитория на GitHub.
+# Платформенные обёртки Flutter содержат Java/Kotlin/Swift/C++/HTML и перебивают
+# статистику — исключаем их, чтобы отображался Dart.
+android/**   linguist-vendored
+ios/**       linguist-vendored
+linux/**     linguist-vendored
+macos/**     linguist-vendored
+windows/**   linguist-vendored
+web/**       linguist-vendored
+
+# Документация и скриншоты не участвуют в подсчёте языков
+docs/**         linguist-documentation
+screenshots/**  linguist-documentation

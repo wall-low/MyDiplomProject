@@ -50,6 +50,11 @@ lib/config/server_config.dart
 # Deploy instructions with real IPs
 DEPLOY.md
 
+# Рабочие заметки, не относящиеся к проекту
+CLAUDE.md
+DEBUG_CHAT.md
+.claude/
+
 # PocketBase data (БД, логи, загруженные файлы)
 pocketbase/pb_data/
 pocketbase/pb_data_backup*/
